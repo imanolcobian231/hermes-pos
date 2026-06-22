@@ -1,6 +1,7 @@
 import type { Corte, ResumenTurno } from '@shared/types'
 import { obtenerDb } from '../db'
 import { aCorte } from '../db/mapeo'
+import * as gastos from './gastos'
 
 const ahora = (): string => new Date().toISOString()
 
@@ -22,6 +23,7 @@ export function resumenTurno(): ResumenTurno {
     totalEfectivo: r.efectivo,
     totalTarjeta: r.tarjeta,
     totalTransferencia: r.transferencia,
+    totalGastos: gastos.totalTurno(),
     numOrdenes: r.num
   }
 }
@@ -43,14 +45,15 @@ export function cerrar(): Corte {
     const r = db
       .prepare(
         `INSERT INTO cortes
-           (fecha, total_efectivo, total_tarjeta, total_transferencia, num_ordenes, cerrado_en)
-         VALUES (?, ?, ?, ?, ?, ?)`
+           (fecha, total_efectivo, total_tarjeta, total_transferencia, total_gastos, num_ordenes, cerrado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         t,
         resumen.totalEfectivo,
         resumen.totalTarjeta,
         resumen.totalTransferencia,
+        resumen.totalGastos,
         resumen.numOrdenes,
         t
       )
@@ -58,6 +61,8 @@ export function cerrar(): Corte {
     db.prepare("UPDATE ordenes SET corte_id = ? WHERE estado = 'cobrada' AND corte_id IS NULL").run(
       corteId
     )
+    // Archiva también los gastos del turno en este corte.
+    db.prepare('UPDATE gastos SET corte_id = ? WHERE corte_id IS NULL').run(corteId)
     return corteId
   })
 

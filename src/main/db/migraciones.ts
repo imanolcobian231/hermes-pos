@@ -48,6 +48,34 @@ function reconstruirOrdenes(db: Database.Database): void {
   db.pragma('foreign_keys = ON')
 }
 
+// Convierte los grupos de modificadores de "por producto" a reutilizables:
+// mueve la relación producto→grupo a la tabla producto_grupos y quita
+// producto_id de grupos_modificadores (conservando ids y modificadores).
+function reconstruirGrupos(db: Database.Database): void {
+  db.pragma('foreign_keys = OFF')
+  const tx = db.transaction(() => {
+    // Copia la relación existente a la tabla puente (creada por crearEsquema).
+    db.exec(
+      'INSERT OR IGNORE INTO producto_grupos (producto_id, grupo_id, orden) SELECT producto_id, id, orden FROM grupos_modificadores'
+    )
+    db.exec(`
+      CREATE TABLE grupos_modificadores_new (
+        id          INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre      TEXT    NOT NULL,
+        obligatorio INTEGER NOT NULL DEFAULT 0,
+        multiple    INTEGER NOT NULL DEFAULT 0
+      );
+    `)
+    db.exec(
+      'INSERT INTO grupos_modificadores_new (id, nombre, obligatorio, multiple) SELECT id, nombre, obligatorio, multiple FROM grupos_modificadores'
+    )
+    db.exec('DROP TABLE grupos_modificadores;')
+    db.exec('ALTER TABLE grupos_modificadores_new RENAME TO grupos_modificadores;')
+  })
+  tx()
+  db.pragma('foreign_keys = ON')
+}
+
 export function migrar(db: Database.Database): void {
   const cols = columnas(db, 'ordenes')
   if (!cols.includes('para_llevar')) {
@@ -55,5 +83,25 @@ export function migrar(db: Database.Database): void {
   } else if (!cols.includes('descuento')) {
     // Migración aditiva: solo faltaba la columna de descuento.
     db.exec('ALTER TABLE ordenes ADD COLUMN descuento REAL NOT NULL DEFAULT 0')
+  }
+
+  // Columna de gastos en cortes (aditiva).
+  if (!columnas(db, 'cortes').includes('total_gastos')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN total_gastos REAL NOT NULL DEFAULT 0')
+  }
+
+  // Color de mesa (aditiva).
+  if (!columnas(db, 'mesas').includes('color')) {
+    db.exec('ALTER TABLE mesas ADD COLUMN color TEXT')
+  }
+
+  // Comensal en el detalle de orden (aditiva).
+  if (!columnas(db, 'detalle_ordenes').includes('comensal')) {
+    db.exec('ALTER TABLE detalle_ordenes ADD COLUMN comensal INTEGER NOT NULL DEFAULT 1')
+  }
+
+  // Grupos de modificadores reutilizables.
+  if (columnas(db, 'grupos_modificadores').includes('producto_id')) {
+    reconstruirGrupos(db)
   }
 }

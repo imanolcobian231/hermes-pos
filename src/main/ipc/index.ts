@@ -14,6 +14,7 @@ import * as mesas from '../repos/mesas'
 import * as catalogo from '../repos/catalogo'
 import * as ordenes from '../repos/ordenes'
 import * as cortes from '../repos/cortes'
+import * as gastos from '../repos/gastos'
 import * as reimpresiones from '../repos/reimpresiones'
 import { imprimirCocina, imprimirFinal } from '../printer/tickets'
 
@@ -43,6 +44,7 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.catalogo.eliminarProducto, (_e, id: number) =>
     catalogo.eliminarProducto(id)
   )
+  ipcMain.handle(CANALES.catalogo.grupos, () => catalogo.listarGrupos())
   ipcMain.handle(CANALES.catalogo.guardarGrupo, (_e, g: GrupoInput) => catalogo.guardarGrupo(g))
   ipcMain.handle(CANALES.catalogo.eliminarGrupo, (_e, id: number) => catalogo.eliminarGrupo(id))
   ipcMain.handle(CANALES.catalogo.guardarModificador, (_e, m: ModificadorInput) =>
@@ -50,6 +52,12 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(CANALES.catalogo.eliminarModificador, (_e, id: number) =>
     catalogo.eliminarModificador(id)
+  )
+  ipcMain.handle(CANALES.catalogo.asignarGrupo, (_e, productoId: number, grupoId: number) =>
+    catalogo.asignarGrupo(productoId, grupoId)
+  )
+  ipcMain.handle(CANALES.catalogo.desasignarGrupo, (_e, productoId: number, grupoId: number) =>
+    catalogo.desasignarGrupo(productoId, grupoId)
   )
 
   // --- Órdenes -------------------------------------------------------------
@@ -60,8 +68,8 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.ordenes.descartar, (_e, ordenId: number) => ordenes.descartar(ordenId))
   ipcMain.handle(
     CANALES.ordenes.agregarProducto,
-    (_e, ordenId: number, productoId: number, modificadorIds?: number[]) =>
-      ordenes.agregarProducto(ordenId, productoId, modificadorIds)
+    (_e, ordenId: number, productoId: number, modificadorIds?: number[], comensal?: number) =>
+      ordenes.agregarProducto(ordenId, productoId, modificadorIds, comensal)
   )
   ipcMain.handle(CANALES.ordenes.cambiarCantidad, (_e, ordenId: number, detalleId: number, delta: number) =>
     ordenes.cambiarCantidad(ordenId, detalleId, delta)
@@ -72,8 +80,8 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.ordenes.quitarLinea, (_e, ordenId: number, detalleId: number) =>
     ordenes.quitarLinea(ordenId, detalleId)
   )
-  ipcMain.handle(CANALES.ordenes.enviarCocina, (_e, ordenId: number) =>
-    ordenes.enviarACocina(ordenId)
+  ipcMain.handle(CANALES.ordenes.enviarCocina, (_e, ordenId: number, comensal?: number) =>
+    ordenes.enviarACocina(ordenId, comensal)
   )
   ipcMain.handle(CANALES.ordenes.marcarPorCobrar, (_e, ordenId: number) =>
     ordenes.marcarPorCobrar(ordenId)
@@ -84,11 +92,19 @@ export function registrarIpc(): void {
       ordenes.cobrar(ordenId, metodo, monto, descuento)
   )
   ipcMain.handle(CANALES.ordenes.cancelar, (_e, ordenId: number) => ordenes.cancelar(ordenId))
+  ipcMain.handle(CANALES.ordenes.cobradasTurno, () => ordenes.cobradasTurno())
 
   // --- Cortes --------------------------------------------------------------
   ipcMain.handle(CANALES.cortes.resumen, () => cortes.resumenTurno())
   ipcMain.handle(CANALES.cortes.listar, () => cortes.listar())
   ipcMain.handle(CANALES.cortes.cerrar, () => cortes.cerrar())
+
+  // --- Gastos --------------------------------------------------------------
+  ipcMain.handle(CANALES.gastos.listar, () => gastos.listarTurno())
+  ipcMain.handle(CANALES.gastos.crear, (_e, concepto: string, monto: number) =>
+    gastos.crear(concepto, monto)
+  )
+  ipcMain.handle(CANALES.gastos.eliminar, (_e, id: number) => gastos.eliminar(id))
 
   // --- Reimpresiones -------------------------------------------------------
   ipcMain.handle(CANALES.reimpresiones.listar, () => reimpresiones.listar())

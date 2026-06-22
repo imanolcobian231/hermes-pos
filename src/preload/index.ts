@@ -5,6 +5,7 @@ import type {
   CategoriaInput,
   Corte,
   DetalleOrden,
+  Gasto,
   GrupoInput,
   GrupoModificador,
   Mesa,
@@ -40,13 +41,18 @@ const api = {
     guardarProducto: (prod: ProductoInput): Promise<Producto> =>
       invoke(CANALES.catalogo.guardarProducto, prod),
     eliminarProducto: (id: number): Promise<void> => invoke(CANALES.catalogo.eliminarProducto, id),
+    grupos: (): Promise<GrupoModificador[]> => invoke(CANALES.catalogo.grupos),
     guardarGrupo: (g: GrupoInput): Promise<GrupoModificador> =>
       invoke(CANALES.catalogo.guardarGrupo, g),
     eliminarGrupo: (id: number): Promise<void> => invoke(CANALES.catalogo.eliminarGrupo, id),
     guardarModificador: (m: ModificadorInput): Promise<Modificador> =>
       invoke(CANALES.catalogo.guardarModificador, m),
     eliminarModificador: (id: number): Promise<void> =>
-      invoke(CANALES.catalogo.eliminarModificador, id)
+      invoke(CANALES.catalogo.eliminarModificador, id),
+    asignarGrupo: (productoId: number, grupoId: number): Promise<void> =>
+      invoke(CANALES.catalogo.asignarGrupo, productoId, grupoId),
+    desasignarGrupo: (productoId: number, grupoId: number): Promise<void> =>
+      invoke(CANALES.catalogo.desasignarGrupo, productoId, grupoId)
   },
   ordenes: {
     activas: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.activas),
@@ -58,17 +64,18 @@ const api = {
     agregarProducto: (
       ordenId: number,
       productoId: number,
-      modificadorIds?: number[]
+      modificadorIds?: number[],
+      comensal?: number
     ): Promise<OrdenConDetalle> =>
-      invoke(CANALES.ordenes.agregarProducto, ordenId, productoId, modificadorIds),
+      invoke(CANALES.ordenes.agregarProducto, ordenId, productoId, modificadorIds, comensal),
     cambiarCantidad: (ordenId: number, detalleId: number, delta: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.cambiarCantidad, ordenId, detalleId, delta),
     cambiarNota: (ordenId: number, detalleId: number, nota: string): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.cambiarNota, ordenId, detalleId, nota),
     quitarLinea: (ordenId: number, detalleId: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.quitarLinea, ordenId, detalleId),
-    enviarCocina: (ordenId: number): Promise<DetalleOrden[]> =>
-      invoke(CANALES.ordenes.enviarCocina, ordenId),
+    enviarCocina: (ordenId: number, comensal?: number): Promise<DetalleOrden[]> =>
+      invoke(CANALES.ordenes.enviarCocina, ordenId, comensal),
     marcarPorCobrar: (ordenId: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.marcarPorCobrar, ordenId),
     cobrar: (
@@ -77,12 +84,19 @@ const api = {
       monto: number,
       descuento?: number
     ): Promise<OrdenConDetalle> => invoke(CANALES.ordenes.cobrar, ordenId, metodo, monto, descuento),
-    cancelar: (ordenId: number): Promise<void> => invoke(CANALES.ordenes.cancelar, ordenId)
+    cancelar: (ordenId: number): Promise<void> => invoke(CANALES.ordenes.cancelar, ordenId),
+    cobradasTurno: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.cobradasTurno)
   },
   cortes: {
     resumen: (): Promise<ResumenTurno> => invoke(CANALES.cortes.resumen),
     listar: (): Promise<Corte[]> => invoke(CANALES.cortes.listar),
     cerrar: (): Promise<Corte> => invoke(CANALES.cortes.cerrar)
+  },
+  gastos: {
+    listar: (): Promise<Gasto[]> => invoke(CANALES.gastos.listar),
+    crear: (concepto: string, monto: number): Promise<Gasto> =>
+      invoke(CANALES.gastos.crear, concepto, monto),
+    eliminar: (id: number): Promise<void> => invoke(CANALES.gastos.eliminar, id)
   },
   reimpresiones: {
     listar: (): Promise<Reimpresion[]> => invoke(CANALES.reimpresiones.listar),

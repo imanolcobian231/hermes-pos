@@ -15,10 +15,13 @@ export const CANALES = {
     productos: 'catalogo:productos',
     guardarProducto: 'catalogo:guardarProducto',
     eliminarProducto: 'catalogo:eliminarProducto',
+    grupos: 'catalogo:grupos',
     guardarGrupo: 'catalogo:guardarGrupo',
     eliminarGrupo: 'catalogo:eliminarGrupo',
     guardarModificador: 'catalogo:guardarModificador',
-    eliminarModificador: 'catalogo:eliminarModificador'
+    eliminarModificador: 'catalogo:eliminarModificador',
+    asignarGrupo: 'catalogo:asignarGrupo',
+    desasignarGrupo: 'catalogo:desasignarGrupo'
   },
   ordenes: {
     activas: 'ordenes:activas',
@@ -33,12 +36,18 @@ export const CANALES = {
     enviarCocina: 'ordenes:enviarCocina',
     marcarPorCobrar: 'ordenes:marcarPorCobrar',
     cobrar: 'ordenes:cobrar',
-    cancelar: 'ordenes:cancelar'
+    cancelar: 'ordenes:cancelar',
+    cobradasTurno: 'ordenes:cobradasTurno'
   },
   cortes: {
     resumen: 'cortes:resumen',
     listar: 'cortes:listar',
     cerrar: 'cortes:cerrar'
+  },
+  gastos: {
+    listar: 'gastos:listar',
+    crear: 'gastos:crear',
+    eliminar: 'gastos:eliminar'
   },
   reimpresiones: {
     listar: 'reimpresiones:listar',

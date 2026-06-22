@@ -20,6 +20,8 @@ export type NombreIcono =
   | 'recibo'
   | 'volver'
   | 'info'
+  | 'finanzas'
+  | 'gasto'
 
 interface Props {
   nombre: NombreIcono
@@ -118,6 +120,18 @@ const paths: Record<NombreIcono, React.ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  finanzas: (
+    <>
+      <path d="M3 7h18v12H3zM3 7l2-3h14l2 3" />
+      <path d="M16 13h.01" />
+    </>
+  ),
+  gasto: (
+    <>
+      <path d="M12 3v18" />
+      <path d="M7 8l5-5 5 5" />
     </>
   )
 }

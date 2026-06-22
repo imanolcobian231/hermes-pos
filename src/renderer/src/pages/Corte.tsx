@@ -16,6 +16,8 @@ export function Corte(): React.JSX.Element {
   const tarjeta = resumen.totalTarjeta
   const transferencia = resumen.totalTransferencia
   const total = efectivo + tarjeta + transferencia
+  const gastos = resumen.totalGastos
+  const balance = total - gastos
   const numOrdenes = resumen.numOrdenes
 
   return (
@@ -36,11 +38,15 @@ export function Corte(): React.JSX.Element {
 
       {/* Turno actual */}
       <section className="mb-8">
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="mb-4 grid grid-cols-3 gap-4">
           <Tarjeta label="Efectivo" monto={efectivo} icono="efectivo" />
           <Tarjeta label="Tarjeta" monto={tarjeta} icono="tarjeta" />
           <Tarjeta label="Transferencia" monto={transferencia} icono="transferencia" />
-          <Tarjeta label="Total turno" monto={total} icono="corte" destacar />
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <Tarjeta label="Ventas" monto={total} icono="cobro" />
+          <Tarjeta label="Gastos" monto={gastos} icono="gasto" negativo />
+          <Tarjeta label="Balance del turno" monto={balance} icono="corte" destacar />
         </div>
         <p className="mt-3 text-sm text-slate-500">
           {numOrdenes} {numOrdenes === 1 ? 'orden cobrada' : 'órdenes cobradas'} en el turno
@@ -61,23 +67,30 @@ export function Corte(): React.JSX.Element {
                   <th className="px-4 py-2.5 text-right">Efectivo</th>
                   <th className="px-4 py-2.5 text-right">Tarjeta</th>
                   <th className="px-4 py-2.5 text-right">Transfer.</th>
-                  <th className="px-4 py-2.5 text-right">Órdenes</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
+                  <th className="px-4 py-2.5 text-right">Ventas</th>
+                  <th className="px-4 py-2.5 text-right">Gastos</th>
+                  <th className="px-4 py-2.5 text-right">Balance</th>
                 </tr>
               </thead>
               <tbody>
-                {cortes.map((c) => (
-                  <tr key={c.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2.5 text-slate-600">{fechaHora(c.cerradoEn)}</td>
-                    <td className="px-4 py-2.5 text-right">{pesos(c.totalEfectivo)}</td>
-                    <td className="px-4 py-2.5 text-right">{pesos(c.totalTarjeta)}</td>
-                    <td className="px-4 py-2.5 text-right">{pesos(c.totalTransferencia)}</td>
-                    <td className="px-4 py-2.5 text-right">{c.numOrdenes}</td>
-                    <td className="px-4 py-2.5 text-right font-bold text-slate-800">
-                      {pesos(c.totalEfectivo + c.totalTarjeta + c.totalTransferencia)}
-                    </td>
-                  </tr>
-                ))}
+                {cortes.map((c) => {
+                  const ventas = c.totalEfectivo + c.totalTarjeta + c.totalTransferencia
+                  return (
+                    <tr key={c.id} className="border-t border-slate-100">
+                      <td className="px-4 py-2.5 text-slate-600">{fechaHora(c.cerradoEn)}</td>
+                      <td className="px-4 py-2.5 text-right">{pesos(c.totalEfectivo)}</td>
+                      <td className="px-4 py-2.5 text-right">{pesos(c.totalTarjeta)}</td>
+                      <td className="px-4 py-2.5 text-right">{pesos(c.totalTransferencia)}</td>
+                      <td className="px-4 py-2.5 text-right text-slate-700">{pesos(ventas)}</td>
+                      <td className="px-4 py-2.5 text-right text-red-600">
+                        {c.totalGastos > 0 ? `−${pesos(c.totalGastos)}` : pesos(0)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                        {pesos(ventas - c.totalGastos)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -139,11 +152,9 @@ export function Corte(): React.JSX.Element {
               onClick={async () => {
                 const corte = await cerrarCorte()
                 setConfirmar(false)
-                toast(
-                  `Turno cerrado · ${pesos(
-                    corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
-                  )}`
-                )
+                const ventas =
+                  corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
+                toast(`Turno cerrado · balance ${pesos(ventas - corte.totalGastos)}`)
               }}
               className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
             >
@@ -153,8 +164,9 @@ export function Corte(): React.JSX.Element {
         }
       >
         <p className="text-sm text-slate-600">
-          Se registrará un corte por <strong>{pesos(total)}</strong> ({numOrdenes} órdenes) y se
-          iniciará un turno nuevo. Esta acción no se puede deshacer.
+          Ventas <strong>{pesos(total)}</strong> − gastos <strong>{pesos(gastos)}</strong> ={' '}
+          <strong>{pesos(balance)}</strong> de balance ({numOrdenes} órdenes). Se cerrará el turno e
+          iniciará uno nuevo. Esta acción no se puede deshacer.
         </p>
       </Modal>
     </div>
@@ -165,13 +177,22 @@ function Tarjeta({
   label,
   monto,
   icono,
-  destacar
+  destacar,
+  negativo
 }: {
   label: string
   monto: number
   icono: NombreIcono
   destacar?: boolean
+  negativo?: boolean
 }): React.JSX.Element {
+  const colorMonto = destacar
+    ? monto < 0
+      ? 'text-red-300'
+      : 'text-white'
+    : negativo
+      ? 'text-red-600'
+      : 'text-slate-900'
   return (
     <div
       className={`rounded-lg border p-5 ${
@@ -186,8 +207,8 @@ function Tarjeta({
         <Icono nombre={icono} size={16} />
         {label}
       </div>
-      <div className={`text-2xl font-bold ${destacar ? 'text-white' : 'text-slate-900'}`}>
-        {pesos(monto)}
+      <div className={`text-2xl font-bold ${colorMonto}`}>
+        {negativo && monto > 0 ? `−${pesos(monto)}` : pesos(monto)}
       </div>
     </div>
   )

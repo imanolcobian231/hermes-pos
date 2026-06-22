@@ -17,6 +17,7 @@
     "postinstall": "electron-rebuild -f -w better-sqlite3"
   },
   "dependencies": {
+    "@fontsource-variable/inter": "^5.2.8",
     "better-sqlite3": "^11.10.0"
   },
   "devDependencies": {

@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tipografía base profesional con Inter (empaquetada, funciona sin internet). */
+@theme {
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
 :root {
   color-scheme: light;
 }
@@ -12,5 +17,18 @@ body,
 }
 
 body {
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+  /* Render más nítido y números alineados (precios/totales). */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.006em;
+  text-rendering: optimizeLegibility;
+}
+
+/* Títulos un poco más compactos, estilo dashboard profesional. */
+h1,
+h2,
+h3 {
+  letter-spacing: -0.02em;
 }

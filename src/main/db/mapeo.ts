@@ -1,6 +1,7 @@
 import type {
   Categoria,
   Corte,
+  Gasto,
   DetalleModificador,
   DetalleOrden,
   EstadoMesa,
@@ -22,7 +23,8 @@ export function aMesa(r: Record<string, unknown>): Mesa {
     numero: r.numero as number,
     nombre: r.nombre as string,
     capacidad: r.capacidad as number,
-    estado: r.estado as EstadoMesa
+    estado: r.estado as EstadoMesa,
+    color: (r.color as string | null) ?? undefined
   }
 }
 
@@ -76,6 +78,7 @@ export function aDetalle(
     cantidad: r.cantidad as number,
     precioUnitario: r.precio_unitario as number,
     notas: (r.notas as string | null) ?? undefined,
+    comensal: (r.comensal as number | null) ?? 1,
     enviadoCocina: Boolean(r.enviado_cocina),
     enviadoEn: (r.enviado_en as string | null) ?? undefined,
     modificadores
@@ -88,11 +91,10 @@ export function aGrupo(
 ): GrupoModificador {
   return {
     id: r.id as number,
-    productoId: r.producto_id as number,
     nombre: r.nombre as string,
     obligatorio: Boolean(r.obligatorio),
     multiple: Boolean(r.multiple),
-    orden: r.orden as number,
+    orden: (r.orden as number | null) ?? 0,
     modificadores
   }
 }
@@ -123,8 +125,18 @@ export function aCorte(r: Record<string, unknown>): Corte {
     totalEfectivo: r.total_efectivo as number,
     totalTarjeta: r.total_tarjeta as number,
     totalTransferencia: r.total_transferencia as number,
+    totalGastos: (r.total_gastos as number | null) ?? 0,
     numOrdenes: r.num_ordenes as number,
     cerradoEn: r.cerrado_en as string
+  }
+}
+
+export function aGasto(r: Record<string, unknown>): Gasto {
+  return {
+    id: r.id as number,
+    concepto: r.concepto as string,
+    monto: r.monto as number,
+    fecha: r.fecha as string
   }
 }
 

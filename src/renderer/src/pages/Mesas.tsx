@@ -8,6 +8,18 @@ import { Icono } from '@renderer/components/Icono'
 import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
 
+// Paleta de colores para asignar a las mesas (zonas).
+const COLORES_MESA = [
+  '#ef4444',
+  '#f97316',
+  '#f59e0b',
+  '#22c55e',
+  '#14b8a6',
+  '#3b82f6',
+  '#8b5cf6',
+  '#ec4899'
+]
+
 interface Props {
   /** Abre la pantalla de pedidos para la mesa seleccionada. */
   onAbrirMesa: (mesa: Mesa) => void
@@ -24,6 +36,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
   const [editando, setEditando] = useState<Mesa | null>(null)
   const [nombre, setNombre] = useState('')
   const [capacidad, setCapacidad] = useState(4)
+  const [color, setColor] = useState<string | undefined>(undefined)
   const [aEliminar, setAEliminar] = useState<Mesa | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -31,6 +44,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
     if (editando) {
       setNombre(editando.nombre)
       setCapacidad(editando.capacidad)
+      setColor(editando.color)
       // Enfoca y selecciona tras montar el modal.
       setTimeout(() => inputRef.current?.select(), 50)
     }
@@ -45,7 +59,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
 
   const guardar = (): void => {
     if (!editando) return
-    editarMesa(editando.id, { nombre, capacidad })
+    editarMesa(editando.id, { nombre, capacidad, color })
     setEditando(null)
     toast('Mesa actualizada')
   }
@@ -195,6 +209,32 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
           onChange={(e) => setCapacidad(Math.max(1, Number(e.target.value)))}
           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
         />
+
+        <label className="mb-1 mt-3 block text-sm font-medium text-slate-600">Color</label>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setColor(undefined)}
+            title="Sin color"
+            className={`flex h-8 w-8 items-center justify-center rounded-full border bg-white text-xs text-slate-400 ${
+              !color ? 'border-slate-900 ring-2 ring-slate-200' : 'border-slate-300'
+            }`}
+          >
+            ✕
+          </button>
+          {COLORES_MESA.map((c) => (
+            <button
+              type="button"
+              key={c}
+              onClick={() => setColor(c)}
+              style={{ backgroundColor: c }}
+              className={`h-8 w-8 rounded-full border transition ${
+                color === c ? 'border-slate-900 ring-2 ring-slate-300' : 'border-transparent'
+              }`}
+            />
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-slate-400">Útil para distinguir zonas (terraza, barra…).</p>
       </Modal>
 
       <ConfirmDialog

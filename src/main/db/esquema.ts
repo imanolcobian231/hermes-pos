@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS mesas (
   numero    INTEGER NOT NULL UNIQUE,
   nombre    TEXT    NOT NULL,
   capacidad INTEGER NOT NULL DEFAULT 4,
-  estado    TEXT    NOT NULL DEFAULT 'libre'
+  estado    TEXT    NOT NULL DEFAULT 'libre',
+  color     TEXT
 );
 
 CREATE TABLE IF NOT EXISTS categorias (
@@ -54,17 +55,16 @@ CREATE TABLE IF NOT EXISTS detalle_ordenes (
   cantidad        INTEGER NOT NULL DEFAULT 1,
   precio_unitario REAL    NOT NULL DEFAULT 0,
   notas           TEXT,
+  comensal        INTEGER NOT NULL DEFAULT 1,
   enviado_cocina  INTEGER NOT NULL DEFAULT 0,
   enviado_en      TEXT
 );
 
 CREATE TABLE IF NOT EXISTS grupos_modificadores (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
   nombre      TEXT    NOT NULL,
   obligatorio INTEGER NOT NULL DEFAULT 0,
-  multiple    INTEGER NOT NULL DEFAULT 0,
-  orden       INTEGER NOT NULL DEFAULT 1
+  multiple    INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS modificadores (
@@ -72,6 +72,14 @@ CREATE TABLE IF NOT EXISTS modificadores (
   grupo_id INTEGER NOT NULL REFERENCES grupos_modificadores(id) ON DELETE CASCADE,
   nombre   TEXT    NOT NULL,
   precio   REAL    NOT NULL DEFAULT 0
+);
+
+-- Asignación de grupos reutilizables a productos (muchos a muchos).
+CREATE TABLE IF NOT EXISTS producto_grupos (
+  producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  grupo_id    INTEGER NOT NULL REFERENCES grupos_modificadores(id) ON DELETE CASCADE,
+  orden       INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (producto_id, grupo_id)
 );
 
 CREATE TABLE IF NOT EXISTS detalle_modificadores (
@@ -88,8 +96,17 @@ CREATE TABLE IF NOT EXISTS cortes (
   total_efectivo      REAL NOT NULL DEFAULT 0,
   total_tarjeta       REAL NOT NULL DEFAULT 0,
   total_transferencia REAL NOT NULL DEFAULT 0,
+  total_gastos        REAL NOT NULL DEFAULT 0,
   num_ordenes         INTEGER NOT NULL DEFAULT 0,
   cerrado_en          TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS gastos (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  concepto TEXT    NOT NULL,
+  monto    REAL    NOT NULL DEFAULT 0,
+  fecha    TEXT    NOT NULL,
+  corte_id INTEGER REFERENCES cortes(id)
 );
 
 CREATE TABLE IF NOT EXISTS reimpresiones (
@@ -103,8 +120,8 @@ CREATE TABLE IF NOT EXISTS reimpresiones (
 CREATE INDEX IF NOT EXISTS idx_ordenes_estado ON ordenes(estado);
 CREATE INDEX IF NOT EXISTS idx_detalle_orden ON detalle_ordenes(orden_id);
 CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria_id);
-CREATE INDEX IF NOT EXISTS idx_grupos_producto ON grupos_modificadores(producto_id);
 CREATE INDEX IF NOT EXISTS idx_modificadores_grupo ON modificadores(grupo_id);
+CREATE INDEX IF NOT EXISTS idx_prodgrupos_producto ON producto_grupos(producto_id);
 CREATE INDEX IF NOT EXISTS idx_detmod_detalle ON detalle_modificadores(detalle_id);
 `
 

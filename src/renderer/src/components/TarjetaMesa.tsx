@@ -41,7 +41,11 @@ export function TarjetaMesa({ mesa, total, onClick, onEditar }: Props): React.JS
       onClick={() => onClick?.(mesa)}
       className="group relative flex aspect-square cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-sm"
     >
-      <span className={`absolute inset-x-0 top-0 h-1 ${estilo.barra}`} />
+      {mesa.color ? (
+        <span className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: mesa.color }} />
+      ) : (
+        <span className={`absolute inset-x-0 top-0 h-1 ${estilo.barra}`} />
+      )}
 
       {onEditar && (
         <button

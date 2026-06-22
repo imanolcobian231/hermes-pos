@@ -37,6 +37,16 @@ export function listarActivas(): OrdenConDetalle[] {
   return filas.map((f) => ({ ...aOrden(f), detalle: detalleDe(f.id as number) }))
 }
 
+/** Órdenes cobradas del turno actual (aún no incluidas en un corte), recientes primero. */
+export function cobradasTurno(): OrdenConDetalle[] {
+  const filas = obtenerDb()
+    .prepare(
+      "SELECT * FROM ordenes WHERE estado = 'cobrada' AND corte_id IS NULL ORDER BY cerrado_en DESC"
+    )
+    .all() as Record<string, unknown>[]
+  return filas.map((f) => ({ ...aOrden(f), detalle: detalleDe(f.id as number) }))
+}
+
 export function ordenDeMesa(mesaId: number): OrdenConDetalle | undefined {
   const fila = obtenerDb()
     .prepare("SELECT * FROM ordenes WHERE mesa_id = ? AND estado = 'abierta' LIMIT 1")
@@ -90,7 +100,8 @@ export function abrirLlevar(): OrdenConDetalle {
 export function agregarProducto(
   ordenId: number,
   productoId: number,
-  modificadorIds: number[] = []
+  modificadorIds: number[] = [],
+  comensal = 1
 ): OrdenConDetalle {
   const db = obtenerDb()
   const prod = db.prepare('SELECT * FROM productos WHERE id = ?').get(productoId) as
@@ -104,8 +115,8 @@ export function agregarProducto(
       ? (db
           .prepare(
             `SELECT m.* FROM modificadores m
-               JOIN grupos_modificadores g ON g.id = m.grupo_id
-             WHERE g.producto_id = ? AND m.id IN (${modificadorIds.map(() => '?').join(',')})`
+               JOIN producto_grupos pg ON pg.grupo_id = m.grupo_id
+             WHERE pg.producto_id = ? AND m.id IN (${modificadorIds.map(() => '?').join(',')})`
           )
           .all(productoId, ...modificadorIds) as Record<string, unknown>[])
       : []
@@ -118,9 +129,9 @@ export function agregarProducto(
       mods.length === 0
         ? (db
             .prepare(
-              "SELECT d.* FROM detalle_ordenes d WHERE d.orden_id = ? AND d.producto_id = ? AND d.enviado_cocina = 0 AND (d.notas IS NULL OR d.notas = '') AND NOT EXISTS (SELECT 1 FROM detalle_modificadores dm WHERE dm.detalle_id = d.id) LIMIT 1"
+              "SELECT d.* FROM detalle_ordenes d WHERE d.orden_id = ? AND d.producto_id = ? AND d.comensal = ? AND d.enviado_cocina = 0 AND (d.notas IS NULL OR d.notas = '') AND NOT EXISTS (SELECT 1 FROM detalle_modificadores dm WHERE dm.detalle_id = d.id) LIMIT 1"
             )
-            .get(ordenId, productoId) as Record<string, unknown> | undefined)
+            .get(ordenId, productoId, comensal) as Record<string, unknown> | undefined)
         : undefined
 
     if (linea) {
@@ -129,10 +140,10 @@ export function agregarProducto(
       const r = db
         .prepare(
           `INSERT INTO detalle_ordenes
-             (orden_id, producto_id, nombre_producto, cantidad, precio_unitario, enviado_cocina)
-           VALUES (?, ?, ?, 1, ?, 0)`
+             (orden_id, producto_id, nombre_producto, cantidad, precio_unitario, comensal, enviado_cocina)
+           VALUES (?, ?, ?, 1, ?, ?, 0)`
         )
-        .run(ordenId, productoId, prod.nombre, precioEfectivo)
+        .run(ordenId, productoId, prod.nombre, precioEfectivo, comensal)
       const detalleId = Number(r.lastInsertRowid)
       const insMod = db.prepare(
         'INSERT INTO detalle_modificadores (detalle_id, modificador_id, nombre, precio) VALUES (?, ?, ?, ?)'
@@ -183,18 +194,25 @@ export function quitarLinea(ordenId: number, detalleId: number): OrdenConDetalle
   return obtenerConDetalle(ordenId)
 }
 
-/** Marca como enviadas las líneas pendientes y devuelve solo esas (ticket diferencial). */
-export function enviarACocina(ordenId: number): DetalleOrden[] {
+/**
+ * Marca como enviadas las líneas pendientes y devuelve solo esas (ticket diferencial).
+ * Si se pasa `comensal`, solo envía las de ese comensal.
+ */
+export function enviarACocina(ordenId: number, comensal?: number): DetalleOrden[] {
   const db = obtenerDb()
+  const filtro = comensal != null ? ' AND comensal = ?' : ''
+  const argsSel = comensal != null ? [ordenId, comensal] : [ordenId]
+
   const pendientes = db
-    .prepare('SELECT * FROM detalle_ordenes WHERE orden_id = ? AND enviado_cocina = 0')
-    .all(ordenId) as Record<string, unknown>[]
+    .prepare(`SELECT * FROM detalle_ordenes WHERE orden_id = ? AND enviado_cocina = 0${filtro}`)
+    .all(...argsSel) as Record<string, unknown>[]
   if (pendientes.length === 0) return []
 
   const enviadoEn = ahora()
+  const argsUpd = comensal != null ? [enviadoEn, ordenId, comensal] : [enviadoEn, ordenId]
   db.prepare(
-    'UPDATE detalle_ordenes SET enviado_cocina = 1, enviado_en = ? WHERE orden_id = ? AND enviado_cocina = 0'
-  ).run(enviadoEn, ordenId)
+    `UPDATE detalle_ordenes SET enviado_cocina = 1, enviado_en = ? WHERE orden_id = ? AND enviado_cocina = 0${filtro}`
+  ).run(...argsUpd)
 
   return pendientes.map((p) =>
     aDetalle({ ...p, enviado_cocina: 1, enviado_en: enviadoEn }, modificadoresDe(p.id as number))

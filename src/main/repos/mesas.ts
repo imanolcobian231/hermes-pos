@@ -23,9 +23,10 @@ export function editar(id: number, datos: MesaInput): Mesa {
   const db = obtenerDb()
   const actual = obtener(id)
   const nombre = datos.nombre.trim() || `Mesa ${actual.numero}`
-  db.prepare('UPDATE mesas SET nombre = ?, capacidad = ? WHERE id = ?').run(
+  db.prepare('UPDATE mesas SET nombre = ?, capacidad = ?, color = ? WHERE id = ?').run(
     nombre,
     Math.max(1, datos.capacidad),
+    datos.color ?? null,
     id
   )
   return obtener(id)
@@ -33,7 +34,7 @@ export function editar(id: number, datos: MesaInput): Mesa {
 
 export function renombrar(id: number, nombre: string): Mesa {
   const actual = obtener(id)
-  return editar(id, { nombre, capacidad: actual.capacidad })
+  return editar(id, { nombre, capacidad: actual.capacidad, color: actual.color })
 }
 
 export function eliminar(id: number): void {

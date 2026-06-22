@@ -6,9 +6,16 @@ import { Modal } from '@renderer/components/Modal'
 import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
-import { ModificadoresEditor } from '@renderer/components/ModificadoresEditor'
+import { AsignarGrupos } from '@renderer/components/AsignarGrupos'
+import { GestorModificadores } from '@renderer/components/GestorModificadores'
 
-type Pestana = 'productos' | 'categorias'
+type Pestana = 'productos' | 'categorias' | 'modificadores'
+
+const PESTANAS: { id: Pestana; label: string }[] = [
+  { id: 'productos', label: 'Productos' },
+  { id: 'categorias', label: 'Categorías' },
+  { id: 'modificadores', label: 'Modificadores' }
+]
 
 export function Catalogo(): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>('productos')
@@ -17,24 +24,28 @@ export function Catalogo(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Catálogo</h1>
-        <p className="text-sm text-slate-500">Administra productos y categorías</p>
+        <p className="text-sm text-slate-500">Administra productos, categorías y modificadores</p>
       </header>
 
       <div className="mb-5 flex gap-2">
-        {(['productos', 'categorias'] as Pestana[]).map((p) => (
+        {PESTANAS.map((p) => (
           <button
-            key={p}
-            onClick={() => setPestana(p)}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold capitalize transition ${
-              pestana === p ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 hover:bg-slate-200'
+            key={p.id}
+            onClick={() => setPestana(p.id)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              pestana === p.id
+                ? 'bg-slate-800 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-200'
             }`}
           >
-            {p}
+            {p.label}
           </button>
         ))}
       </div>
 
-      {pestana === 'productos' ? <PanelProductos /> : <PanelCategorias />}
+      {pestana === 'productos' && <PanelProductos />}
+      {pestana === 'categorias' && <PanelCategorias />}
+      {pestana === 'modificadores' && <GestorModificadores />}
     </div>
   )
 }
@@ -202,10 +213,10 @@ function PanelProductos(): React.JSX.Element {
             </label>
 
             {editando.id != null ? (
-              <ModificadoresEditor productoId={editando.id} />
+              <AsignarGrupos productoId={editando.id} />
             ) : (
               <p className="mt-2 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                Guarda el producto para poder agregarle modificadores.
+                Guarda el producto para poder asignarle grupos de modificadores.
               </p>
             )}
           </div>

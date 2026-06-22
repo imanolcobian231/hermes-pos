@@ -4,7 +4,7 @@ import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
-import { TicketCocina } from '@renderer/components/TicketCocina'
+import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCocina'
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
@@ -42,13 +42,22 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   )
   const [busqueda, setBusqueda] = useState('')
 
-  const [ticket, setTicket] = useState<DetalleOrden[] | null>(null)
+  const [ticket, setTicket] = useState<{ lineas: DetalleOrden[]; adicional: boolean } | null>(null)
   const [notaLinea, setNotaLinea] = useState<DetalleOrden | null>(null)
   const [notaTexto, setNotaTexto] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
   // Producto cuyo selector de modificadores está abierto.
   const [modProducto, setModProducto] = useState<Producto | null>(null)
+  // Comensal activo y cuántos comensales hay en la orden.
+  const [comensalActivo, setComensalActivo] = useState(1)
+  const [numComensales, setNumComensales] = useState(1)
   const notaRef = useRef<HTMLInputElement>(null)
+
+  // Al cambiar de orden, reinicia el comensal activo.
+  useEffect(() => {
+    setComensalActivo(1)
+    setNumComensales(1)
+  }, [ordenId])
 
   useEffect(() => {
     if (notaLinea) {
@@ -68,11 +77,15 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     setNotaLinea(null)
   }
 
+  // Total de comensales = el mayor entre los seleccionados y los ya usados en líneas.
+  const maxComensalLineas = orden.detalle.reduce((m, d) => Math.max(m, d.comensal ?? 1), 1)
+  const totalComensales = Math.max(numComensales, maxComensalLineas)
+
   const tocarProducto = (p: Producto): void => {
     if (p.grupos && p.grupos.length > 0) {
       setModProducto(p)
     } else {
-      void agregarProducto(orden.id, p)
+      void agregarProducto(orden.id, p, [], comensalActivo)
     }
   }
 
@@ -85,14 +98,21 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   })
 
   const hayPendientes = orden.detalle.some((d) => !d.enviadoCocina)
-  const huboEnviosPrevios = orden.detalle.some((d) => d.enviadoCocina)
+  // El primer envío manda toda la mesa; los siguientes son por comensal (adicionales).
+  const primerEnvio = !orden.detalle.some((d) => d.enviadoCocina)
+
+  // Estado del comensal activo (para los envíos adicionales).
+  const lineasComensal = orden.detalle.filter((d) => (d.comensal ?? 1) === comensalActivo)
+  const pendientesComensal = lineasComensal.some((d) => !d.enviadoCocina)
 
   const handleEnviar = async (): Promise<void> => {
-    const nuevas = await enviarACocina(orden.id)
+    const adicional = !primerEnvio
+    const nuevas = await enviarACocina(orden.id, primerEnvio ? undefined : comensalActivo)
     if (nuevas.length > 0) {
-      setTicket(nuevas)
+      setTicket({ lineas: nuevas, adicional })
       const total = nuevas.reduce((acc, d) => acc + d.cantidad, 0)
-      toast(`${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
+      const quien = primerEnvio ? '' : `Comensal ${comensalActivo}: `
+      toast(`${quien}${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
     }
   }
 
@@ -184,61 +204,100 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
 
       {/* Comanda */}
       <aside className="flex w-96 flex-col rounded-lg border border-slate-200 bg-white">
-        <header className="border-b border-slate-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-slate-800">Comanda</h2>
+        <header className="border-b border-slate-100 px-5 py-3">
+          <h2 className="mb-2 text-lg font-bold text-slate-800">Comanda</h2>
+          {/* Selector de comensal */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {Array.from({ length: totalComensales }, (_, i) => i + 1).map((c) => (
+              <button
+                key={c}
+                onClick={() => setComensalActivo(c)}
+                className={`rounded-md border px-2.5 py-1 text-xs font-semibold transition ${
+                  comensalActivo === c
+                    ? 'border-slate-900 bg-slate-900 text-white'
+                    : 'border-slate-200 text-slate-600 hover:border-slate-400'
+                }`}
+              >
+                Comensal {c}
+              </button>
+            ))}
+            <button
+              onClick={() => {
+                const nuevo = totalComensales + 1
+                setNumComensales(nuevo)
+                setComensalActivo(nuevo)
+              }}
+              className="rounded-md border border-dashed border-slate-300 px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400"
+              title="Agregar comensal"
+            >
+              + Comensal
+            </button>
+          </div>
         </header>
 
         <div className="flex-1 overflow-auto px-3 py-2">
           {orden.detalle.length === 0 && (
             <p className="px-2 py-8 text-center text-sm text-slate-400">
-              Toca un producto para agregarlo
+              Toca un producto para agregarlo al comensal {comensalActivo}
             </p>
           )}
-          {orden.detalle.map((d) => (
-            <div key={d.id} className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-slate-50">
-              <div className="flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-800">{d.nombreProducto}</span>
-                  {d.enviadoCocina && (
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
-                      enviado
-                    </span>
-                  )}
+          {agruparPorComensal(orden.detalle).map(([comensal, items]) => (
+            <div key={comensal} className="mb-1">
+              {totalComensales > 1 && (
+                <div className="px-2 pb-0.5 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Comensal {comensal}
                 </div>
-                {d.modificadores.map((m) => (
-                  <div key={m.id} className="text-xs text-slate-500">
-                    + {m.nombre}
-                    {m.precio > 0 && ` (${pesos(m.precio)})`}
+              )}
+              {items.map((d) => (
+                <div
+                  key={d.id}
+                  className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-slate-50"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-slate-800">{d.nombreProducto}</span>
+                      {d.enviadoCocina && (
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                          enviado
+                        </span>
+                      )}
+                    </div>
+                    {d.modificadores.map((m) => (
+                      <div key={m.id} className="text-xs text-slate-500">
+                        + {m.nombre}
+                        {m.precio > 0 && ` (${pesos(m.precio)})`}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setNotaLinea(d)}
+                      className="text-left text-xs text-slate-400 hover:text-slate-600"
+                    >
+                      {d.notas ? `Nota: ${d.notas}` : '+ nota'}
+                    </button>
                   </div>
-                ))}
-                <button
-                  onClick={() => setNotaLinea(d)}
-                  className="text-left text-xs text-slate-400 hover:text-slate-600"
-                >
-                  {d.notas ? `Nota: ${d.notas}` : '+ nota'}
-                </button>
-              </div>
 
-              <div className="flex items-center gap-1.5">
-                <button
-                  onClick={() => cambiarCantidad(orden.id, d.id, -1)}
-                  disabled={d.enviadoCocina}
-                  className="h-7 w-7 rounded-md bg-slate-100 font-bold text-slate-600 enabled:hover:bg-slate-200 disabled:opacity-30"
-                >
-                  −
-                </button>
-                <span className="w-6 text-center font-semibold">{d.cantidad}</span>
-                <button
-                  onClick={() => cambiarCantidad(orden.id, d.id, +1)}
-                  className="h-7 w-7 rounded-md bg-slate-100 font-bold text-slate-600 hover:bg-slate-200"
-                >
-                  +
-                </button>
-              </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => cambiarCantidad(orden.id, d.id, -1)}
+                      disabled={d.enviadoCocina}
+                      className="h-7 w-7 rounded-md bg-slate-100 font-bold text-slate-600 enabled:hover:bg-slate-200 disabled:opacity-30"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center font-semibold">{d.cantidad}</span>
+                    <button
+                      onClick={() => cambiarCantidad(orden.id, d.id, +1)}
+                      className="h-7 w-7 rounded-md bg-slate-100 font-bold text-slate-600 hover:bg-slate-200"
+                    >
+                      +
+                    </button>
+                  </div>
 
-              <span className="w-16 pt-1 text-right font-semibold text-slate-700">
-                {pesos(d.cantidad * d.precioUnitario)}
-              </span>
+                  <span className="w-16 pt-1 text-right font-semibold text-slate-700">
+                    {pesos(d.cantidad * d.precioUnitario)}
+                  </span>
+                </div>
+              ))}
             </div>
           ))}
         </div>
@@ -251,10 +310,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
 
           <button
             onClick={handleEnviar}
-            disabled={!hayPendientes}
+            disabled={primerEnvio ? !hayPendientes : !pendientesComensal}
             className="mb-2 w-full rounded-md bg-slate-900 py-2.5 font-semibold text-white transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            {huboEnviosPrevios ? 'Enviar adicional a cocina' : 'Enviar a cocina'}
+            {primerEnvio
+              ? 'Enviar a cocina'
+              : totalComensales > 1
+                ? `Enviar comensal ${comensalActivo} a cocina (adicional)`
+                : 'Enviar adicional a cocina'}
           </button>
           <button
             onClick={handleCobrar}
@@ -278,7 +341,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           producto={modProducto}
           onCerrar={() => setModProducto(null)}
           onConfirmar={(ids) => {
-            void agregarProducto(orden.id, modProducto, ids)
+            void agregarProducto(orden.id, modProducto, ids, comensalActivo)
             setModProducto(null)
           }}
         />
@@ -297,7 +360,9 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           </button>
         }
       >
-        {ticket && <TicketCocina titulo={titulo} lineas={ticket} adicional={huboEnviosPrevios} />}
+        {ticket && (
+          <TicketCocina titulo={titulo} lineas={ticket.lineas} adicional={ticket.adicional} />
+        )}
       </Modal>
 
       <Modal
@@ -343,7 +408,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
         mensaje={
           <>
             Se cancelará la orden de <strong>{titulo}</strong>.
-            {huboEnviosPrevios && (
+            {orden.detalle.some((d) => d.enviadoCocina) && (
               <span className="mt-2 block font-medium text-amber-700">
                 Advertencia: ya se enviaron productos a cocina.
               </span>

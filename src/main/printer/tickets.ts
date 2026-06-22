@@ -42,10 +42,20 @@ export function imprimirCocina(
   l.push(linea())
   l.push(fila(titulo, new Date().toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })))
   l.push(linea())
+  const grupos = new Map<number, DetalleOrden[]>()
   for (const d of lineas) {
-    l.push(`${d.cantidad} x ${d.nombreProducto}`)
-    for (const m of d.modificadores) l.push(`   + ${m.nombre}`)
-    if (d.notas) l.push(`   > ${d.notas}`)
+    const c = d.comensal ?? 1
+    if (!grupos.has(c)) grupos.set(c, [])
+    grupos.get(c)!.push(d)
+  }
+  const variosComensales = grupos.size > 1
+  for (const [comensal, items] of [...grupos.entries()].sort((a, b) => a[0] - b[0])) {
+    if (variosComensales) l.push(centrar(`- COMENSAL ${comensal} -`))
+    for (const d of items) {
+      l.push(`${d.cantidad} x ${d.nombreProducto}`)
+      for (const m of d.modificadores) l.push(`   + ${m.nombre}`)
+      if (d.notas) l.push(`   > ${d.notas}`)
+    }
   }
   l.push(linea())
   return emitir(l.join('\n'))

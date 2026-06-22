@@ -12,7 +12,9 @@ import type {
   CategoriaInput,
   Corte,
   DetalleOrden,
+  Gasto,
   GrupoInput,
+  GrupoModificador,
   Mesa,
   MesaInput,
   MetodoPago,
@@ -40,6 +42,7 @@ const RESUMEN_VACIO: ResumenTurno = {
   totalEfectivo: 0,
   totalTarjeta: 0,
   totalTransferencia: 0,
+  totalGastos: 0,
   numOrdenes: 0
 }
 
@@ -48,10 +51,13 @@ interface DatosContextValue {
   mesas: Mesa[]
   categorias: Categoria[]
   productos: Producto[]
+  grupos: GrupoModificador[]
   ordenes: OrdenConDetalle[]
   cortes: Corte[]
   reimpresiones: Reimpresion[]
   resumen: ResumenTurno
+  gastos: Gasto[]
+  cobradas: OrdenConDetalle[]
 
   // Mesas
   renombrarMesa: (mesaId: number, nombre: string) => Promise<void>
@@ -68,12 +74,13 @@ interface DatosContextValue {
   agregarProducto: (
     ordenId: number,
     producto: Producto,
-    modificadorIds?: number[]
+    modificadorIds?: number[],
+    comensal?: number
   ) => Promise<void>
   cambiarCantidad: (ordenId: number, detalleId: number, delta: number) => Promise<void>
   cambiarNota: (ordenId: number, detalleId: number, nota: string) => Promise<void>
   quitarLinea: (ordenId: number, detalleId: number) => Promise<void>
-  enviarACocina: (ordenId: number) => Promise<DetalleOrden[]>
+  enviarACocina: (ordenId: number, comensal?: number) => Promise<DetalleOrden[]>
   marcarPorCobrar: (ordenId: number) => Promise<void>
   cobrarOrden: (
     ordenId: number,
@@ -97,9 +104,15 @@ interface DatosContextValue {
   eliminarGrupo: (grupoId: number) => Promise<void>
   guardarModificador: (modificador: ModificadorInput) => Promise<void>
   eliminarModificador: (modificadorId: number) => Promise<void>
+  asignarGrupo: (productoId: number, grupoId: number) => Promise<void>
+  desasignarGrupo: (productoId: number, grupoId: number) => Promise<void>
 
   // Corte
   cerrarCorte: () => Promise<Corte>
+
+  // Finanzas
+  agregarGasto: (concepto: string, monto: number) => Promise<void>
+  eliminarGasto: (gastoId: number) => Promise<void>
 }
 
 const DatosContext = createContext<DatosContextValue | null>(null)
@@ -109,24 +122,37 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
   const [productos, setProductos] = useState<Producto[]>([])
+  const [grupos, setGrupos] = useState<GrupoModificador[]>([])
   const [ordenes, setOrdenes] = useState<OrdenConDetalle[]>([])
   const [cortes, setCortes] = useState<Corte[]>([])
   const [reimpresiones, setReimpresiones] = useState<Reimpresion[]>([])
   const [resumen, setResumen] = useState<ResumenTurno>(RESUMEN_VACIO)
+  const [gastos, setGastos] = useState<Gasto[]>([])
+  const [cobradas, setCobradas] = useState<OrdenConDetalle[]>([])
 
   // --- Refrescos puntuales -------------------------------------------------
   const refrescarMesas = useCallback(async () => setMesas(await api.mesas.listar()), [])
   const refrescarOrdenes = useCallback(async () => setOrdenes(await api.ordenes.activas()), [])
   const refrescarCortes = useCallback(async () => setCortes(await api.cortes.listar()), [])
   const refrescarResumen = useCallback(async () => setResumen(await api.cortes.resumen()), [])
+  const refrescarGastos = useCallback(async () => setGastos(await api.gastos.listar()), [])
+  const refrescarCobradas = useCallback(
+    async () => setCobradas(await api.ordenes.cobradasTurno()),
+    []
+  )
   const refrescarReimpresiones = useCallback(
     async () => setReimpresiones(await api.reimpresiones.listar()),
     []
   )
   const refrescarCatalogo = useCallback(async () => {
-    const [cats, prods] = await Promise.all([api.catalogo.categorias(), api.catalogo.productos()])
+    const [cats, prods, grps] = await Promise.all([
+      api.catalogo.categorias(),
+      api.catalogo.productos(),
+      api.catalogo.grupos()
+    ])
     setCategorias(cats)
     setProductos(prods)
+    setGrupos(grps)
   }, [])
 
   // Inserta/actualiza una orden en la caché (la quita si ya no está activa).
@@ -141,23 +167,29 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   useEffect(() => {
     let activo = true
     ;(async () => {
-      const [m, cats, prods, ords, crts, reimp, res] = await Promise.all([
+      const [m, cats, prods, grps, ords, crts, reimp, res, gas, cob] = await Promise.all([
         api.mesas.listar(),
         api.catalogo.categorias(),
         api.catalogo.productos(),
+        api.catalogo.grupos(),
         api.ordenes.activas(),
         api.cortes.listar(),
         api.reimpresiones.listar(),
-        api.cortes.resumen()
+        api.cortes.resumen(),
+        api.gastos.listar(),
+        api.ordenes.cobradasTurno()
       ])
       if (!activo) return
       setMesas(m)
       setCategorias(cats)
       setProductos(prods)
+      setGrupos(grps)
       setOrdenes(ords)
       setCortes(crts)
       setReimpresiones(reimp)
       setResumen(res)
+      setGastos(gas)
+      setCobradas(cob)
       setCargando(false)
     })()
     return () => {
@@ -236,8 +268,10 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const agregarProducto = useCallback(
-    async (ordenId: number, producto: Producto, modificadorIds?: number[]) => {
-      aplicarOrden(await api.ordenes.agregarProducto(ordenId, producto.id, modificadorIds))
+    async (ordenId: number, producto: Producto, modificadorIds?: number[], comensal?: number) => {
+      aplicarOrden(
+        await api.ordenes.agregarProducto(ordenId, producto.id, modificadorIds, comensal)
+      )
     },
     [aplicarOrden]
   )
@@ -264,8 +298,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const enviarACocina = useCallback(
-    async (ordenId: number): Promise<DetalleOrden[]> => {
-      const nuevas = await api.ordenes.enviarCocina(ordenId)
+    async (ordenId: number, comensal?: number): Promise<DetalleOrden[]> => {
+      const nuevas = await api.ordenes.enviarCocina(ordenId, comensal)
       await refrescarOrdenes()
       return nuevas
     },
@@ -283,9 +317,14 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   const cobrarOrden = useCallback(
     async (ordenId: number, metodo: MetodoPago, montoRecibido: number, descuento?: number) => {
       await api.ordenes.cobrar(ordenId, metodo, montoRecibido, descuento)
-      await Promise.all([refrescarOrdenes(), refrescarMesas(), refrescarResumen()])
+      await Promise.all([
+        refrescarOrdenes(),
+        refrescarMesas(),
+        refrescarResumen(),
+        refrescarCobradas()
+      ])
     },
-    [refrescarOrdenes, refrescarMesas, refrescarResumen]
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas]
   )
 
   const cancelarOrden = useCallback(
@@ -369,12 +408,45 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [refrescarCatalogo]
   )
 
+  const asignarGrupo = useCallback(
+    async (productoId: number, grupoId: number) => {
+      await api.catalogo.asignarGrupo(productoId, grupoId)
+      await refrescarCatalogo()
+    },
+    [refrescarCatalogo]
+  )
+
+  const desasignarGrupo = useCallback(
+    async (productoId: number, grupoId: number) => {
+      await api.catalogo.desasignarGrupo(productoId, grupoId)
+      await refrescarCatalogo()
+    },
+    [refrescarCatalogo]
+  )
+
   // --- Corte ---------------------------------------------------------------
   const cerrarCorte = useCallback(async (): Promise<Corte> => {
     const corte = await api.cortes.cerrar()
-    await Promise.all([refrescarCortes(), refrescarResumen()])
+    await Promise.all([refrescarCortes(), refrescarResumen(), refrescarGastos(), refrescarCobradas()])
     return corte
-  }, [refrescarCortes, refrescarResumen])
+  }, [refrescarCortes, refrescarResumen, refrescarGastos, refrescarCobradas])
+
+  // --- Finanzas ------------------------------------------------------------
+  const agregarGasto = useCallback(
+    async (concepto: string, monto: number) => {
+      await api.gastos.crear(concepto, monto)
+      await Promise.all([refrescarGastos(), refrescarResumen()])
+    },
+    [refrescarGastos, refrescarResumen]
+  )
+
+  const eliminarGasto = useCallback(
+    async (gastoId: number) => {
+      await api.gastos.eliminar(gastoId)
+      await Promise.all([refrescarGastos(), refrescarResumen()])
+    },
+    [refrescarGastos, refrescarResumen]
+  )
 
   const valor = useMemo<DatosContextValue>(
     () => ({
@@ -382,10 +454,13 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       mesas,
       categorias,
       productos,
+      grupos,
       ordenes,
       cortes,
       reimpresiones,
       resumen,
+      gastos,
+      cobradas,
       renombrarMesa,
       editarMesa,
       agregarMesa,
@@ -412,17 +487,24 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       eliminarGrupo,
       guardarModificador,
       eliminarModificador,
-      cerrarCorte
+      asignarGrupo,
+      desasignarGrupo,
+      cerrarCorte,
+      agregarGasto,
+      eliminarGasto
     }),
     [
       cargando,
       mesas,
       categorias,
       productos,
+      grupos,
       ordenes,
       cortes,
       reimpresiones,
       resumen,
+      gastos,
+      cobradas,
       renombrarMesa,
       editarMesa,
       agregarMesa,
@@ -449,7 +531,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       eliminarGrupo,
       guardarModificador,
       eliminarModificador,
-      cerrarCorte
+      asignarGrupo,
+      desasignarGrupo,
+      cerrarCorte,
+      agregarGasto,
+      eliminarGasto
     ]
   )
 

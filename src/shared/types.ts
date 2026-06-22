@@ -12,6 +12,8 @@ export interface Mesa {
   nombre: string
   capacidad: number
   estado: EstadoMesa
+  /** Color de acento de la mesa (hex). Opcional; sirve para agrupar zonas. */
+  color?: string
 }
 
 export interface Categoria {
@@ -31,15 +33,15 @@ export interface Producto {
   grupos?: GrupoModificador[]
 }
 
-/** Grupo de modificadores de un producto (ej. "Término", "Extras"). */
+/** Grupo de modificadores reutilizable (ej. "Término", "Salsas", "Extras"). */
 export interface GrupoModificador {
   id: number
-  productoId: number
   nombre: string
   /** Si true, hay que elegir al menos un modificador del grupo. */
   obligatorio: boolean
   /** true = selección múltiple (checkboxes); false = selección única (radio). */
   multiple: boolean
+  /** Orden dentro del producto (cuando el grupo viene asignado a uno). */
   orden: number
   modificadores: Modificador[]
 }
@@ -83,6 +85,8 @@ export interface DetalleOrden {
   /** Precio efectivo unitario (base + modificadores). */
   precioUnitario: number
   notas?: string
+  /** Número de comensal al que pertenece la línea (1 por defecto). */
+  comensal: number
   enviadoCocina: boolean
   enviadoEn?: string
   modificadores: DetalleModificador[]
@@ -103,8 +107,21 @@ export interface Corte {
   totalEfectivo: number
   totalTarjeta: number
   totalTransferencia: number
+  totalGastos: number
   numOrdenes: number
   cerradoEn: string
+}
+
+export interface Gasto {
+  id: number
+  concepto: string
+  monto: number
+  fecha: string
+}
+
+export interface GastoInput {
+  concepto: string
+  monto: number
 }
 
 export interface Reimpresion {
@@ -126,11 +143,9 @@ export type CategoriaInput = Omit<Categoria, 'id'> & { id?: number }
 
 export interface GrupoInput {
   id?: number
-  productoId: number
   nombre: string
   obligatorio: boolean
   multiple: boolean
-  orden: number
 }
 
 export interface ModificadorInput {
@@ -142,6 +157,7 @@ export interface ModificadorInput {
 export interface MesaInput {
   nombre: string
   capacidad: number
+  color?: string
 }
 
 /** Totales del turno en curso (órdenes cobradas aún no incluidas en un corte). */
@@ -149,5 +165,6 @@ export interface ResumenTurno {
   totalEfectivo: number
   totalTarjeta: number
   totalTransferencia: number
+  totalGastos: number
   numOrdenes: number
 }

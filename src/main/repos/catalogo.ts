@@ -66,19 +66,35 @@ export function listarProductos(): Producto[] {
   return filas.map((f) => ({ ...aProducto(f), grupos: gruposDeProducto(f.id as number) }))
 }
 
-// --- Modificadores ---------------------------------------------------------
+// --- Modificadores (grupos reutilizables) ----------------------------------
 
+function modsDeGrupo(grupoId: number): Modificador[] {
+  const mods = obtenerDb()
+    .prepare('SELECT * FROM modificadores WHERE grupo_id = ? ORDER BY id')
+    .all(grupoId) as Record<string, unknown>[]
+  return mods.map(aModificador)
+}
+
+/** Todos los grupos reutilizables con sus modificadores. */
+export function listarGrupos(): GrupoModificador[] {
+  const grupos = obtenerDb()
+    .prepare('SELECT * FROM grupos_modificadores ORDER BY nombre')
+    .all() as Record<string, unknown>[]
+  return grupos.map((g) => aGrupo(g, modsDeGrupo(g.id as number)))
+}
+
+/** Grupos asignados a un producto, en su orden. */
 export function gruposDeProducto(productoId: number): GrupoModificador[] {
-  const db = obtenerDb()
-  const grupos = db
-    .prepare('SELECT * FROM grupos_modificadores WHERE producto_id = ? ORDER BY orden, id')
+  const grupos = obtenerDb()
+    .prepare(
+      `SELECT g.*, pg.orden AS orden
+         FROM grupos_modificadores g
+         JOIN producto_grupos pg ON pg.grupo_id = g.id
+        WHERE pg.producto_id = ?
+        ORDER BY pg.orden, g.id`
+    )
     .all(productoId) as Record<string, unknown>[]
-  return grupos.map((g) => {
-    const mods = db
-      .prepare('SELECT * FROM modificadores WHERE grupo_id = ? ORDER BY id')
-      .all(g.id) as Record<string, unknown>[]
-    return aGrupo(g, mods.map(aModificador))
-  })
+  return grupos.map((g) => aGrupo(g, modsDeGrupo(g.id as number)))
 }
 
 export function guardarGrupo(g: GrupoInput): GrupoModificador {
@@ -88,29 +104,41 @@ export function guardarGrupo(g: GrupoInput): GrupoModificador {
   let grupoId: number
   if (g.id != null) {
     db.prepare(
-      'UPDATE grupos_modificadores SET nombre = ?, obligatorio = ?, multiple = ?, orden = ? WHERE id = ?'
-    ).run(g.nombre.trim(), obligatorio, multiple, g.orden, g.id)
+      'UPDATE grupos_modificadores SET nombre = ?, obligatorio = ?, multiple = ? WHERE id = ?'
+    ).run(g.nombre.trim(), obligatorio, multiple, g.id)
     grupoId = g.id
   } else {
     const r = db
-      .prepare(
-        'INSERT INTO grupos_modificadores (producto_id, nombre, obligatorio, multiple, orden) VALUES (?, ?, ?, ?, ?)'
-      )
-      .run(g.productoId, g.nombre.trim(), obligatorio, multiple, g.orden)
+      .prepare('INSERT INTO grupos_modificadores (nombre, obligatorio, multiple) VALUES (?, ?, ?)')
+      .run(g.nombre.trim(), obligatorio, multiple)
     grupoId = Number(r.lastInsertRowid)
   }
   const fila = db.prepare('SELECT * FROM grupos_modificadores WHERE id = ?').get(grupoId) as Record<
     string,
     unknown
   >
-  const mods = db
-    .prepare('SELECT * FROM modificadores WHERE grupo_id = ? ORDER BY id')
-    .all(grupoId) as Record<string, unknown>[]
-  return aGrupo(fila, mods.map(aModificador))
+  return aGrupo(fila, modsDeGrupo(grupoId))
 }
 
 export function eliminarGrupo(id: number): void {
   obtenerDb().prepare('DELETE FROM grupos_modificadores WHERE id = ?').run(id)
+}
+
+/** Asigna un grupo a un producto (al final del orden). */
+export function asignarGrupo(productoId: number, grupoId: number): void {
+  const db = obtenerDb()
+  const max = db
+    .prepare('SELECT COALESCE(MAX(orden), 0) AS n FROM producto_grupos WHERE producto_id = ?')
+    .get(productoId) as { n: number }
+  db.prepare(
+    'INSERT OR IGNORE INTO producto_grupos (producto_id, grupo_id, orden) VALUES (?, ?, ?)'
+  ).run(productoId, grupoId, max.n + 1)
+}
+
+export function desasignarGrupo(productoId: number, grupoId: number): void {
+  obtenerDb()
+    .prepare('DELETE FROM producto_grupos WHERE producto_id = ? AND grupo_id = ?')
+    .run(productoId, grupoId)
 }
 
 export function guardarModificador(m: ModificadorInput): Modificador {
