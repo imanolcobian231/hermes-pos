@@ -1,5 +1,7 @@
 import type {
+  Cancelacion,
   Categoria,
+  Cliente,
   Corte,
   Gasto,
   DetalleModificador,
@@ -9,10 +11,14 @@ import type {
   GrupoModificador,
   Mesa,
   MetodoPago,
+  MetodoPagoOrden,
   Modificador,
+  MovimientoCredito,
   Orden,
   Producto,
-  Reimpresion
+  Reimpresion,
+  Rol,
+  Usuario
 } from '@shared/types'
 
 // Conversión de filas SQLite (snake_case, flags 0/1) a los tipos del dominio.
@@ -25,6 +31,16 @@ export function aMesa(r: Record<string, unknown>): Mesa {
     capacidad: r.capacidad as number,
     estado: r.estado as EstadoMesa,
     color: (r.color as string | null) ?? undefined
+  }
+}
+
+export function aUsuario(r: Record<string, unknown>): Usuario {
+  return {
+    id: r.id as number,
+    nombre: r.nombre as string,
+    rol: r.rol as Rol,
+    email: (r.email as string | null) ?? undefined,
+    activo: Boolean(r.activo)
   }
 }
 
@@ -57,7 +73,7 @@ export function aOrden(r: Record<string, unknown>): Orden {
     total: r.total as number,
     descuento: (r.descuento as number | null) ?? 0,
     porCobrar: Boolean(r.por_cobrar),
-    metodoPago: (r.metodo_pago as MetodoPago | null) ?? undefined,
+    metodoPago: (r.metodo_pago as MetodoPagoOrden | null) ?? undefined,
     montoRecibido: (r.monto_recibido as number | null) ?? undefined,
     cambio: (r.cambio as number | null) ?? undefined,
     ticketImpreso: Boolean(r.ticket_impreso),
@@ -127,7 +143,21 @@ export function aCorte(r: Record<string, unknown>): Corte {
     totalTransferencia: r.total_transferencia as number,
     totalGastos: (r.total_gastos as number | null) ?? 0,
     numOrdenes: r.num_ordenes as number,
+    fondoInicial: (r.fondo_inicial as number | null) ?? 0,
+    efectivoContado: (r.efectivo_contado as number | null) ?? undefined,
+    diferencia: (r.diferencia as number | null) ?? undefined,
     cerradoEn: r.cerrado_en as string
+  }
+}
+
+export function aCancelacion(r: Record<string, unknown>): Cancelacion {
+  return {
+    id: r.id as number,
+    ordenId: r.orden_id as number,
+    motivo: r.motivo as string,
+    usuario: r.usuario as string,
+    total: r.total as number,
+    canceladoEn: r.cancelado_en as string
   }
 }
 
@@ -137,6 +167,30 @@ export function aGasto(r: Record<string, unknown>): Gasto {
     concepto: r.concepto as string,
     monto: r.monto as number,
     fecha: r.fecha as string
+  }
+}
+
+export function aCliente(r: Record<string, unknown>): Cliente {
+  return {
+    id: r.id as number,
+    nombre: r.nombre as string,
+    telefono: (r.telefono as string | null) ?? undefined,
+    nota: (r.nota as string | null) ?? undefined,
+    activo: Boolean(r.activo),
+    saldo: (r.saldo as number | null) ?? 0
+  }
+}
+
+export function aMovimientoCredito(r: Record<string, unknown>): MovimientoCredito {
+  return {
+    id: r.id as number,
+    clienteId: r.cliente_id as number,
+    tipo: r.tipo as 'cargo' | 'abono',
+    monto: r.monto as number,
+    metodo: (r.metodo as MetodoPago | null) ?? undefined,
+    ordenId: (r.orden_id as number | null) ?? undefined,
+    nota: (r.nota as string | null) ?? undefined,
+    creadoEn: r.creado_en as string
   }
 }
 

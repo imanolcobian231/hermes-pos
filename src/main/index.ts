@@ -2,6 +2,8 @@ import { app, shell, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { inicializarDb, cerrarDb } from './db'
 import { registrarIpc } from './ipc'
+import { configurarBluetooth } from './bluetooth'
+import { respaldoDiarioSiHaceFalta } from './db/respaldo'
 
 const isDev = !app.isPackaged
 
@@ -13,7 +15,7 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
-    title: 'Hermes POS',
+    title: 'Hermes',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -24,6 +26,9 @@ function createWindow(): void {
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
   })
+
+  // Habilita el selector de impresoras Bluetooth (Web Bluetooth).
+  configurarBluetooth(mainWindow)
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
@@ -42,6 +47,9 @@ app.whenReady().then(() => {
   // Inicializa la base de datos (esquema + seed) y registra los handlers IPC.
   inicializarDb()
   registrarIpc()
+
+  // Respaldo diario de la base de datos (no bloquea el arranque).
+  void respaldoDiarioSiHaceFalta()
 
   createWindow()
 

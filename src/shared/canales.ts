@@ -36,25 +36,68 @@ export const CANALES = {
     enviarCocina: 'ordenes:enviarCocina',
     marcarPorCobrar: 'ordenes:marcarPorCobrar',
     cobrar: 'ordenes:cobrar',
+    fiar: 'ordenes:fiar',
     cancelar: 'ordenes:cancelar',
     cobradasTurno: 'ordenes:cobradasTurno'
+  },
+  clientes: {
+    listar: 'clientes:listar',
+    guardar: 'clientes:guardar',
+    eliminar: 'clientes:eliminar',
+    movimientos: 'clientes:movimientos',
+    abonar: 'clientes:abonar'
   },
   cortes: {
     resumen: 'cortes:resumen',
     listar: 'cortes:listar',
     cerrar: 'cortes:cerrar'
   },
+  cancelaciones: {
+    listar: 'cancelaciones:listar'
+  },
+  reportes: {
+    generar: 'reportes:generar'
+  },
+  respaldo: {
+    obtener: 'respaldo:obtener',
+    guardar: 'respaldo:guardar',
+    ahora: 'respaldo:ahora',
+    listar: 'respaldo:listar',
+    elegirCarpeta: 'respaldo:elegirCarpeta',
+    abrirCarpeta: 'respaldo:abrirCarpeta'
+  },
   gastos: {
     listar: 'gastos:listar',
     crear: 'gastos:crear',
     eliminar: 'gastos:eliminar'
+  },
+  usuarios: {
+    listar: 'usuarios:listar',
+    hayUsuarios: 'usuarios:hayUsuarios',
+    crearPrimerAdmin: 'usuarios:crearPrimerAdmin',
+    login: 'usuarios:login',
+    guardar: 'usuarios:guardar',
+    eliminar: 'usuarios:eliminar'
   },
   reimpresiones: {
     listar: 'reimpresiones:listar',
     registrar: 'reimpresiones:registrar'
   },
   printer: {
-    cocina: 'printer:cocina',
-    final: 'printer:final'
+    bytesCocina: 'printer:bytesCocina',
+    bytesFinal: 'printer:bytesFinal',
+    bytesPrueba: 'printer:bytesPrueba',
+    listarPuertos: 'printer:listarPuertos',
+    enviarCom: 'printer:enviarCom'
+  },
+  ble: {
+    // Evento main → renderer con la lista de dispositivos detectados.
+    dispositivos: 'ble:dispositivos',
+    // Renderer → main: el usuario eligió un dispositivo (o canceló con '').
+    seleccionar: 'ble:seleccionar'
+  },
+  config: {
+    obtenerImpresoras: 'config:obtenerImpresoras',
+    guardarImpresoras: 'config:guardarImpresoras'
   }
 } as const

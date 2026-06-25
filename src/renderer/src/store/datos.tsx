@@ -8,8 +8,12 @@ import {
   type ReactNode
 } from 'react'
 import type {
+  Cancelacion,
   Categoria,
   CategoriaInput,
+  CierreCorteInput,
+  Cliente,
+  ClienteInput,
   Corte,
   DetalleOrden,
   Gasto,
@@ -20,11 +24,13 @@ import type {
   MetodoPago,
   ModificadorInput,
   OrdenConDetalle,
+  Pago,
   Producto,
   ProductoInput,
   Reimpresion,
   ResumenTurno
 } from '@shared/types'
+import { useToast } from '@renderer/components/Toast'
 
 // Re-exportado por compatibilidad con componentes que lo importan de aquí.
 export type { OrdenConDetalle } from '@shared/types'
@@ -36,7 +42,49 @@ export type { OrdenConDetalle } from '@shared/types'
 // llama al backend y luego actualiza la porción de estado afectada.
 // ---------------------------------------------------------------------------
 
-const api = window.api
+// Limpia el mensaje de error de IPC (Electron lo prefija con texto técnico).
+function mensajeError(e: unknown): string {
+  const crudo = e instanceof Error ? e.message : String(e)
+  const partes = crudo.split('Error: ')
+  return (partes[partes.length - 1] || crudo).trim() || 'Ocurrió un error'
+}
+
+// Manejador de errores fijado por el provider (muestra un toast).
+let manejadorError: (e: unknown) => void = () => {}
+
+type ApiType = typeof window.api
+
+// Envuelve cada método de window.api para reportar errores por toast.
+// Marca el error como manejado para silenciar el warning de unhandledrejection.
+function envolverApi(original: ApiType, onError: (e: unknown) => void): ApiType {
+  const salida: Record<string, Record<string, unknown>> = {}
+  for (const grupo of Object.keys(original) as (keyof ApiType)[]) {
+    const metodos = original[grupo] as Record<string, (...a: unknown[]) => Promise<unknown>>
+    salida[grupo as string] = {}
+    for (const nombre of Object.keys(metodos)) {
+      const fn = metodos[nombre]
+      salida[grupo as string][nombre] = async (...args: unknown[]) => {
+        try {
+          return await fn(...args)
+        } catch (e) {
+          ;(e as { __manejado?: boolean }).__manejado = true
+          onError(e)
+          throw e
+        }
+      }
+    }
+  }
+  return salida as unknown as ApiType
+}
+
+const api = envolverApi(window.api, (e) => manejadorError(e))
+
+// Evita el ruido de "unhandledrejection" para errores ya mostrados al usuario.
+if (typeof window !== 'undefined') {
+  window.addEventListener('unhandledrejection', (ev) => {
+    if ((ev.reason as { __manejado?: boolean } | undefined)?.__manejado) ev.preventDefault()
+  })
+}
 
 const RESUMEN_VACIO: ResumenTurno = {
   totalEfectivo: 0,
@@ -55,6 +103,7 @@ interface DatosContextValue {
   ordenes: OrdenConDetalle[]
   cortes: Corte[]
   reimpresiones: Reimpresion[]
+  cancelaciones: Cancelacion[]
   resumen: ResumenTurno
   gastos: Gasto[]
   cobradas: OrdenConDetalle[]
@@ -84,16 +133,24 @@ interface DatosContextValue {
   marcarPorCobrar: (ordenId: number) => Promise<void>
   cobrarOrden: (
     ordenId: number,
-    metodo: MetodoPago,
-    montoRecibido: number,
+    pagos: Pago[],
+    efectivoRecibido?: number,
     descuento?: number
   ) => Promise<void>
-  cancelarOrden: (ordenId: number) => Promise<void>
+  cancelarOrden: (ordenId: number, motivo: string, usuario?: string) => Promise<void>
+  /** Fía la orden: la carga a la cuenta de crédito de un cliente. */
+  fiarOrden: (ordenId: number, clienteId: number, descuento?: number) => Promise<void>
   registrarReimpresion: (
     tipo: Reimpresion['tipo'],
     ordenId: number,
     usuario?: string
   ) => Promise<void>
+
+  // Clientes / créditos
+  clientes: Cliente[]
+  guardarCliente: (cliente: ClienteInput) => Promise<void>
+  eliminarCliente: (clienteId: number) => Promise<void>
+  abonarCredito: (clienteId: number, monto: number, metodo: MetodoPago, nota?: string) => Promise<void>
 
   // Catálogo
   guardarProducto: (producto: ProductoInput) => Promise<void>
@@ -108,7 +165,7 @@ interface DatosContextValue {
   desasignarGrupo: (productoId: number, grupoId: number) => Promise<void>
 
   // Corte
-  cerrarCorte: () => Promise<Corte>
+  cerrarCorte: (cuadre?: CierreCorteInput) => Promise<Corte>
 
   // Finanzas
   agregarGasto: (concepto: string, monto: number) => Promise<void>
@@ -118,6 +175,15 @@ interface DatosContextValue {
 const DatosContext = createContext<DatosContextValue | null>(null)
 
 export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX.Element {
+  const toast = useToast()
+  // Conecta los errores de IPC con el sistema de notificaciones.
+  useEffect(() => {
+    manejadorError = (e) => toast(mensajeError(e), 'error')
+    return () => {
+      manejadorError = () => {}
+    }
+  }, [toast])
+
   const [cargando, setCargando] = useState(true)
   const [mesas, setMesas] = useState<Mesa[]>([])
   const [categorias, setCategorias] = useState<Categoria[]>([])
@@ -126,9 +192,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   const [ordenes, setOrdenes] = useState<OrdenConDetalle[]>([])
   const [cortes, setCortes] = useState<Corte[]>([])
   const [reimpresiones, setReimpresiones] = useState<Reimpresion[]>([])
+  const [cancelaciones, setCancelaciones] = useState<Cancelacion[]>([])
   const [resumen, setResumen] = useState<ResumenTurno>(RESUMEN_VACIO)
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [cobradas, setCobradas] = useState<OrdenConDetalle[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
 
   // --- Refrescos puntuales -------------------------------------------------
   const refrescarMesas = useCallback(async () => setMesas(await api.mesas.listar()), [])
@@ -144,6 +212,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     async () => setReimpresiones(await api.reimpresiones.listar()),
     []
   )
+  const refrescarCancelaciones = useCallback(
+    async () => setCancelaciones(await api.cancelaciones.listar()),
+    []
+  )
+  const refrescarClientes = useCallback(async () => setClientes(await api.clientes.listar()), [])
   const refrescarCatalogo = useCallback(async () => {
     const [cats, prods, grps] = await Promise.all([
       api.catalogo.categorias(),
@@ -167,30 +240,39 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   useEffect(() => {
     let activo = true
     ;(async () => {
-      const [m, cats, prods, grps, ords, crts, reimp, res, gas, cob] = await Promise.all([
-        api.mesas.listar(),
-        api.catalogo.categorias(),
-        api.catalogo.productos(),
-        api.catalogo.grupos(),
-        api.ordenes.activas(),
-        api.cortes.listar(),
-        api.reimpresiones.listar(),
-        api.cortes.resumen(),
-        api.gastos.listar(),
-        api.ordenes.cobradasTurno()
-      ])
-      if (!activo) return
-      setMesas(m)
-      setCategorias(cats)
-      setProductos(prods)
-      setGrupos(grps)
-      setOrdenes(ords)
-      setCortes(crts)
-      setReimpresiones(reimp)
-      setResumen(res)
-      setGastos(gas)
-      setCobradas(cob)
-      setCargando(false)
+      try {
+        const [m, cats, prods, grps, ords, crts, reimp, canc, res, gas, cob, clis] =
+          await Promise.all([
+            api.mesas.listar(),
+            api.catalogo.categorias(),
+            api.catalogo.productos(),
+            api.catalogo.grupos(),
+            api.ordenes.activas(),
+            api.cortes.listar(),
+            api.reimpresiones.listar(),
+            api.cancelaciones.listar(),
+            api.cortes.resumen(),
+            api.gastos.listar(),
+            api.ordenes.cobradasTurno(),
+            api.clientes.listar()
+          ])
+        if (!activo) return
+        setMesas(m)
+        setCategorias(cats)
+        setProductos(prods)
+        setGrupos(grps)
+        setOrdenes(ords)
+        setCortes(crts)
+        setReimpresiones(reimp)
+        setCancelaciones(canc)
+        setResumen(res)
+        setGastos(gas)
+        setCobradas(cob)
+        setClientes(clis)
+      } finally {
+        // Aunque falle algo, sale de la pantalla de carga (el error ya se notificó).
+        if (activo) setCargando(false)
+      }
     })()
     return () => {
       activo = false
@@ -315,8 +397,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const cobrarOrden = useCallback(
-    async (ordenId: number, metodo: MetodoPago, montoRecibido: number, descuento?: number) => {
-      await api.ordenes.cobrar(ordenId, metodo, montoRecibido, descuento)
+    async (ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number) => {
+      await api.ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento)
       await Promise.all([
         refrescarOrdenes(),
         refrescarMesas(),
@@ -328,11 +410,25 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const cancelarOrden = useCallback(
-    async (ordenId: number) => {
-      await api.ordenes.cancelar(ordenId)
-      await Promise.all([refrescarOrdenes(), refrescarMesas()])
+    async (ordenId: number, motivo: string, usuario?: string) => {
+      await api.ordenes.cancelar(ordenId, motivo, usuario)
+      await Promise.all([refrescarOrdenes(), refrescarMesas(), refrescarCancelaciones()])
     },
-    [refrescarOrdenes, refrescarMesas]
+    [refrescarOrdenes, refrescarMesas, refrescarCancelaciones]
+  )
+
+  const fiarOrden = useCallback(
+    async (ordenId: number, clienteId: number, descuento?: number) => {
+      await api.ordenes.fiar(ordenId, clienteId, descuento)
+      await Promise.all([
+        refrescarOrdenes(),
+        refrescarMesas(),
+        refrescarResumen(),
+        refrescarCobradas(),
+        refrescarClientes()
+      ])
+    },
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarClientes]
   )
 
   const registrarReimpresion = useCallback(
@@ -341,6 +437,31 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       await refrescarReimpresiones()
     },
     [refrescarReimpresiones]
+  )
+
+  // --- Clientes / créditos -------------------------------------------------
+  const guardarCliente = useCallback(
+    async (cliente: ClienteInput) => {
+      await api.clientes.guardar(cliente)
+      await refrescarClientes()
+    },
+    [refrescarClientes]
+  )
+
+  const eliminarCliente = useCallback(
+    async (clienteId: number) => {
+      await api.clientes.eliminar(clienteId)
+      await refrescarClientes()
+    },
+    [refrescarClientes]
+  )
+
+  const abonarCredito = useCallback(
+    async (clienteId: number, monto: number, metodo: MetodoPago, nota?: string) => {
+      await api.clientes.abonar(clienteId, monto, metodo, nota)
+      await Promise.all([refrescarClientes(), refrescarResumen()])
+    },
+    [refrescarClientes, refrescarResumen]
   )
 
   // --- Catálogo ------------------------------------------------------------
@@ -425,11 +546,20 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   // --- Corte ---------------------------------------------------------------
-  const cerrarCorte = useCallback(async (): Promise<Corte> => {
-    const corte = await api.cortes.cerrar()
-    await Promise.all([refrescarCortes(), refrescarResumen(), refrescarGastos(), refrescarCobradas()])
-    return corte
-  }, [refrescarCortes, refrescarResumen, refrescarGastos, refrescarCobradas])
+  const cerrarCorte = useCallback(
+    async (cuadre?: CierreCorteInput): Promise<Corte> => {
+      const corte = await api.cortes.cerrar(cuadre)
+      await Promise.all([
+        refrescarCortes(),
+        refrescarResumen(),
+        refrescarGastos(),
+        refrescarCobradas(),
+        refrescarCancelaciones()
+      ])
+      return corte
+    },
+    [refrescarCortes, refrescarResumen, refrescarGastos, refrescarCobradas, refrescarCancelaciones]
+  )
 
   // --- Finanzas ------------------------------------------------------------
   const agregarGasto = useCallback(
@@ -458,6 +588,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       ordenes,
       cortes,
       reimpresiones,
+      cancelaciones,
       resumen,
       gastos,
       cobradas,
@@ -478,7 +609,12 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       marcarPorCobrar,
       cobrarOrden,
       cancelarOrden,
+      fiarOrden,
       registrarReimpresion,
+      clientes,
+      guardarCliente,
+      eliminarCliente,
+      abonarCredito,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,
@@ -502,6 +638,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       ordenes,
       cortes,
       reimpresiones,
+      cancelaciones,
       resumen,
       gastos,
       cobradas,
@@ -522,7 +659,12 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       marcarPorCobrar,
       cobrarOrden,
       cancelarOrden,
+      fiarOrden,
       registrarReimpresion,
+      clientes,
+      guardarCliente,
+      eliminarCliente,
+      abonarCredito,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,

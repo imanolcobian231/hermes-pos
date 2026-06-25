@@ -1,6 +1,8 @@
 import type Database from 'better-sqlite3'
 
 // Datos iniciales: solo se siembran si las tablas están vacías.
+// Nota: el usuario administrador NO se siembra. En la primera ejecución, si no
+// hay usuarios, la pantalla de inicio pide configurar el primer PIN de admin.
 
 const CATEGORIAS: [string, number][] = [
   ['Tacos', 1],

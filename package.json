@@ -18,7 +18,8 @@
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
-    "better-sqlite3": "^11.10.0"
+    "better-sqlite3": "^11.10.0",
+    "iconv-lite": "^0.7.2"
   },
   "devDependencies": {
     "@electron/rebuild": "^4.0.4",
@@ -27,6 +28,7 @@
     "@types/node": "^22.10.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "@types/web-bluetooth": "^0.0.21",
     "@vitejs/plugin-react": "^4.3.4",
     "electron": "^33.2.0",
     "electron-vite": "^2.3.0",

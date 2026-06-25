@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DetalleOrden, MetodoPago, OrdenConDetalle } from '@shared/types'
+import type { DetalleOrden, MetodoPago, MetodoPagoOrden, OrdenConDetalle, Pago } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { TicketCocina } from '@renderer/components/TicketCocina'
 import { TicketFinal } from '@renderer/components/TicketFinal'
 import { useToast } from '@renderer/components/Toast'
+import { useAuth } from '@renderer/store/auth'
+import { useImpresion } from '@renderer/store/impresion'
+import { calcularImpuesto } from '@shared/impuestos'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
 interface Props {
@@ -19,10 +22,21 @@ const METODOS: { id: MetodoPago; label: string; icono: NombreIcono }[] = [
   { id: 'transferencia', label: 'Transferencia', icono: 'transferencia' }
 ]
 
+// Opciones del selector: los tres métodos + pago mixto + crédito (fiar).
+const OPCIONES: { id: MetodoPago | 'mixto' | 'credito'; label: string; icono: NombreIcono }[] = [
+  ...METODOS,
+  { id: 'mixto', label: 'Mixto', icono: 'cobro' },
+  { id: 'credito', label: 'Crédito', icono: 'usuarios' }
+]
+
+const VACIO_MIXTO: Record<MetodoPago, string> = { efectivo: '', tarjeta: '', transferencia: '' }
+
 const RAPIDOS = [50, 100, 200, 500]
 
 export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
-  const { mesas, ordenes, cobrarOrden, registrarReimpresion } = useDatos()
+  const { mesas, ordenes, clientes, cobrarOrden, fiarOrden, registrarReimpresion } = useDatos()
+  const { usuarioActual } = useAuth()
+  const { imprimirFinal, imprimirCocina, cfg } = useImpresion()
   const toast = useToast()
 
   // Etiqueta de la orden: nombre de la mesa o el rótulo del pedido para llevar.
@@ -38,8 +52,10 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   )
 
   const [ordenId, setOrdenId] = useState<number | null>(null)
-  const [metodo, setMetodo] = useState<MetodoPago>('efectivo')
+  const [metodo, setMetodo] = useState<MetodoPago | 'mixto' | 'credito'>('efectivo')
   const [recibidoTexto, setRecibidoTexto] = useState('')
+  const [mixto, setMixto] = useState<Record<MetodoPago, string>>(VACIO_MIXTO)
+  const [clienteSel, setClienteSel] = useState<number | null>(null)
   const [descuento, setDescuento] = useState(0)
   // Ticket final tras cobrar (modo simulación) y reimpresión de cocina.
   const [ticketFinal, setTicketFinal] = useState<{ titulo: string; orden: OrdenConDetalle } | null>(
@@ -59,73 +75,146 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setOrdenId((inicial ?? porCobrar[0])?.id ?? null)
   }, [ordenIdInicial, porCobrar, ordenId])
 
-  // Al cambiar de cuenta, reinicia descuento y monto recibido.
+  // Al cambiar de cuenta, reinicia método, descuento y montos.
   useEffect(() => {
+    setMetodo('efectivo')
     setDescuento(0)
     setRecibidoTexto('')
+    setMixto(VACIO_MIXTO)
+    setClienteSel(null)
   }, [ordenId])
 
   const orden = porCobrar.find((o) => o.id === ordenId) ?? null
   const subtotal = orden?.total ?? 0
   const descClamp = Math.max(0, Math.min(descuento, subtotal))
-  const neto = subtotal - descClamp
+  const imp = calcularImpuesto(
+    subtotal - descClamp,
+    cfg ?? { impuestoActivo: false, impuestoTasa: 0, impuestoIncluido: true }
+  )
+  const neto = imp.total
   const recibido = parseFloat(recibidoTexto) || 0
   const cambio = recibido - neto
+
+  // Pago mixto: monto asignado por método y lo que falta por cubrir.
+  const montoMix: Record<MetodoPago, number> = {
+    efectivo: parseFloat(mixto.efectivo) || 0,
+    tarjeta: parseFloat(mixto.tarjeta) || 0,
+    transferencia: parseFloat(mixto.transferencia) || 0
+  }
+  const asignado = montoMix.efectivo + montoMix.tarjeta + montoMix.transferencia
+  const restante = Math.round((neto - asignado) * 100) / 100
+
+  const ponerResto = (m: MetodoPago): void => {
+    const otros = asignado - montoMix[m]
+    const falta = Math.max(0, Math.round((neto - otros) * 100) / 100)
+    setMixto((s) => ({ ...s, [m]: String(falta) }))
+  }
+
   const efectivoInsuficiente = metodo === 'efectivo' && recibido < neto
+  const mixtoInvalido = metodo === 'mixto' && Math.abs(restante) >= 0.01
+  const faltaCliente = metodo === 'credito' && clienteSel == null
+  const noPuedeCobrar = efectivoInsuficiente || mixtoInvalido || faltaCliente
+
+  // Arma el desglose de pagos según el método elegido (no aplica a crédito,
+  // que se maneja por separado en confirmar).
+  const construirPagos = (): { pagos: Pago[]; efectivoRecibido?: number; cambio: number } => {
+    if (metodo === 'credito') return { pagos: [], efectivoRecibido: undefined, cambio: 0 }
+    if (metodo === 'mixto') {
+      const pagos = METODOS.map((m) => ({ metodo: m.id, monto: montoMix[m.id] })).filter(
+        (p) => p.monto > 0
+      )
+      // En mixto, la parte en efectivo se asume exacta (sin cambio).
+      return { pagos, efectivoRecibido: montoMix.efectivo > 0 ? montoMix.efectivo : undefined, cambio: 0 }
+    }
+    if (metodo === 'efectivo') {
+      return { pagos: [{ metodo: 'efectivo', monto: neto }], efectivoRecibido: recibido, cambio: Math.max(0, cambio) }
+    }
+    return { pagos: [{ metodo, monto: neto }], efectivoRecibido: undefined, cambio: 0 }
+  }
 
   // Muestra el ticket como vista previa. El cobro NO se confirma aquí: se
   // confirma al dar "Listo" (finalizar).
   const confirmar = (): void => {
     if (!orden) return
-    const montoFinal = metodo === 'efectivo' ? recibido : neto
+    const baseTicket = {
+      ...orden,
+      estado: 'cobrada' as const,
+      descuento: descClamp,
+      cerradoEn: new Date().toISOString()
+    }
+    if (metodo === 'credito') {
+      setTicketFinal({
+        titulo: etiqueta(orden),
+        orden: { ...baseTicket, metodoPago: 'credito', pagos: [], montoRecibido: undefined, cambio: 0 }
+      })
+      setEsCopia(false)
+      return
+    }
+    const { pagos, efectivoRecibido, cambio: cambioFinal } = construirPagos()
+    const metodoOrden: MetodoPagoOrden = pagos.length > 1 ? 'mixto' : pagos[0].metodo
     setTicketFinal({
       titulo: etiqueta(orden),
       orden: {
-        ...orden,
-        estado: 'cobrada',
-        descuento: descClamp,
-        metodoPago: metodo,
-        montoRecibido: montoFinal,
-        cambio: metodo === 'efectivo' ? Math.max(0, montoFinal - neto) : 0,
-        cerradoEn: new Date().toISOString()
+        ...baseTicket,
+        metodoPago: metodoOrden,
+        pagos,
+        montoRecibido: efectivoRecibido,
+        cambio: cambioFinal
       }
     })
     setEsCopia(false)
   }
 
   // Confirma el cobro (cierra la venta) al dar "Listo".
-  const finalizar = (): void => {
+  const finalizar = async (): Promise<void> => {
     if (!ticketFinal) return
     const snap = ticketFinal.orden
-    const netoSnap = snap.total - snap.descuento
-    void cobrarOrden(
-      snap.id,
-      snap.metodoPago ?? 'efectivo',
-      snap.montoRecibido ?? netoSnap,
-      snap.descuento
-    )
-    toast(`${ticketFinal.titulo} cobrada · ticket impreso`)
+    if (snap.metodoPago === 'credito') {
+      if (clienteSel == null) return
+      await fiarOrden(snap.id, clienteSel, snap.descuento)
+    } else {
+      await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento)
+    }
+    // Imprime el ticket de caja (ya cerrada en la DB).
+    try {
+      await imprimirFinal(snap.id)
+      toast(`${ticketFinal.titulo} ${snap.metodoPago === 'credito' ? 'fiada' : 'cobrada'} · ticket impreso`)
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Cerrada, pero no se pudo imprimir el ticket', 'error')
+    }
     setTicketFinal(null)
     setRecibidoTexto('')
+    setMixto(VACIO_MIXTO)
+    setClienteSel(null)
     setMetodo('efectivo')
     setDescuento(0)
     setOrdenId(null)
   }
 
-  const reimprimirCocina = (): void => {
+  const reimprimirCocina = async (): Promise<void> => {
     if (!orden) return
     const enviadas = orden.detalle.filter((d) => d.enviadoCocina)
     if (enviadas.length === 0) return
-    registrarReimpresion('cocina', orden.id)
+    registrarReimpresion('cocina', orden.id, usuarioActual?.nombre)
     setTicketCocina({ titulo: etiqueta(orden), lineas: enviadas })
-    toast('Comanda de cocina reimpresa', 'info')
+    try {
+      await imprimirCocina(etiqueta(orden), enviadas, { reimpresion: true })
+      toast('Comanda de cocina reimpresa', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo reimprimir la comanda', 'error')
+    }
   }
 
-  const reimprimirCopia = (): void => {
+  const reimprimirCopia = async (): Promise<void> => {
     if (!ticketFinal) return
-    registrarReimpresion('final', ticketFinal.orden.id)
+    registrarReimpresion('final', ticketFinal.orden.id, usuarioActual?.nombre)
     setEsCopia(true)
-    toast('Copia del ticket reimpresa', 'info')
+    try {
+      await imprimirFinal(ticketFinal.orden.id, { copia: true })
+      toast('Copia del ticket reimpresa', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo reimprimir la copia', 'error')
+    }
   }
 
   return (
@@ -150,7 +239,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                 onClick={() => setOrdenId(o.id)}
                 className={`flex items-center justify-between rounded-lg border-2 px-4 py-3 text-left transition ${
                   ordenId === o.id
-                    ? 'border-amber-400 bg-amber-50'
+                    ? 'border-slate-900 bg-slate-100'
                     : 'border-slate-200 bg-white hover:border-slate-300'
                 }`}
               >
@@ -199,12 +288,24 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                   {descClamp > 0 && (
                     <>
                       <div className="flex justify-between text-sm text-slate-500">
-                        <span>Subtotal</span>
+                        <span>Importe</span>
                         <span>{pesos(subtotal)}</span>
                       </div>
                       <div className="flex justify-between text-sm text-slate-500">
                         <span>Descuento</span>
                         <span>−{pesos(descClamp)}</span>
+                      </div>
+                    </>
+                  )}
+                  {imp.tasa > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm text-slate-500">
+                        <span>Subtotal</span>
+                        <span>{pesos(imp.base)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm text-slate-500">
+                        <span>IVA {imp.tasa}%</span>
+                        <span>{pesos(imp.iva)}</span>
                       </div>
                     </>
                   )}
@@ -218,8 +319,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
               {/* Pago */}
               <div className="flex w-80 flex-col rounded-lg border border-slate-200 bg-white p-5">
                 <span className="mb-2 text-sm font-medium text-slate-600">Método de pago</span>
-                <div className="mb-4 grid grid-cols-3 gap-2">
-                  {METODOS.map((m) => (
+                <div className="mb-4 grid grid-cols-2 gap-2">
+                  {OPCIONES.map((m) => (
                     <button
                       key={m.id}
                       onClick={() => setMetodo(m.id)}
@@ -311,12 +412,95 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                   </>
                 )}
 
+                {metodo === 'mixto' && (
+                  <>
+                    <span className="mb-2 text-sm font-medium text-slate-600">Reparte el pago</span>
+                    <div className="mb-2 flex flex-col gap-2">
+                      {METODOS.map((m) => (
+                        <div key={m.id} className="flex items-center gap-2">
+                          <span className="flex w-24 items-center gap-1.5 text-sm text-slate-600">
+                            <Icono nombre={m.icono} size={15} />
+                            {m.label}
+                          </span>
+                          <span className="text-sm text-slate-400">$</span>
+                          <input
+                            type="number"
+                            value={mixto[m.id]}
+                            onChange={(e) => setMixto((s) => ({ ...s, [m.id]: e.target.value }))}
+                            placeholder="0.00"
+                            className="w-24 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm outline-none focus:border-slate-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => ponerResto(m.id)}
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                            title="Asignar lo que falta a este método"
+                          >
+                            resto
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mb-4 flex justify-between rounded-lg bg-slate-50 px-4 py-3">
+                      <span className="font-semibold text-slate-600">
+                        {restante > 0 ? 'Falta' : restante < 0 ? 'Sobra' : 'Restante'}
+                      </span>
+                      <span
+                        className={`text-xl font-bold ${
+                          Math.abs(restante) < 0.01 ? 'text-emerald-600' : 'text-red-600'
+                        }`}
+                      >
+                        {pesos(Math.abs(restante))}
+                      </span>
+                    </div>
+                  </>
+                )}
+
+                {metodo === 'credito' && (
+                  <>
+                    <span className="mb-2 text-sm font-medium text-slate-600">Cliente</span>
+                    {clientes.length === 0 ? (
+                      <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                        No hay clientes registrados. Crea uno en la sección Clientes.
+                      </p>
+                    ) : (
+                      <select
+                        value={clienteSel ?? ''}
+                        onChange={(e) => setClienteSel(e.target.value ? Number(e.target.value) : null)}
+                        className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                      >
+                        <option value="">Selecciona un cliente…</option>
+                        {clientes.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.nombre}
+                            {c.saldo > 0 ? ` · debe ${pesos(c.saldo)}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <div className="mb-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                      Se cargará <strong className="text-slate-800">{pesos(neto)}</strong> a la cuenta
+                      del cliente.
+                    </div>
+                  </>
+                )}
+
                 <button
                   onClick={confirmar}
-                  disabled={efectivoInsuficiente}
+                  disabled={noPuedeCobrar}
                   className="mt-auto w-full rounded-md bg-slate-900 py-3 font-bold text-white transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                 >
-                  {efectivoInsuficiente ? 'Monto insuficiente' : `Cobrar ${pesos(neto)}`}
+                  {efectivoInsuficiente
+                    ? 'Monto insuficiente'
+                    : mixtoInvalido
+                      ? restante > 0
+                        ? `Faltan ${pesos(restante)}`
+                        : `Sobran ${pesos(-restante)}`
+                      : metodo === 'credito'
+                        ? faltaCliente
+                          ? 'Selecciona un cliente'
+                          : `Fiar ${pesos(neto)}`
+                        : `Cobrar ${pesos(neto)}`}
                 </button>
               </div>
             </div>

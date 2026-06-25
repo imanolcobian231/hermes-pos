@@ -1,5 +1,8 @@
 import type { MetodoPago, OrdenConDetalle } from '@shared/types'
 import { fechaHora, pesos } from '@renderer/lib/format'
+import { useImpresion } from '@renderer/store/impresion'
+import { calcularImpuesto, totalEnLetra } from '@shared/impuestos'
+import { agruparLineas } from '@shared/ticket'
 
 interface Props {
   titulo: string
@@ -16,29 +19,42 @@ const etiquetaMetodo: Record<MetodoPago, string> = {
 
 // Previsualización del ticket de cliente (modo simulación).
 export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element {
+  const { cfg } = useImpresion()
+  const imp = calcularImpuesto(
+    orden.total - orden.descuento,
+    cfg ?? { impuestoActivo: false, impuestoTasa: 0, impuestoIncluido: true }
+  )
   return (
     <div className="mx-auto w-64 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 font-mono text-xs text-slate-800">
-      <div className="text-center font-bold">HERMES POS</div>
+      {cfg?.nombreNegocio && (
+        <div className="text-center font-bold">{cfg.nombreNegocio}</div>
+      )}
+      {cfg?.direccion && (
+        <div className="text-center text-[10px] text-slate-500">{cfg.direccion}</div>
+      )}
+      {cfg?.telefono && (
+        <div className="text-center text-[10px] text-slate-500">Tel: {cfg.telefono}</div>
+      )}
       <div className="text-center text-[10px] text-slate-500">Gracias por su visita</div>
       {copia && <div className="mt-1 text-center font-bold">*** COPIA ***</div>}
       <div className="my-2 border-t border-dashed border-slate-300" />
       <div className="flex justify-between">
         <span>{titulo}</span>
-        <span>#{orden.id}</span>
+        <span>Ticket #{orden.id}</span>
       </div>
       <div className="text-[10px] text-slate-500">{fechaHora(orden.cerradoEn ?? orden.abiertoEn)}</div>
       <div className="my-2 border-t border-dashed border-slate-300" />
 
-      {orden.detalle.map((d) => (
-        <div key={d.id}>
+      {agruparLineas(orden.detalle).map((d, i) => (
+        <div key={i}>
           <div className="flex justify-between">
             <span className="pr-2">
               {d.cantidad} x {d.nombreProducto}
             </span>
             <span>{pesos(d.cantidad * d.precioUnitario)}</span>
           </div>
-          {d.modificadores.map((m) => (
-            <div key={m.id} className="pl-3 text-slate-500">
+          {d.modificadores.map((m, j) => (
+            <div key={j} className="pl-3 text-slate-500">
               + {m.nombre}
             </div>
           ))}
@@ -49,7 +65,7 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
       {orden.descuento > 0 && (
         <>
           <div className="flex justify-between">
-            <span>Subtotal</span>
+            <span>Importe</span>
             <span>{pesos(orden.total)}</span>
           </div>
           <div className="flex justify-between">
@@ -58,17 +74,54 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
           </div>
         </>
       )}
-      <div className="flex justify-between text-sm font-bold">
+      {imp.tasa > 0 && (
+        <>
+          <div className="flex justify-between">
+            <span>Subtotal</span>
+            <span>{pesos(imp.base)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>IVA {imp.tasa}%</span>
+            <span>{pesos(imp.iva)}</span>
+          </div>
+        </>
+      )}
+      <div className="mt-2 flex items-center justify-between text-lg font-extrabold">
         <span>TOTAL</span>
-        <span>{pesos(orden.total - orden.descuento)}</span>
+        <span>{pesos(imp.total)}</span>
       </div>
+      <div className="mt-1 text-[10px] text-slate-500">Son {totalEnLetra(imp.total)}</div>
 
-      {orden.metodoPago && (
+      {orden.pagos && orden.pagos.length > 0 ? (
+        <>
+          <div className="my-2 border-t border-dashed border-slate-300" />
+          {orden.pagos.map((p, i) => (
+            <div key={i} className="flex justify-between">
+              <span>{etiquetaMetodo[p.metodo]}</span>
+              <span>{pesos(p.monto)}</span>
+            </div>
+          ))}
+          {orden.cambio != null && orden.cambio > 0 && (
+            <div className="flex justify-between">
+              <span>Cambio</span>
+              <span>{pesos(orden.cambio)}</span>
+            </div>
+          )}
+        </>
+      ) : orden.metodoPago === 'credito' ? (
+        <>
+          <div className="my-2 border-t border-dashed border-slate-300" />
+          <div className="flex justify-between font-semibold">
+            <span>CRÉDITO (fiado)</span>
+            <span>{pesos(imp.total)}</span>
+          </div>
+        </>
+      ) : orden.metodoPago && orden.metodoPago !== 'mixto' ? (
         <>
           <div className="my-2 border-t border-dashed border-slate-300" />
           <div className="flex justify-between">
             <span>{etiquetaMetodo[orden.metodoPago]}</span>
-            <span>{pesos(orden.montoRecibido ?? orden.total)}</span>
+            <span>{pesos(orden.montoRecibido ?? imp.total)}</span>
           </div>
           {orden.metodoPago === 'efectivo' && (
             <div className="flex justify-between">
@@ -77,10 +130,11 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
             </div>
           )}
         </>
-      )}
+      ) : null}
 
       <div className="my-2 border-t border-dashed border-slate-300" />
-      <div className="text-center text-[10px] text-slate-400">Hermes POS · simulación</div>
+      <div className="text-center text-base font-extrabold tracking-wide">Hermes</div>
+      <div className="text-center text-[10px] text-slate-400">Powered by Olyssea</div>
     </div>
   )
 }

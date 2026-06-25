@@ -1,9 +1,17 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import { CANALES } from '@shared/canales'
 import type {
+  Cancelacion,
   Categoria,
   CategoriaInput,
+  CierreCorteInput,
+  Cliente,
+  ClienteInput,
+  ConfigImpresoras,
+  ConfigRespaldo,
   Corte,
+  DestinoImpresion,
+  DispositivoBluetooth,
   DetalleOrden,
   Gasto,
   GrupoInput,
@@ -13,11 +21,17 @@ import type {
   MetodoPago,
   Modificador,
   ModificadorInput,
+  MovimientoCredito,
   OrdenConDetalle,
+  Pago,
   Producto,
   ProductoInput,
   Reimpresion,
-  ResumenTurno
+  ReporteVentas,
+  RespaldoInfo,
+  ResumenTurno,
+  Usuario,
+  UsuarioInput
 } from '@shared/types'
 
 const invoke = ipcRenderer.invoke.bind(ipcRenderer)
@@ -80,23 +94,53 @@ const api = {
       invoke(CANALES.ordenes.marcarPorCobrar, ordenId),
     cobrar: (
       ordenId: number,
-      metodo: MetodoPago,
-      monto: number,
+      pagos: Pago[],
+      efectivoRecibido?: number,
       descuento?: number
-    ): Promise<OrdenConDetalle> => invoke(CANALES.ordenes.cobrar, ordenId, metodo, monto, descuento),
-    cancelar: (ordenId: number): Promise<void> => invoke(CANALES.ordenes.cancelar, ordenId),
+    ): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento),
+    fiar: (ordenId: number, clienteId: number, descuento?: number): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.fiar, ordenId, clienteId, descuento),
+    cancelar: (ordenId: number, motivo: string, usuario?: string): Promise<void> =>
+      invoke(CANALES.ordenes.cancelar, ordenId, motivo, usuario),
     cobradasTurno: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.cobradasTurno)
+  },
+  clientes: {
+    listar: (): Promise<Cliente[]> => invoke(CANALES.clientes.listar),
+    guardar: (c: ClienteInput): Promise<Cliente> => invoke(CANALES.clientes.guardar, c),
+    eliminar: (id: number): Promise<void> => invoke(CANALES.clientes.eliminar, id),
+    movimientos: (clienteId: number): Promise<MovimientoCredito[]> =>
+      invoke(CANALES.clientes.movimientos, clienteId),
+    abonar: (clienteId: number, monto: number, metodo: MetodoPago, nota?: string): Promise<Cliente> =>
+      invoke(CANALES.clientes.abonar, clienteId, monto, metodo, nota)
   },
   cortes: {
     resumen: (): Promise<ResumenTurno> => invoke(CANALES.cortes.resumen),
     listar: (): Promise<Corte[]> => invoke(CANALES.cortes.listar),
-    cerrar: (): Promise<Corte> => invoke(CANALES.cortes.cerrar)
+    cerrar: (cuadre?: CierreCorteInput): Promise<Corte> => invoke(CANALES.cortes.cerrar, cuadre)
+  },
+  cancelaciones: {
+    listar: (): Promise<Cancelacion[]> => invoke(CANALES.cancelaciones.listar)
+  },
+  reportes: {
+    generar: (desde: string, hasta: string): Promise<ReporteVentas> =>
+      invoke(CANALES.reportes.generar, desde, hasta)
   },
   gastos: {
     listar: (): Promise<Gasto[]> => invoke(CANALES.gastos.listar),
     crear: (concepto: string, monto: number): Promise<Gasto> =>
       invoke(CANALES.gastos.crear, concepto, monto),
     eliminar: (id: number): Promise<void> => invoke(CANALES.gastos.eliminar, id)
+  },
+  usuarios: {
+    listar: (): Promise<Usuario[]> => invoke(CANALES.usuarios.listar),
+    hayUsuarios: (): Promise<boolean> => invoke(CANALES.usuarios.hayUsuarios),
+    crearPrimerAdmin: (nombre: string, pin: string): Promise<Usuario> =>
+      invoke(CANALES.usuarios.crearPrimerAdmin, nombre, pin),
+    login: (usuarioId: number, pin: string): Promise<Usuario | null> =>
+      invoke(CANALES.usuarios.login, usuarioId, pin),
+    guardar: (u: UsuarioInput): Promise<Usuario> => invoke(CANALES.usuarios.guardar, u),
+    eliminar: (id: number): Promise<void> => invoke(CANALES.usuarios.eliminar, id)
   },
   reimpresiones: {
     listar: (): Promise<Reimpresion[]> => invoke(CANALES.reimpresiones.listar),
@@ -107,13 +151,43 @@ const api = {
     ): Promise<Reimpresion> => invoke(CANALES.reimpresiones.registrar, tipo, ordenId, usuario)
   },
   printer: {
-    cocina: (
+    bytesCocina: (
       titulo: string,
       lineas: DetalleOrden[],
       opciones?: { adicional?: boolean; reimpresion?: boolean }
-    ): Promise<string> => invoke(CANALES.printer.cocina, titulo, lineas, opciones),
-    final: (ordenId: number, opciones?: { copia?: boolean }): Promise<string> =>
-      invoke(CANALES.printer.final, ordenId, opciones)
+    ): Promise<number[]> => invoke(CANALES.printer.bytesCocina, titulo, lineas, opciones),
+    bytesFinal: (ordenId: number, opciones?: { copia?: boolean }): Promise<number[]> =>
+      invoke(CANALES.printer.bytesFinal, ordenId, opciones),
+    bytesPrueba: (destino: DestinoImpresion): Promise<number[]> =>
+      invoke(CANALES.printer.bytesPrueba, destino),
+    listarPuertos: (): Promise<string[]> => invoke(CANALES.printer.listarPuertos),
+    enviarCom: (puerto: string, baudRate: number, bytes: number[]): Promise<void> =>
+      invoke(CANALES.printer.enviarCom, puerto, baudRate, bytes)
+  },
+  ble: {
+    /** Suscribe a la lista de dispositivos del selector. Devuelve un de-suscriptor. */
+    alDetectarDispositivos: (cb: (lista: DispositivoBluetooth[]) => void): (() => void) => {
+      const handler = (_e: unknown, lista: DispositivoBluetooth[]): void => cb(lista)
+      ipcRenderer.on(CANALES.ble.dispositivos, handler)
+      return () => ipcRenderer.removeListener(CANALES.ble.dispositivos, handler)
+    },
+    /** Informa al main el dispositivo elegido ('' para cancelar). */
+    seleccionar: (deviceId: string): void => {
+      ipcRenderer.send(CANALES.ble.seleccionar, deviceId)
+    }
+  },
+  config: {
+    obtenerImpresoras: (): Promise<ConfigImpresoras> => invoke(CANALES.config.obtenerImpresoras),
+    guardarImpresoras: (cfg: ConfigImpresoras): Promise<ConfigImpresoras> =>
+      invoke(CANALES.config.guardarImpresoras, cfg)
+  },
+  respaldo: {
+    obtener: (): Promise<ConfigRespaldo> => invoke(CANALES.respaldo.obtener),
+    guardar: (cfg: ConfigRespaldo): Promise<ConfigRespaldo> => invoke(CANALES.respaldo.guardar, cfg),
+    ahora: (): Promise<string> => invoke(CANALES.respaldo.ahora),
+    listar: (): Promise<RespaldoInfo[]> => invoke(CANALES.respaldo.listar),
+    elegirCarpeta: (): Promise<string | null> => invoke(CANALES.respaldo.elegirCarpeta),
+    abrirCarpeta: (): Promise<string> => invoke(CANALES.respaldo.abrirCarpeta)
   }
 }
 

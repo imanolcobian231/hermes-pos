@@ -60,7 +60,7 @@ export function TicketCocina({ titulo, lineas, adicional, reimpresion }: Props):
         </div>
       ))}
       <div className="my-2 border-t border-dashed border-slate-300" />
-      <div className="text-center text-[10px] text-slate-400">Hermes POS · simulación</div>
+      <div className="text-center text-[10px] text-slate-400">Hermes · simulación</div>
     </div>
   )
 }

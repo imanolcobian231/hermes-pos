@@ -6,9 +6,11 @@ import { useToast } from '@renderer/components/Toast'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
 export function Corte(): React.JSX.Element {
-  const { cortes, reimpresiones, resumen, cerrarCorte } = useDatos()
+  const { cortes, reimpresiones, cancelaciones, resumen, cerrarCorte } = useDatos()
   const toast = useToast()
   const [confirmar, setConfirmar] = useState(false)
+  const [fondo, setFondo] = useState('')
+  const [contado, setContado] = useState('')
 
   const nombreOrden = (ordenId: number): string => `Orden #${ordenId}`
 
@@ -20,6 +22,31 @@ export function Corte(): React.JSX.Element {
   const balance = total - gastos
   const numOrdenes = resumen.numOrdenes
 
+  // Cuadre de caja: efectivo que debería haber en el cajón y diferencia con el
+  // conteo físico (+ sobrante, − faltante). El fondo y el conteo son opcionales.
+  const fondoNum = Number(fondo) || 0
+  const contadoNum = contado.trim() === '' ? undefined : Number(contado) || 0
+  const efectivoEsperado = fondoNum + efectivo - gastos
+  const diferencia = contadoNum != null ? contadoNum - efectivoEsperado : null
+
+  const abrirCierre = (): void => {
+    setFondo('')
+    setContado('')
+    setConfirmar(true)
+  }
+
+  const confirmarCierre = async (): Promise<void> => {
+    const corte = await cerrarCorte({ fondoInicial: fondoNum, efectivoContado: contadoNum })
+    setConfirmar(false)
+    const ventas = corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
+    const dif = corte.diferencia
+    const sufijo =
+      dif != null && Math.abs(dif) >= 0.01
+        ? ` · ${dif < 0 ? 'faltante' : 'sobrante'} ${pesos(Math.abs(dif))}`
+        : ''
+    toast(`Turno cerrado · balance ${pesos(ventas - corte.totalGastos)}${sufijo}`)
+  }
+
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6 flex items-center justify-between">
@@ -28,7 +55,7 @@ export function Corte(): React.JSX.Element {
           <p className="text-sm text-slate-500">Turno actual e historial de cortes</p>
         </div>
         <button
-          onClick={() => setConfirmar(true)}
+          onClick={abrirCierre}
           disabled={numOrdenes === 0}
           className="rounded-lg bg-slate-800 px-4 py-2.5 font-semibold text-white transition enabled:hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
         >
@@ -70,6 +97,7 @@ export function Corte(): React.JSX.Element {
                   <th className="px-4 py-2.5 text-right">Ventas</th>
                   <th className="px-4 py-2.5 text-right">Gastos</th>
                   <th className="px-4 py-2.5 text-right">Balance</th>
+                  <th className="px-4 py-2.5 text-right">Cuadre</th>
                 </tr>
               </thead>
               <tbody>
@@ -87,6 +115,20 @@ export function Corte(): React.JSX.Element {
                       </td>
                       <td className="px-4 py-2.5 text-right font-bold text-slate-900">
                         {pesos(ventas - c.totalGastos)}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {c.diferencia == null ? (
+                          <span className="text-slate-300">—</span>
+                        ) : Math.abs(c.diferencia) < 0.01 ? (
+                          <span className="font-semibold text-emerald-600">Cuadra</span>
+                        ) : (
+                          <span
+                            className={`font-semibold ${c.diferencia < 0 ? 'text-red-600' : 'text-amber-600'}`}
+                          >
+                            {c.diferencia < 0 ? '−' : '+'}
+                            {pesos(Math.abs(c.diferencia))}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   )
@@ -136,6 +178,37 @@ export function Corte(): React.JSX.Element {
         </section>
       )}
 
+      {/* Auditoría de cancelaciones del turno */}
+      {cancelaciones.length > 0 && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-lg font-bold text-slate-700">Cancelaciones del turno</h2>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-4 py-2.5">Hora</th>
+                  <th className="px-4 py-2.5">Orden</th>
+                  <th className="px-4 py-2.5">Motivo</th>
+                  <th className="px-4 py-2.5">Usuario</th>
+                  <th className="px-4 py-2.5 text-right">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cancelaciones.map((c) => (
+                  <tr key={c.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2.5 text-slate-600">{hora(c.canceladoEn)}</td>
+                    <td className="px-4 py-2.5 text-slate-700">{nombreOrden(c.ordenId)}</td>
+                    <td className="px-4 py-2.5 text-slate-700">{c.motivo}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{c.usuario}</td>
+                    <td className="px-4 py-2.5 text-right text-slate-700">{pesos(c.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       <Modal
         abierto={confirmar}
         titulo="Cerrar turno"
@@ -149,13 +222,7 @@ export function Corte(): React.JSX.Element {
               Cancelar
             </button>
             <button
-              onClick={async () => {
-                const corte = await cerrarCorte()
-                setConfirmar(false)
-                const ventas =
-                  corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
-                toast(`Turno cerrado · balance ${pesos(ventas - corte.totalGastos)}`)
-              }}
+              onClick={() => void confirmarCierre()}
               className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
             >
               Cerrar turno
@@ -165,8 +232,62 @@ export function Corte(): React.JSX.Element {
       >
         <p className="text-sm text-slate-600">
           Ventas <strong>{pesos(total)}</strong> − gastos <strong>{pesos(gastos)}</strong> ={' '}
-          <strong>{pesos(balance)}</strong> de balance ({numOrdenes} órdenes). Se cerrará el turno e
-          iniciará uno nuevo. Esta acción no se puede deshacer.
+          <strong>{pesos(balance)}</strong> de balance ({numOrdenes} órdenes).
+        </p>
+
+        {/* Cuadre de caja (opcional pero recomendado) */}
+        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+          <h3 className="mb-3 text-sm font-bold text-slate-700">Cuadre de caja (efectivo)</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <CampoMonto
+              label="Fondo inicial"
+              ayuda="Cambio con el que abriste"
+              valor={fondo}
+              onChange={setFondo}
+            />
+            <CampoMonto
+              label="Efectivo contado"
+              ayuda="Lo que hay en el cajón"
+              valor={contado}
+              onChange={setContado}
+            />
+          </div>
+          <div className="mt-3 space-y-1 text-sm">
+            <div className="flex justify-between text-slate-600">
+              <span>Efectivo esperado en cajón</span>
+              <span className="font-semibold">{pesos(efectivoEsperado)}</span>
+            </div>
+            {diferencia != null && (
+              <div
+                className={`flex justify-between font-bold ${
+                  Math.abs(diferencia) < 0.01
+                    ? 'text-emerald-600'
+                    : diferencia < 0
+                      ? 'text-red-600'
+                      : 'text-amber-600'
+                }`}
+              >
+                <span>
+                  {Math.abs(diferencia) < 0.01
+                    ? 'Cuadra'
+                    : diferencia < 0
+                      ? 'Faltante'
+                      : 'Sobrante'}
+                </span>
+                <span>
+                  {diferencia < 0 ? '−' : diferencia > 0 ? '+' : ''}
+                  {pesos(Math.abs(diferencia))}
+                </span>
+              </div>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-slate-400">
+            Esperado = fondo + ventas en efectivo − gastos. Déjalos vacíos para omitir el cuadre.
+          </p>
+        </div>
+
+        <p className="mt-4 text-xs text-slate-400">
+          Se cerrará el turno e iniciará uno nuevo. Esta acción no se puede deshacer.
         </p>
       </Modal>
     </div>
@@ -210,6 +331,37 @@ function Tarjeta({
       <div className={`text-2xl font-bold ${colorMonto}`}>
         {negativo && monto > 0 ? `−${pesos(monto)}` : pesos(monto)}
       </div>
+    </div>
+  )
+}
+
+function CampoMonto({
+  label,
+  ayuda,
+  valor,
+  onChange
+}: {
+  label: string
+  ayuda?: string
+  valor: string
+  onChange: (v: string) => void
+}): React.JSX.Element {
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
+      <div className="flex items-center rounded-lg border border-slate-300 bg-white px-2 focus-within:border-slate-500">
+        <span className="text-sm text-slate-400">$</span>
+        <input
+          type="number"
+          inputMode="decimal"
+          min={0}
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="0.00"
+          className="w-full bg-transparent px-1 py-2 text-right text-sm outline-none"
+        />
+      </div>
+      {ayuda && <p className="mt-0.5 text-[11px] text-slate-400">{ayuda}</p>}
     </div>
   )
 }

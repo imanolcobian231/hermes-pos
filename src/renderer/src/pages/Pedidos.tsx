@@ -3,10 +3,11 @@ import type { DetalleOrden, Producto } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
-import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
 import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCocina'
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { useToast } from '@renderer/components/Toast'
+import { useImpresion } from '@renderer/store/impresion'
+import { useAuth } from '@renderer/store/auth'
 import { Icono } from '@renderer/components/Icono'
 
 interface Props {
@@ -30,6 +31,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     cancelarOrden
   } = useDatos()
   const toast = useToast()
+  const { imprimirCocina } = useImpresion()
+  const { usuarioActual } = useAuth()
 
   const orden = ordenPorId(ordenId)
 
@@ -46,6 +49,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const [notaLinea, setNotaLinea] = useState<DetalleOrden | null>(null)
   const [notaTexto, setNotaTexto] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
+  const [motivoCancel, setMotivoCancel] = useState('')
   // Producto cuyo selector de modificadores está abierto.
   const [modProducto, setModProducto] = useState<Producto | null>(null)
   // Comensal activo y cuántos comensales hay en la orden.
@@ -98,21 +102,23 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   })
 
   const hayPendientes = orden.detalle.some((d) => !d.enviadoCocina)
-  // El primer envío manda toda la mesa; los siguientes son por comensal (adicionales).
+  // Si ya se envió algo antes, el envío actual es "adicional".
   const primerEnvio = !orden.detalle.some((d) => d.enviadoCocina)
-
-  // Estado del comensal activo (para los envíos adicionales).
-  const lineasComensal = orden.detalle.filter((d) => (d.comensal ?? 1) === comensalActivo)
-  const pendientesComensal = lineasComensal.some((d) => !d.enviadoCocina)
 
   const handleEnviar = async (): Promise<void> => {
     const adicional = !primerEnvio
-    const nuevas = await enviarACocina(orden.id, primerEnvio ? undefined : comensalActivo)
+    // Envía TODO lo pendiente (de todos los comensales); el ticket los agrupa.
+    const nuevas = await enviarACocina(orden.id)
     if (nuevas.length > 0) {
       setTicket({ lineas: nuevas, adicional })
       const total = nuevas.reduce((acc, d) => acc + d.cantidad, 0)
-      const quien = primerEnvio ? '' : `Comensal ${comensalActivo}: `
-      toast(`${quien}${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
+      toast(`${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
+      // Impresión de la comanda en la térmica de cocina.
+      try {
+        await imprimirCocina(titulo, nuevas, { adicional })
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'No se pudo imprimir la comanda', 'error')
+      }
     }
   }
 
@@ -241,11 +247,31 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               Toca un producto para agregarlo al comensal {comensalActivo}
             </p>
           )}
-          {agruparPorComensal(orden.detalle).map(([comensal, items]) => (
-            <div key={comensal} className="mb-1">
+          {agruparPorComensal(orden.detalle).map(([comensal, items]) => {
+            const subtotalComensal = items.reduce((s, d) => s + d.cantidad * d.precioUnitario, 0)
+            const activo = comensal === comensalActivo
+            return (
+            <div
+              key={comensal}
+              className={`mb-3 overflow-hidden rounded-lg ${
+                totalComensales > 1
+                  ? activo
+                    ? 'border-2 border-slate-900'
+                    : 'border border-slate-200'
+                  : ''
+              }`}
+            >
               {totalComensales > 1 && (
-                <div className="px-2 pb-0.5 pt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Comensal {comensal}
+                <div
+                  className={`flex items-center justify-between px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${
+                    activo ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
+                  }`}
+                >
+                  <span>
+                    Comensal {comensal}
+                    {activo && ' · aquí'}
+                  </span>
+                  <span>{pesos(subtotalComensal)}</span>
                 </div>
               )}
               {items.map((d) => (
@@ -299,7 +325,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
                 </div>
               ))}
             </div>
-          ))}
+            )
+          })}
         </div>
 
         <footer className="border-t border-slate-100 px-5 py-4">
@@ -310,14 +337,10 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
 
           <button
             onClick={handleEnviar}
-            disabled={primerEnvio ? !hayPendientes : !pendientesComensal}
+            disabled={!hayPendientes}
             className="mb-2 w-full rounded-md bg-slate-900 py-2.5 font-semibold text-white transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
           >
-            {primerEnvio
-              ? 'Enviar a cocina'
-              : totalComensales > 1
-                ? `Enviar comensal ${comensalActivo} a cocina (adicional)`
-                : 'Enviar adicional a cocina'}
+            {primerEnvio ? 'Enviar a cocina' : 'Enviar pendientes a cocina'}
           </button>
           <button
             onClick={handleCobrar}
@@ -399,30 +422,74 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
         </p>
       </Modal>
 
-      <ConfirmDialog
+      <Modal
         abierto={confirmarCancel}
         titulo="Cancelar orden"
-        peligro
-        textoConfirmar="Sí, cancelar"
-        textoCancelar="No"
-        mensaje={
+        onCerrar={() => {
+          setConfirmarCancel(false)
+          setMotivoCancel('')
+        }}
+        pie={
           <>
-            Se cancelará la orden de <strong>{titulo}</strong>.
-            {orden.detalle.some((d) => d.enviadoCocina) && (
-              <span className="mt-2 block font-medium text-amber-700">
-                Advertencia: ya se enviaron productos a cocina.
-              </span>
-            )}
+            <button
+              onClick={() => {
+                setConfirmarCancel(false)
+                setMotivoCancel('')
+              }}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              No
+            </button>
+            <button
+              disabled={!motivoCancel.trim()}
+              onClick={() => {
+                void cancelarOrden(orden.id, motivoCancel.trim(), usuarioActual?.nombre)
+                setConfirmarCancel(false)
+                setMotivoCancel('')
+                toast('Orden cancelada', 'info')
+                onVolver()
+              }}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
+            >
+              Sí, cancelar
+            </button>
           </>
         }
-        onConfirmar={() => {
-          void cancelarOrden(orden.id)
-          setConfirmarCancel(false)
-          toast(`Orden cancelada`, 'info')
-          onVolver()
-        }}
-        onCancelar={() => setConfirmarCancel(false)}
-      />
+      >
+        <p className="text-sm text-slate-600">
+          Se cancelará la orden de <strong>{titulo}</strong>.
+        </p>
+        {orden.detalle.some((d) => d.enviadoCocina) && (
+          <p className="mt-2 text-sm font-medium text-amber-700">
+            Advertencia: ya se enviaron productos a cocina.
+          </p>
+        )}
+        <label className="mb-1 mt-4 block text-sm font-medium text-slate-600">
+          Motivo de la cancelación
+        </label>
+        <input
+          autoFocus
+          value={motivoCancel}
+          onChange={(e) => setMotivoCancel(e.target.value)}
+          placeholder="Ej. cliente se fue, error de captura…"
+          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-slate-800 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+        />
+        <div className="mt-2 flex flex-wrap gap-2">
+          {['Cliente se fue', 'Error de captura', 'Producto agotado', 'Cortesía'].map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setMotivoCancel(m)}
+              className="rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100"
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-slate-400">
+          El motivo queda registrado en el corte para auditoría.
+        </p>
+      </Modal>
     </div>
   )
 }

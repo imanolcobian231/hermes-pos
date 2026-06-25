@@ -14,6 +14,15 @@ CREATE TABLE IF NOT EXISTS mesas (
   color     TEXT
 );
 
+CREATE TABLE IF NOT EXISTS usuarios (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre   TEXT    NOT NULL,
+  pin_hash TEXT    NOT NULL,
+  rol      TEXT    NOT NULL DEFAULT 'cajero',
+  email    TEXT,
+  activo   INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS categorias (
   id     INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre TEXT    NOT NULL,
@@ -90,6 +99,15 @@ CREATE TABLE IF NOT EXISTS detalle_modificadores (
   precio         REAL    NOT NULL DEFAULT 0
 );
 
+-- Pagos de una orden. Una orden puede tener varios (pago mixto). El monto es la
+-- parte del total cubierta por ese método (en efectivo, lo aplicado a la venta).
+CREATE TABLE IF NOT EXISTS pagos (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  orden_id INTEGER NOT NULL REFERENCES ordenes(id) ON DELETE CASCADE,
+  metodo   TEXT    NOT NULL,
+  monto    REAL    NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS cortes (
   id                  INTEGER PRIMARY KEY AUTOINCREMENT,
   fecha               TEXT NOT NULL,
@@ -98,7 +116,22 @@ CREATE TABLE IF NOT EXISTS cortes (
   total_transferencia REAL NOT NULL DEFAULT 0,
   total_gastos        REAL NOT NULL DEFAULT 0,
   num_ordenes         INTEGER NOT NULL DEFAULT 0,
+  fondo_inicial       REAL NOT NULL DEFAULT 0,
+  efectivo_contado    REAL,
+  diferencia          REAL,
   cerrado_en          TEXT NOT NULL
+);
+
+-- Auditoría de cancelaciones de órdenes (motivo + quién + monto). Permite
+-- detectar mermas/abuso. Se archiva por corte como los gastos.
+CREATE TABLE IF NOT EXISTS cancelaciones (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  orden_id     INTEGER NOT NULL,
+  motivo       TEXT    NOT NULL,
+  usuario      TEXT    NOT NULL DEFAULT 'caja',
+  total        REAL    NOT NULL DEFAULT 0,
+  corte_id     INTEGER REFERENCES cortes(id),
+  cancelado_en TEXT    NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS gastos (
@@ -117,12 +150,43 @@ CREATE TABLE IF NOT EXISTS reimpresiones (
   reimprimir_en TEXT    NOT NULL
 );
 
+-- Clientes con crédito (fiados).
+CREATE TABLE IF NOT EXISTS clientes (
+  id       INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre   TEXT    NOT NULL,
+  telefono TEXT,
+  nota     TEXT,
+  activo   INTEGER NOT NULL DEFAULT 1
+);
+
+-- Movimientos de crédito: 'cargo' (fiado) suma deuda; 'abono' (pago) la baja.
+-- Los abonos llevan método y se archivan por corte (cuentan como ingreso).
+CREATE TABLE IF NOT EXISTS movimientos_credito (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  tipo       TEXT    NOT NULL,
+  monto      REAL    NOT NULL DEFAULT 0,
+  metodo     TEXT,
+  orden_id   INTEGER,
+  nota       TEXT,
+  corte_id   INTEGER REFERENCES cortes(id),
+  creado_en  TEXT    NOT NULL
+);
+
+-- Configuración general de la app (clave/valor con JSON). Ej. impresoras.
+CREATE TABLE IF NOT EXISTS config (
+  clave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_ordenes_estado ON ordenes(estado);
 CREATE INDEX IF NOT EXISTS idx_detalle_orden ON detalle_ordenes(orden_id);
 CREATE INDEX IF NOT EXISTS idx_productos_categoria ON productos(categoria_id);
 CREATE INDEX IF NOT EXISTS idx_modificadores_grupo ON modificadores(grupo_id);
 CREATE INDEX IF NOT EXISTS idx_prodgrupos_producto ON producto_grupos(producto_id);
 CREATE INDEX IF NOT EXISTS idx_detmod_detalle ON detalle_modificadores(detalle_id);
+CREATE INDEX IF NOT EXISTS idx_pagos_orden ON pagos(orden_id);
+CREATE INDEX IF NOT EXISTS idx_movcred_cliente ON movimientos_credito(cliente_id);
 `
 
 export function crearEsquema(db: Database.Database): void {

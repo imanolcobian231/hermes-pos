@@ -1,7 +1,11 @@
-import type { DetalleOrden, MetodoPago, OrdenConDetalle } from '@shared/types'
+import type { DetalleOrden, MetodoPagoOrden, OrdenConDetalle, Pago } from '@shared/types'
+import { calcularImpuesto } from '@shared/impuestos'
 import { obtenerDb } from '../db'
 import { aDetalle, aDetalleModificador, aOrden } from '../db/mapeo'
 import * as mesas from './mesas'
+import * as cancelaciones from './cancelaciones'
+import * as creditos from './creditos'
+import { obtenerImpresoras } from './config'
 
 const ahora = (): string => new Date().toISOString()
 
@@ -21,12 +25,19 @@ function detalleDe(ordenId: number): DetalleOrden[] {
   return filas.map((f) => aDetalle(f, modificadoresDe(f.id as number)))
 }
 
+function pagosDe(ordenId: number): Pago[] {
+  const filas = obtenerDb()
+    .prepare('SELECT metodo, monto FROM pagos WHERE orden_id = ? ORDER BY id')
+    .all(ordenId) as { metodo: Pago['metodo']; monto: number }[]
+  return filas.map((f) => ({ metodo: f.metodo, monto: f.monto }))
+}
+
 export function obtenerConDetalle(ordenId: number): OrdenConDetalle {
   const fila = obtenerDb().prepare('SELECT * FROM ordenes WHERE id = ?').get(ordenId) as
     | Record<string, unknown>
     | undefined
   if (!fila) throw new Error(`Orden ${ordenId} no encontrada`)
-  return { ...aOrden(fila), detalle: detalleDe(ordenId) }
+  return { ...aOrden(fila), detalle: detalleDe(ordenId), pagos: pagosDe(ordenId) }
 }
 
 /** Órdenes abiertas (mesas ocupadas o por cobrar) con su detalle. */
@@ -34,7 +45,7 @@ export function listarActivas(): OrdenConDetalle[] {
   const filas = obtenerDb()
     .prepare("SELECT * FROM ordenes WHERE estado = 'abierta' ORDER BY abierto_en")
     .all() as Record<string, unknown>[]
-  return filas.map((f) => ({ ...aOrden(f), detalle: detalleDe(f.id as number) }))
+  return filas.map((f) => ({ ...aOrden(f), detalle: detalleDe(f.id as number), pagos: [] }))
 }
 
 /** Órdenes cobradas del turno actual (aún no incluidas en un corte), recientes primero. */
@@ -44,7 +55,11 @@ export function cobradasTurno(): OrdenConDetalle[] {
       "SELECT * FROM ordenes WHERE estado = 'cobrada' AND corte_id IS NULL ORDER BY cerrado_en DESC"
     )
     .all() as Record<string, unknown>[]
-  return filas.map((f) => ({ ...aOrden(f), detalle: detalleDe(f.id as number) }))
+  return filas.map((f) => ({
+    ...aOrden(f),
+    detalle: detalleDe(f.id as number),
+    pagos: pagosDe(f.id as number)
+  }))
 }
 
 export function ordenDeMesa(mesaId: number): OrdenConDetalle | undefined {
@@ -227,17 +242,33 @@ export function marcarPorCobrar(ordenId: number): OrdenConDetalle {
   return obtenerConDetalle(ordenId)
 }
 
+/**
+ * Cobra una orden con uno o varios pagos (pago mixto). `pagos` es el desglose
+ * por método cuya suma cubre el total a pagar. `efectivoRecibido` es el efectivo
+ * entregado (solo para calcular el cambio de la parte en efectivo).
+ */
 export function cobrar(
   ordenId: number,
-  metodo: MetodoPago,
-  montoRecibido: number,
+  pagos: Pago[],
+  efectivoRecibido?: number,
   descuento = 0
 ): OrdenConDetalle {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
   const desc = Math.max(0, Math.min(descuento, orden.total)) // no mayor al subtotal
-  const neto = orden.total - desc
-  const cambio = metodo === 'efectivo' ? Math.max(0, montoRecibido - neto) : 0
+
+  // Descarta montos no positivos; debe quedar al menos un pago.
+  const limpios = pagos.filter((p) => p.monto > 0)
+  if (limpios.length === 0) throw new Error('Se requiere al menos un pago')
+
+  const metodos = [...new Set(limpios.map((p) => p.metodo))]
+  const metodoGuardado: MetodoPagoOrden = metodos.length > 1 ? 'mixto' : metodos[0]
+  const efectivoAplicado = limpios
+    .filter((p) => p.metodo === 'efectivo')
+    .reduce((s, p) => s + p.monto, 0)
+  // El cambio solo aplica a la parte en efectivo (cuando se recibe de más).
+  const recibido = efectivoRecibido ?? efectivoAplicado
+  const cambio = efectivoAplicado > 0 ? Math.max(0, recibido - efectivoAplicado) : 0
 
   const tx = db.transaction(() => {
     db.prepare(
@@ -245,7 +276,38 @@ export function cobrar(
          SET estado = 'cobrada', descuento = ?, metodo_pago = ?, monto_recibido = ?, cambio = ?,
              ticket_impreso = 1, cerrado_en = ?
        WHERE id = ?`
-    ).run(desc, metodo, montoRecibido, cambio, ahora(), ordenId)
+    ).run(desc, metodoGuardado, recibido, cambio, ahora(), ordenId)
+    // Reemplaza los pagos (por si se recobra) y registra el desglose.
+    db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
+    const ins = db.prepare('INSERT INTO pagos (orden_id, metodo, monto) VALUES (?, ?, ?)')
+    for (const p of limpios) ins.run(ordenId, p.metodo, p.monto)
+    if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
+  })
+  tx()
+  return obtenerConDetalle(ordenId)
+}
+
+/**
+ * Fía una orden: la marca cobrada como 'credito' y carga el total a la cuenta
+ * del cliente. No registra un pago (no entró dinero al momento).
+ */
+export function fiar(ordenId: number, clienteId: number, descuento = 0): OrdenConDetalle {
+  const db = obtenerDb()
+  const orden = obtenerConDetalle(ordenId)
+  const desc = Math.max(0, Math.min(descuento, orden.total))
+  const neto = orden.total - desc
+  const aPagar = calcularImpuesto(neto, obtenerImpresoras()).total
+
+  const tx = db.transaction(() => {
+    db.prepare(
+      `UPDATE ordenes
+         SET estado = 'cobrada', descuento = ?, metodo_pago = 'credito', monto_recibido = NULL,
+             cambio = 0, ticket_impreso = 1, cerrado_en = ?
+       WHERE id = ?`
+    ).run(desc, ahora(), ordenId)
+    // Sin pagos: el cargo a crédito queda en la cuenta del cliente.
+    db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
+    creditos.registrarCargo(clienteId, aPagar, ordenId)
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()
@@ -264,14 +326,18 @@ export function descartar(ordenId: number): void {
   tx()
 }
 
-export function cancelar(ordenId: number): void {
+/** Cancela una orden dejando registro de auditoría (motivo + usuario). */
+export function cancelar(ordenId: number, motivo: string, usuario = 'caja'): void {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
+  const razon = motivo.trim()
+  if (!razon) throw new Error('Se requiere un motivo para cancelar la orden')
   const tx = db.transaction(() => {
     db.prepare("UPDATE ordenes SET estado = 'cancelada', cerrado_en = ? WHERE id = ?").run(
       ahora(),
       ordenId
     )
+    cancelaciones.registrar(ordenId, razon, usuario, orden.total)
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()

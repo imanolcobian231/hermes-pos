@@ -90,6 +90,18 @@ export function migrar(db: Database.Database): void {
     db.exec('ALTER TABLE cortes ADD COLUMN total_gastos REAL NOT NULL DEFAULT 0')
   }
 
+  // Cuadre de caja en cortes: fondo inicial, conteo físico y diferencia (aditivas).
+  const colsCortes = columnas(db, 'cortes')
+  if (!colsCortes.includes('fondo_inicial')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN fondo_inicial REAL NOT NULL DEFAULT 0')
+  }
+  if (!colsCortes.includes('efectivo_contado')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN efectivo_contado REAL')
+  }
+  if (!colsCortes.includes('diferencia')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN diferencia REAL')
+  }
+
   // Color de mesa (aditiva).
   if (!columnas(db, 'mesas').includes('color')) {
     db.exec('ALTER TABLE mesas ADD COLUMN color TEXT')
@@ -103,5 +115,17 @@ export function migrar(db: Database.Database): void {
   // Grupos de modificadores reutilizables.
   if (columnas(db, 'grupos_modificadores').includes('producto_id')) {
     reconstruirGrupos(db)
+  }
+
+  // Pago mixto: si aún no hay ningún pago registrado, genera uno por cada orden
+  // cobrada a partir de su método único (conserva los totales del resumen).
+  const hayPagos = db.prepare('SELECT 1 FROM pagos LIMIT 1').get()
+  if (!hayPagos) {
+    db.exec(`
+      INSERT INTO pagos (orden_id, metodo, monto)
+      SELECT id, metodo_pago, total - descuento
+      FROM ordenes
+      WHERE estado = 'cobrada' AND metodo_pago IS NOT NULL
+    `)
   }
 }
