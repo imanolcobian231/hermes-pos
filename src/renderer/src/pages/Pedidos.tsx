@@ -8,6 +8,7 @@ import { SelectorModificadores } from '@renderer/components/SelectorModificadore
 import { useToast } from '@renderer/components/Toast'
 import { useImpresion } from '@renderer/store/impresion'
 import { useAuth } from '@renderer/store/auth'
+import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono } from '@renderer/components/Icono'
 
 interface Props {
@@ -33,6 +34,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const toast = useToast()
   const { imprimirCocina } = useImpresion()
   const { usuarioActual } = useAuth()
+  const { pedir } = useAutorizacion()
 
   const orden = ordenPorId(ordenId)
 
@@ -443,11 +445,15 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
             <button
               disabled={!motivoCancel.trim()}
               onClick={() => {
-                void cancelarOrden(orden.id, motivoCancel.trim(), usuarioActual?.nombre)
-                setConfirmarCancel(false)
-                setMotivoCancel('')
-                toast('Orden cancelada', 'info')
-                onVolver()
+                const id = orden.id
+                const m = motivoCancel.trim()
+                pedir(() => {
+                  void cancelarOrden(id, m, usuarioActual?.nombre)
+                  setConfirmarCancel(false)
+                  setMotivoCancel('')
+                  toast('Orden cancelada', 'info')
+                  onVolver()
+                }, 'Cancelar una orden')
               }}
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
             >

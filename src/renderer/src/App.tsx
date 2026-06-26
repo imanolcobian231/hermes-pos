@@ -3,6 +3,7 @@ import type { Mesa, OrdenConDetalle } from '@shared/types'
 import { ProveedorDatos, useDatos } from '@renderer/store/datos'
 import { ProveedorToast } from '@renderer/components/Toast'
 import { ProveedorAuth, useAuth } from '@renderer/store/auth'
+import { ProveedorAutorizacion } from '@renderer/store/autorizacion'
 import { ProveedorImpresion } from '@renderer/store/impresion'
 import { SelectorBluetooth } from '@renderer/components/SelectorBluetooth'
 import { LogoHermes } from '@renderer/components/LogoHermes'
@@ -264,7 +265,9 @@ function Raiz(): React.JSX.Element {
   if (!usuarioActual) return <Login />
   return (
     <ProveedorDatos>
-      <Contenido />
+      <ProveedorAutorizacion>
+        <Contenido />
+      </ProveedorAutorizacion>
     </ProveedorDatos>
   )
 }

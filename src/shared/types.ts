@@ -22,7 +22,7 @@ export interface UsuarioInput {
 }
 
 export type EstadoMesa = 'libre' | 'ocupada' | 'por_cobrar'
-export type EstadoOrden = 'abierta' | 'cobrada' | 'cancelada'
+export type EstadoOrden = 'abierta' | 'cobrada' | 'cancelada' | 'devuelta'
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'transferencia'
 /**
  * Método guardado en la orden: 'mixto' = más de un método; 'credito' = fiada
@@ -150,6 +150,15 @@ export interface Corte {
   /** Diferencia entre lo contado y lo esperado: + sobrante, − faltante. */
   diferencia?: number
   cerradoEn: string
+}
+
+/** Estado de la caja del turno actual (apertura con fondo). */
+export interface EstadoCaja {
+  abierta: boolean
+  /** Fondo de cambio con el que se abrió la caja. */
+  fondoInicial: number
+  /** Fecha ISO de apertura (null si está cerrada). */
+  abiertoEn: string | null
 }
 
 /** Datos del cuadre que captura el cajero al cerrar el turno. */

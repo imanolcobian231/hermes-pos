@@ -1,10 +1,11 @@
-import type { ConfigImpresoras, ConfigRespaldo } from '@shared/types'
+import type { ConfigImpresoras, ConfigRespaldo, EstadoCaja } from '@shared/types'
 import { obtenerDb } from '../db'
 
 // Configuración general de la app, guardada como JSON en la tabla `config`.
 
 const CLAVE_IMPRESORAS = 'impresoras'
 const CLAVE_RESPALDO = 'respaldo'
+const CLAVE_CAJA = 'caja'
 
 export const IMPRESORAS_PREDETERMINADO: ConfigImpresoras = {
   nombreNegocio: '',
@@ -68,4 +69,15 @@ export function obtenerRespaldo(): ConfigRespaldo {
 export function guardarRespaldo(cfg: ConfigRespaldo): ConfigRespaldo {
   escribir(CLAVE_RESPALDO, cfg)
   return obtenerRespaldo()
+}
+
+const CAJA_CERRADA: EstadoCaja = { abierta: false, fondoInicial: 0, abiertoEn: null }
+
+export function obtenerCaja(): EstadoCaja {
+  return leer<EstadoCaja>(CLAVE_CAJA) ?? CAJA_CERRADA
+}
+
+export function guardarCaja(estado: EstadoCaja): EstadoCaja {
+  escribir(CLAVE_CAJA, estado)
+  return obtenerCaja()
 }

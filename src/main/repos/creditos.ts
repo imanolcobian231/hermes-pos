@@ -77,6 +77,13 @@ export function registrarCargo(clienteId: number, monto: number, ordenId: number
     .run(clienteId, monto, ordenId, ahora())
 }
 
+/** Revierte el cargo de una orden (al devolver una venta fiada). */
+export function revertirCargoDeOrden(ordenId: number): void {
+  obtenerDb()
+    .prepare("DELETE FROM movimientos_credito WHERE orden_id = ? AND tipo = 'cargo'")
+    .run(ordenId)
+}
+
 /** Registra un abono (pago del cliente a su deuda). */
 export function registrarAbono(
   clienteId: number,

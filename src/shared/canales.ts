@@ -38,6 +38,7 @@ export const CANALES = {
     cobrar: 'ordenes:cobrar',
     fiar: 'ordenes:fiar',
     cancelar: 'ordenes:cancelar',
+    devolver: 'ordenes:devolver',
     cobradasTurno: 'ordenes:cobradasTurno'
   },
   clientes: {
@@ -50,7 +51,9 @@ export const CANALES = {
   cortes: {
     resumen: 'cortes:resumen',
     listar: 'cortes:listar',
-    cerrar: 'cortes:cerrar'
+    cerrar: 'cortes:cerrar',
+    estadoCaja: 'cortes:estadoCaja',
+    abrirCaja: 'cortes:abrirCaja'
   },
   cancelaciones: {
     listar: 'cancelaciones:listar'
@@ -64,7 +67,8 @@ export const CANALES = {
     ahora: 'respaldo:ahora',
     listar: 'respaldo:listar',
     elegirCarpeta: 'respaldo:elegirCarpeta',
-    abrirCarpeta: 'respaldo:abrirCarpeta'
+    abrirCarpeta: 'respaldo:abrirCarpeta',
+    restaurar: 'respaldo:restaurar'
   },
   gastos: {
     listar: 'gastos:listar',
@@ -77,7 +81,8 @@ export const CANALES = {
     crearPrimerAdmin: 'usuarios:crearPrimerAdmin',
     login: 'usuarios:login',
     guardar: 'usuarios:guardar',
-    eliminar: 'usuarios:eliminar'
+    eliminar: 'usuarios:eliminar',
+    verificarPinAdmin: 'usuarios:verificarPinAdmin'
   },
   reimpresiones: {
     listar: 'reimpresiones:listar',

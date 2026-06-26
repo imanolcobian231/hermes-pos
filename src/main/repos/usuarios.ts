@@ -40,6 +40,15 @@ export function login(usuarioId: number, pin: string): Usuario | null {
   return aUsuario(fila)
 }
 
+/** True si el PIN corresponde a algún administrador activo (autorizaciones). */
+export function verificarPinAdmin(pin: string): boolean {
+  if (!pin) return false
+  const filas = obtenerDb()
+    .prepare("SELECT pin_hash FROM usuarios WHERE rol = 'admin' AND activo = 1")
+    .all() as { pin_hash: string }[]
+  return filas.some((f) => verificarPin(pin, f.pin_hash))
+}
+
 export function guardar(u: UsuarioInput): Usuario {
   const db = obtenerDb()
   if (u.id != null) {

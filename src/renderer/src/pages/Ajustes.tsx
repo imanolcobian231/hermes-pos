@@ -3,6 +3,7 @@ import type { ConfigRespaldo, DestinoImpresion, RespaldoInfo } from '@shared/typ
 import { useImpresion } from '@renderer/store/impresion'
 import { useToast } from '@renderer/components/Toast'
 import { fechaHora } from '@renderer/lib/format'
+import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
 
 const BAUDIOS = [9600, 19200, 38400, 57600, 115200]
@@ -456,6 +457,7 @@ function SeccionRespaldos(): React.JSX.Element {
   const [cfg, setCfg] = useState<ConfigRespaldo | null>(null)
   const [lista, setLista] = useState<RespaldoInfo[]>([])
   const [ocupado, setOcupado] = useState(false)
+  const [aRestaurar, setARestaurar] = useState<RespaldoInfo | null>(null)
 
   const cargar = async (): Promise<void> => {
     const [c, l] = await Promise.all([window.api.respaldo.obtener(), window.api.respaldo.listar()])
@@ -538,14 +540,22 @@ function SeccionRespaldos(): React.JSX.Element {
         {cfg.ultimo ? `Último respaldo: ${fechaHora(cfg.ultimo)}` : 'Aún no se ha hecho ningún respaldo.'}
       </p>
       {lista.length > 0 && (
-        <div className="mt-3 max-h-40 overflow-auto rounded-lg border border-slate-200">
+        <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-slate-200">
           {lista.map((r) => (
             <div
               key={r.ruta}
-              className="flex items-center justify-between border-b border-slate-100 px-3 py-1.5 text-xs last:border-0"
+              className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-1.5 text-xs last:border-0"
             >
               <span className="text-slate-600">{fechaHora(r.fecha)}</span>
-              <span className="text-slate-400">{Math.max(1, Math.round(r.tamano / 1024))} KB</span>
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400">{Math.max(1, Math.round(r.tamano / 1024))} KB</span>
+                <button
+                  onClick={() => setARestaurar(r)}
+                  className="rounded border border-slate-300 px-2 py-0.5 font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Restaurar
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -554,6 +564,43 @@ function SeccionRespaldos(): React.JSX.Element {
         Se conservan los últimos 14 respaldos. Guarda la carpeta en una USB o servicio en la nube
         para no perder la información si falla el equipo.
       </p>
+
+      <Modal
+        abierto={aRestaurar !== null}
+        titulo="Restaurar respaldo"
+        onCerrar={() => setARestaurar(null)}
+        pie={
+          <>
+            <button
+              onClick={() => setARestaurar(null)}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                const nombre = aRestaurar?.nombre
+                if (!nombre) return
+                // Antes de restaurar se crea un respaldo de seguridad del estado
+                // actual. La app se recarga sola al terminar.
+                void window.api.respaldo.restaurar(nombre)
+                setARestaurar(null)
+              }}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+            >
+              Restaurar y reiniciar
+            </button>
+          </>
+        }
+      >
+        {aRestaurar && (
+          <p className="text-sm text-slate-600">
+            Se reemplazará toda la información actual por la del respaldo del{' '}
+            <strong>{fechaHora(aRestaurar.fecha)}</strong>. Se hará un respaldo de seguridad del
+            estado actual antes de hacerlo, y la app se reiniciará. ¿Continuar?
+          </p>
+        )}
+      </Modal>
     </Seccion>
   )
 }

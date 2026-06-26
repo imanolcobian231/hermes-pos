@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron'
+import { ipcMain, dialog, shell, BrowserWindow } from 'electron'
 import { CANALES } from '@shared/canales'
 import type {
   CategoriaInput,
@@ -30,7 +30,7 @@ import * as reimpresiones from '../repos/reimpresiones'
 import * as config from '../repos/config'
 import { bytesCocina, bytesFinal, bytesPrueba } from '../printer/tickets'
 import { listarPuertos, enviarAPuerto } from '../printer/serial'
-import { respaldar, listarRespaldos, carpetaRespaldos } from '../db/respaldo'
+import { respaldar, listarRespaldos, carpetaRespaldos, restaurar } from '../db/respaldo'
 
 /** Registra todos los handlers IPC. Llamar una sola vez tras inicializar la DB. */
 export function registrarIpc(): void {
@@ -111,6 +111,9 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.ordenes.cancelar, (_e, ordenId: number, motivo: string, usuario?: string) =>
     ordenes.cancelar(ordenId, motivo, usuario)
   )
+  ipcMain.handle(CANALES.ordenes.devolver, (_e, ordenId: number, motivo: string, usuario?: string) =>
+    ordenes.devolver(ordenId, motivo, usuario)
+  )
   ipcMain.handle(CANALES.ordenes.cobradasTurno, () => ordenes.cobradasTurno())
 
   // --- Clientes / créditos -------------------------------------------------
@@ -130,6 +133,8 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.cortes.resumen, () => cortes.resumenTurno())
   ipcMain.handle(CANALES.cortes.listar, () => cortes.listar())
   ipcMain.handle(CANALES.cortes.cerrar, (_e, cuadre?: CierreCorteInput) => cortes.cerrar(cuadre))
+  ipcMain.handle(CANALES.cortes.estadoCaja, () => cortes.estadoCaja())
+  ipcMain.handle(CANALES.cortes.abrirCaja, (_e, fondoInicial: number) => cortes.abrirCaja(fondoInicial))
 
   // --- Cancelaciones (auditoría) -------------------------------------------
   ipcMain.handle(CANALES.cancelaciones.listar, () => cancelaciones.listarTurno())
@@ -157,6 +162,9 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(CANALES.usuarios.guardar, (_e, u: UsuarioInput) => usuarios.guardar(u))
   ipcMain.handle(CANALES.usuarios.eliminar, (_e, id: number) => usuarios.eliminar(id))
+  ipcMain.handle(CANALES.usuarios.verificarPinAdmin, (_e, pin: string) =>
+    usuarios.verificarPinAdmin(pin)
+  )
 
   // --- Reimpresiones -------------------------------------------------------
   ipcMain.handle(CANALES.reimpresiones.listar, () => reimpresiones.listar())
@@ -195,6 +203,11 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.respaldo.ahora, () => respaldar())
   ipcMain.handle(CANALES.respaldo.listar, () => listarRespaldos())
   ipcMain.handle(CANALES.respaldo.abrirCarpeta, () => shell.openPath(carpetaRespaldos()))
+  ipcMain.handle(CANALES.respaldo.restaurar, async (e, nombre: string) => {
+    await restaurar(nombre)
+    // Recarga el renderer para que tome los datos restaurados.
+    BrowserWindow.fromWebContents(e.sender)?.reload()
+  })
   ipcMain.handle(CANALES.respaldo.elegirCarpeta, async () => {
     const r = await dialog.showOpenDialog({
       title: 'Carpeta para los respaldos',

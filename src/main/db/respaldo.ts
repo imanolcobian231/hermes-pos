@@ -1,8 +1,10 @@
 import { app } from 'electron'
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
-import { join } from 'path'
+import { copyFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'fs'
+import { tmpdir } from 'os'
+import { basename, join } from 'path'
 import type { RespaldoInfo } from '@shared/types'
-import { obtenerDb } from './conexion'
+import { obtenerDb, cerrarDb } from './conexion'
+import { inicializarDb } from './index'
 import { obtenerRespaldo, guardarRespaldo } from '../repos/config'
 
 // Respaldo de la base de datos SQLite. Usa db.backup(), que hace una copia
@@ -80,6 +82,45 @@ export async function respaldoDiarioSiHaceFalta(): Promise<void> {
     if (mismoDia) return
   }
   await respaldarSilencioso()
+}
+
+/**
+ * Restaura la base de datos desde un respaldo (por nombre de archivo dentro de
+ * la carpeta de respaldos). Antes hace un respaldo de seguridad del estado
+ * actual, cierra la conexión, sobrescribe la base y la reabre.
+ */
+export async function restaurar(nombre: string): Promise<void> {
+  const carpeta = carpetaRespaldos()
+  const archivo = basename(nombre)
+  const origen = join(carpeta, archivo)
+  if (!PATRON.test(archivo) || !existsSync(origen)) throw new Error('Respaldo no válido')
+  // Copia el origen a un temporal ANTES del snapshot de seguridad: así no se
+  // pierde aunque el snapshot genere un nombre que colisione con este respaldo.
+  const fuente = join(tmpdir(), `hermes-restore-${Date.now()}.db`)
+  copyFileSync(origen, fuente)
+  // Snapshot de seguridad del estado actual antes de sobrescribir.
+  try {
+    await respaldar()
+  } catch {
+    /* si falla el snapshot, la restauración sigue siendo prioritaria */
+  }
+  const destino = join(app.getPath('userData'), 'hermes.db')
+  cerrarDb()
+  copyFileSync(fuente, destino)
+  try {
+    unlinkSync(fuente)
+  } catch {
+    /* limpieza best-effort */
+  }
+  // Quita los archivos WAL para que se use exactamente la base restaurada.
+  for (const suf of ['-wal', '-shm']) {
+    try {
+      unlinkSync(destino + suf)
+    } catch {
+      /* puede no existir */
+    }
+  }
+  inicializarDb()
 }
 
 /** Lista los respaldos existentes (recientes primero) para mostrarlos en Ajustes. */

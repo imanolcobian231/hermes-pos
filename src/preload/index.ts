@@ -13,6 +13,7 @@ import type {
   DestinoImpresion,
   DispositivoBluetooth,
   DetalleOrden,
+  EstadoCaja,
   Gasto,
   GrupoInput,
   GrupoModificador,
@@ -103,6 +104,8 @@ const api = {
       invoke(CANALES.ordenes.fiar, ordenId, clienteId, descuento),
     cancelar: (ordenId: number, motivo: string, usuario?: string): Promise<void> =>
       invoke(CANALES.ordenes.cancelar, ordenId, motivo, usuario),
+    devolver: (ordenId: number, motivo: string, usuario?: string): Promise<void> =>
+      invoke(CANALES.ordenes.devolver, ordenId, motivo, usuario),
     cobradasTurno: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.cobradasTurno)
   },
   clientes: {
@@ -117,7 +120,10 @@ const api = {
   cortes: {
     resumen: (): Promise<ResumenTurno> => invoke(CANALES.cortes.resumen),
     listar: (): Promise<Corte[]> => invoke(CANALES.cortes.listar),
-    cerrar: (cuadre?: CierreCorteInput): Promise<Corte> => invoke(CANALES.cortes.cerrar, cuadre)
+    cerrar: (cuadre?: CierreCorteInput): Promise<Corte> => invoke(CANALES.cortes.cerrar, cuadre),
+    estadoCaja: (): Promise<EstadoCaja> => invoke(CANALES.cortes.estadoCaja),
+    abrirCaja: (fondoInicial: number): Promise<EstadoCaja> =>
+      invoke(CANALES.cortes.abrirCaja, fondoInicial)
   },
   cancelaciones: {
     listar: (): Promise<Cancelacion[]> => invoke(CANALES.cancelaciones.listar)
@@ -140,7 +146,9 @@ const api = {
     login: (usuarioId: number, pin: string): Promise<Usuario | null> =>
       invoke(CANALES.usuarios.login, usuarioId, pin),
     guardar: (u: UsuarioInput): Promise<Usuario> => invoke(CANALES.usuarios.guardar, u),
-    eliminar: (id: number): Promise<void> => invoke(CANALES.usuarios.eliminar, id)
+    eliminar: (id: number): Promise<void> => invoke(CANALES.usuarios.eliminar, id),
+    verificarPinAdmin: (pin: string): Promise<boolean> =>
+      invoke(CANALES.usuarios.verificarPinAdmin, pin)
   },
   reimpresiones: {
     listar: (): Promise<Reimpresion[]> => invoke(CANALES.reimpresiones.listar),
@@ -187,7 +195,8 @@ const api = {
     ahora: (): Promise<string> => invoke(CANALES.respaldo.ahora),
     listar: (): Promise<RespaldoInfo[]> => invoke(CANALES.respaldo.listar),
     elegirCarpeta: (): Promise<string | null> => invoke(CANALES.respaldo.elegirCarpeta),
-    abrirCarpeta: (): Promise<string> => invoke(CANALES.respaldo.abrirCarpeta)
+    abrirCarpeta: (): Promise<string> => invoke(CANALES.respaldo.abrirCarpeta),
+    restaurar: (nombre: string): Promise<void> => invoke(CANALES.respaldo.restaurar, nombre)
   }
 }
 

@@ -7,6 +7,7 @@ import { TicketCocina } from '@renderer/components/TicketCocina'
 import { TicketFinal } from '@renderer/components/TicketFinal'
 import { useToast } from '@renderer/components/Toast'
 import { useAuth } from '@renderer/store/auth'
+import { useAutorizacion } from '@renderer/store/autorizacion'
 import { useImpresion } from '@renderer/store/impresion'
 import { calcularImpuesto } from '@shared/impuestos'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
@@ -36,6 +37,7 @@ const RAPIDOS = [50, 100, 200, 500]
 export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const { mesas, ordenes, clientes, cobrarOrden, fiarOrden, registrarReimpresion } = useDatos()
   const { usuarioActual } = useAuth()
+  const { pedir } = useAutorizacion()
   const { imprimirFinal, imprimirCocina, cfg } = useImpresion()
   const toast = useToast()
 
@@ -132,9 +134,15 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     return { pagos: [{ metodo, monto: neto }], efectivoRecibido: undefined, cambio: 0 }
   }
 
+  // Aplicar un descuento requiere autorización de administrador.
+  const confirmar = (): void => {
+    if (descClamp > 0) pedir(ejecutarConfirmar, 'Aplicar un descuento')
+    else ejecutarConfirmar()
+  }
+
   // Muestra el ticket como vista previa. El cobro NO se confirma aquí: se
   // confirma al dar "Listo" (finalizar).
-  const confirmar = (): void => {
+  const ejecutarConfirmar = (): void => {
     if (!orden) return
     const baseTicket = {
       ...orden,

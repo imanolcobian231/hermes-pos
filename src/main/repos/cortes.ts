@@ -1,11 +1,23 @@
-import type { CierreCorteInput, Corte, ResumenTurno } from '@shared/types'
+import type { CierreCorteInput, Corte, EstadoCaja, ResumenTurno } from '@shared/types'
 import { obtenerDb } from '../db'
 import { aCorte } from '../db/mapeo'
 import * as gastos from './gastos'
 import * as creditos from './creditos'
+import { obtenerCaja, guardarCaja } from './config'
 import { respaldarSilencioso } from '../db/respaldo'
 
 const ahora = (): string => new Date().toISOString()
+
+// --- Caja (apertura de turno con fondo) -------------------------------------
+
+export function estadoCaja(): EstadoCaja {
+  return obtenerCaja()
+}
+
+/** Abre la caja del turno con un fondo inicial de cambio. */
+export function abrirCaja(fondoInicial: number): EstadoCaja {
+  return guardarCaja({ abierta: true, fondoInicial: Math.max(0, fondoInicial || 0), abiertoEn: ahora() })
+}
 
 /** Totales de las órdenes cobradas que aún no pertenecen a ningún corte. */
 export function resumenTurno(): ResumenTurno {
@@ -92,6 +104,8 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
     string,
     unknown
   >
+  // Cierra la caja: el siguiente turno deberá abrirse con su propio fondo.
+  guardarCaja({ abierta: false, fondoInicial: 0, abiertoEn: null })
   // El cierre de turno es un punto natural para respaldar la base de datos.
   void respaldarSilencioso()
   return aCorte(fila)

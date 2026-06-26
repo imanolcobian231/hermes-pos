@@ -314,6 +314,32 @@ export function fiar(ordenId: number, clienteId: number, descuento = 0): OrdenCo
   return obtenerConDetalle(ordenId)
 }
 
+/**
+ * Devuelve (revierte) una venta ya cobrada del turno actual: la marca como
+ * 'devuelta' (sale de ingresos y reportes), revierte el cargo si fue fiada y
+ * deja registro de auditoría. No aplica a ventas de turnos ya cerrados.
+ */
+export function devolver(ordenId: number, motivo: string, usuario = 'caja'): void {
+  const db = obtenerDb()
+  const fila = db
+    .prepare('SELECT estado, corte_id, metodo_pago, total FROM ordenes WHERE id = ?')
+    .get(ordenId) as
+    | { estado: string; corte_id: number | null; metodo_pago: string | null; total: number }
+    | undefined
+  if (!fila) throw new Error(`Orden ${ordenId} no encontrada`)
+  if (fila.estado !== 'cobrada') throw new Error('Solo se puede devolver una venta cobrada')
+  if (fila.corte_id != null) throw new Error('No se puede devolver una venta de un turno ya cerrado')
+  const razon = motivo.trim()
+  if (!razon) throw new Error('Se requiere un motivo para la devolución')
+
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE ordenes SET estado = 'devuelta' WHERE id = ?").run(ordenId)
+    if (fila.metodo_pago === 'credito') creditos.revertirCargoDeOrden(ordenId)
+    cancelaciones.registrar(ordenId, `Devolución: ${razon}`, usuario, fila.total)
+  })
+  tx()
+}
+
 /** Descarta una orden vacía (sin productos): la borra y libera la mesa. */
 export function descartar(ordenId: number): void {
   const db = obtenerDb()

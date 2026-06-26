@@ -16,6 +16,7 @@ import type {
   ClienteInput,
   Corte,
   DetalleOrden,
+  EstadoCaja,
   Gasto,
   GrupoInput,
   GrupoModificador,
@@ -138,6 +139,8 @@ interface DatosContextValue {
     descuento?: number
   ) => Promise<void>
   cancelarOrden: (ordenId: number, motivo: string, usuario?: string) => Promise<void>
+  /** Devuelve (revierte) una venta cobrada del turno actual. */
+  devolverOrden: (ordenId: number, motivo: string, usuario?: string) => Promise<void>
   /** Fía la orden: la carga a la cuenta de crédito de un cliente. */
   fiarOrden: (ordenId: number, clienteId: number, descuento?: number) => Promise<void>
   registrarReimpresion: (
@@ -164,7 +167,9 @@ interface DatosContextValue {
   asignarGrupo: (productoId: number, grupoId: number) => Promise<void>
   desasignarGrupo: (productoId: number, grupoId: number) => Promise<void>
 
-  // Corte
+  // Corte / caja
+  caja: EstadoCaja
+  abrirCaja: (fondoInicial: number) => Promise<void>
   cerrarCorte: (cuadre?: CierreCorteInput) => Promise<Corte>
 
   // Finanzas
@@ -197,6 +202,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [cobradas, setCobradas] = useState<OrdenConDetalle[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [caja, setCaja] = useState<EstadoCaja>({ abierta: false, fondoInicial: 0, abiertoEn: null })
 
   // --- Refrescos puntuales -------------------------------------------------
   const refrescarMesas = useCallback(async () => setMesas(await api.mesas.listar()), [])
@@ -217,6 +223,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     []
   )
   const refrescarClientes = useCallback(async () => setClientes(await api.clientes.listar()), [])
+  const refrescarCaja = useCallback(async () => setCaja(await api.cortes.estadoCaja()), [])
   const refrescarCatalogo = useCallback(async () => {
     const [cats, prods, grps] = await Promise.all([
       api.catalogo.categorias(),
@@ -241,7 +248,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     let activo = true
     ;(async () => {
       try {
-        const [m, cats, prods, grps, ords, crts, reimp, canc, res, gas, cob, clis] =
+        const [m, cats, prods, grps, ords, crts, reimp, canc, res, gas, cob, clis, cja] =
           await Promise.all([
             api.mesas.listar(),
             api.catalogo.categorias(),
@@ -254,7 +261,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
             api.cortes.resumen(),
             api.gastos.listar(),
             api.ordenes.cobradasTurno(),
-            api.clientes.listar()
+            api.clientes.listar(),
+            api.cortes.estadoCaja()
           ])
         if (!activo) return
         setMesas(m)
@@ -269,6 +277,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         setGastos(gas)
         setCobradas(cob)
         setClientes(clis)
+        setCaja(cja)
       } finally {
         // Aunque falle algo, sale de la pantalla de carga (el error ya se notificó).
         if (activo) setCargando(false)
@@ -417,6 +426,19 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [refrescarOrdenes, refrescarMesas, refrescarCancelaciones]
   )
 
+  const devolverOrden = useCallback(
+    async (ordenId: number, motivo: string, usuario?: string) => {
+      await api.ordenes.devolver(ordenId, motivo, usuario)
+      await Promise.all([
+        refrescarResumen(),
+        refrescarCobradas(),
+        refrescarCancelaciones(),
+        refrescarClientes()
+      ])
+    },
+    [refrescarResumen, refrescarCobradas, refrescarCancelaciones, refrescarClientes]
+  )
+
   const fiarOrden = useCallback(
     async (ordenId: number, clienteId: number, descuento?: number) => {
       await api.ordenes.fiar(ordenId, clienteId, descuento)
@@ -545,7 +567,15 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [refrescarCatalogo]
   )
 
-  // --- Corte ---------------------------------------------------------------
+  // --- Corte / caja --------------------------------------------------------
+  const abrirCaja = useCallback(
+    async (fondoInicial: number) => {
+      await api.cortes.abrirCaja(fondoInicial)
+      await refrescarCaja()
+    },
+    [refrescarCaja]
+  )
+
   const cerrarCorte = useCallback(
     async (cuadre?: CierreCorteInput): Promise<Corte> => {
       const corte = await api.cortes.cerrar(cuadre)
@@ -554,11 +584,19 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarResumen(),
         refrescarGastos(),
         refrescarCobradas(),
-        refrescarCancelaciones()
+        refrescarCancelaciones(),
+        refrescarCaja()
       ])
       return corte
     },
-    [refrescarCortes, refrescarResumen, refrescarGastos, refrescarCobradas, refrescarCancelaciones]
+    [
+      refrescarCortes,
+      refrescarResumen,
+      refrescarGastos,
+      refrescarCobradas,
+      refrescarCancelaciones,
+      refrescarCaja
+    ]
   )
 
   // --- Finanzas ------------------------------------------------------------
@@ -609,6 +647,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       marcarPorCobrar,
       cobrarOrden,
       cancelarOrden,
+      devolverOrden,
       fiarOrden,
       registrarReimpresion,
       clientes,
@@ -625,6 +664,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       eliminarModificador,
       asignarGrupo,
       desasignarGrupo,
+      caja,
+      abrirCaja,
       cerrarCorte,
       agregarGasto,
       eliminarGasto
@@ -659,6 +700,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       marcarPorCobrar,
       cobrarOrden,
       cancelarOrden,
+      devolverOrden,
       fiarOrden,
       registrarReimpresion,
       clientes,
@@ -675,6 +717,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       eliminarModificador,
       asignarGrupo,
       desasignarGrupo,
+      caja,
+      abrirCaja,
       cerrarCorte,
       agregarGasto,
       eliminarGasto
