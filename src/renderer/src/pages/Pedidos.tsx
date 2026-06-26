@@ -447,8 +447,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               onClick={() => {
                 const id = orden.id
                 const m = motivoCancel.trim()
-                pedir(() => {
-                  void cancelarOrden(id, m, usuarioActual?.nombre)
+                pedir((pin) => {
+                  void cancelarOrden(id, m, usuarioActual?.nombre, pin)
                   setConfirmarCancel(false)
                   setMotivoCancel('')
                   toast('Orden cancelada', 'info')

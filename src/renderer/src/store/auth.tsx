@@ -31,7 +31,10 @@ export function ProveedorAuth({ children }: { children: ReactNode }): React.JSX.
     return u
   }
 
-  const logout = (): void => setUsuarioActual(null)
+  const logout = (): void => {
+    void window.api.usuarios.logout()
+    setUsuarioActual(null)
+  }
 
   return (
     <AuthContext.Provider

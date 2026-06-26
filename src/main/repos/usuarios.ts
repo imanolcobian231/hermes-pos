@@ -3,6 +3,33 @@ import { obtenerDb } from '../db'
 import { aUsuario } from '../db/mapeo'
 import { hashPin, verificarPin } from '../seguridad'
 
+// --- Protección anti-fuerza bruta del PIN -----------------------------------
+// En memoria: tras MAX_FALLOS intentos fallidos por clave, se bloquea por
+// BLOQUEO_MS. Suficiente contra el tanteo de PINs de 4 dígitos por la UI.
+
+const MAX_FALLOS = 5
+const BLOQUEO_MS = 30_000
+const intentos = new Map<string, { fallos: number; hasta: number }>()
+
+function bloqueado(clave: string): boolean {
+  const e = intentos.get(clave)
+  return e != null && e.hasta > Date.now()
+}
+
+function registrarFallo(clave: string): void {
+  const e = intentos.get(clave) ?? { fallos: 0, hasta: 0 }
+  e.fallos += 1
+  if (e.fallos >= MAX_FALLOS) {
+    e.hasta = Date.now() + BLOQUEO_MS
+    e.fallos = 0
+  }
+  intentos.set(clave, e)
+}
+
+function limpiarIntentos(clave: string): void {
+  intentos.delete(clave)
+}
+
 export function listar(): Usuario[] {
   const filas = obtenerDb()
     .prepare('SELECT * FROM usuarios WHERE activo = 1 ORDER BY nombre')
@@ -32,21 +59,30 @@ export function crearPrimerAdmin(nombre: string, pin: string): Usuario {
 
 /** Verifica el PIN del usuario indicado. Devuelve el usuario o null si no coincide. */
 export function login(usuarioId: number, pin: string): Usuario | null {
+  const clave = `login:${usuarioId}`
+  if (bloqueado(clave)) return null
   const fila = obtenerDb().prepare('SELECT * FROM usuarios WHERE id = ? AND activo = 1').get(usuarioId) as
     | Record<string, unknown>
     | undefined
-  if (!fila) return null
-  if (!verificarPin(pin, fila.pin_hash as string)) return null
+  if (!fila || !verificarPin(pin, fila.pin_hash as string)) {
+    registrarFallo(clave)
+    return null
+  }
+  limpiarIntentos(clave)
   return aUsuario(fila)
 }
 
 /** True si el PIN corresponde a algún administrador activo (autorizaciones). */
 export function verificarPinAdmin(pin: string): boolean {
-  if (!pin) return false
+  const clave = 'admin'
+  if (!pin || bloqueado(clave)) return false
   const filas = obtenerDb()
     .prepare("SELECT pin_hash FROM usuarios WHERE rol = 'admin' AND activo = 1")
     .all() as { pin_hash: string }[]
-  return filas.some((f) => verificarPin(pin, f.pin_hash))
+  const ok = filas.some((f) => verificarPin(pin, f.pin_hash))
+  if (ok) limpiarIntentos(clave)
+  else registrarFallo(clave)
+  return ok
 }
 
 export function guardar(u: UsuarioInput): Usuario {

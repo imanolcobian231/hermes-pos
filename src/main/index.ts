@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow } from 'electron'
+import { app, shell, BrowserWindow, Menu } from 'electron'
 import { join } from 'path'
 import { inicializarDb, cerrarDb } from './db'
 import { registrarIpc } from './ipc'
@@ -19,7 +19,10 @@ function createWindow(): void {
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
-      contextIsolation: true
+      contextIsolation: true,
+      // Sin DevTools en producción: evita que se salten los controles desde la
+      // consola del renderer. En desarrollo siguen disponibles.
+      devTools: isDev
     }
   })
 
@@ -44,6 +47,10 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Quita el menú de la aplicación en producción (oculta el atajo de DevTools y
+  // demás acciones). En desarrollo se conserva para depurar.
+  if (!isDev) Menu.setApplicationMenu(null)
+
   // Inicializa la base de datos (esquema + seed) y registra los handlers IPC.
   inicializarDb()
   registrarIpc()

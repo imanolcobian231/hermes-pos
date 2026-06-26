@@ -59,6 +59,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const [mixto, setMixto] = useState<Record<MetodoPago, string>>(VACIO_MIXTO)
   const [clienteSel, setClienteSel] = useState<number | null>(null)
   const [descuento, setDescuento] = useState(0)
+  // PIN autorizado para el descuento (se valida también en el backend al cobrar).
+  const [pinDescuento, setPinDescuento] = useState<string | undefined>(undefined)
   // Ticket final tras cobrar (modo simulación) y reimpresión de cocina.
   const [ticketFinal, setTicketFinal] = useState<{ titulo: string; orden: OrdenConDetalle } | null>(
     null
@@ -84,6 +86,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setRecibidoTexto('')
     setMixto(VACIO_MIXTO)
     setClienteSel(null)
+    setPinDescuento(undefined)
   }, [ordenId])
 
   const orden = porCobrar.find((o) => o.id === ordenId) ?? null
@@ -134,10 +137,18 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     return { pagos: [{ metodo, monto: neto }], efectivoRecibido: undefined, cambio: 0 }
   }
 
-  // Aplicar un descuento requiere autorización de administrador.
+  // Aplicar un descuento requiere autorización de administrador (el PIN se
+  // revalida en el backend al momento de cobrar).
   const confirmar = (): void => {
-    if (descClamp > 0) pedir(ejecutarConfirmar, 'Aplicar un descuento')
-    else ejecutarConfirmar()
+    if (descClamp > 0) {
+      pedir((pin) => {
+        setPinDescuento(pin)
+        ejecutarConfirmar()
+      }, 'Aplicar un descuento')
+    } else {
+      setPinDescuento(undefined)
+      ejecutarConfirmar()
+    }
   }
 
   // Muestra el ticket como vista previa. El cobro NO se confirma aquí: se
@@ -181,7 +192,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       if (clienteSel == null) return
       await fiarOrden(snap.id, clienteSel, snap.descuento)
     } else {
-      await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento)
+      await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento, pinDescuento)
     }
     // Imprime el ticket de caja (ya cerrada en la DB).
     try {
@@ -196,6 +207,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setClienteSel(null)
     setMetodo('efectivo')
     setDescuento(0)
+    setPinDescuento(undefined)
     setOrdenId(null)
   }
 

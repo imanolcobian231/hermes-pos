@@ -136,11 +136,12 @@ interface DatosContextValue {
     ordenId: number,
     pagos: Pago[],
     efectivoRecibido?: number,
-    descuento?: number
+    descuento?: number,
+    pin?: string
   ) => Promise<void>
-  cancelarOrden: (ordenId: number, motivo: string, usuario?: string) => Promise<void>
+  cancelarOrden: (ordenId: number, motivo: string, usuario?: string, pin?: string) => Promise<void>
   /** Devuelve (revierte) una venta cobrada del turno actual. */
-  devolverOrden: (ordenId: number, motivo: string, usuario?: string) => Promise<void>
+  devolverOrden: (ordenId: number, motivo: string, usuario?: string, pin?: string) => Promise<void>
   /** Fía la orden: la carga a la cuenta de crédito de un cliente. */
   fiarOrden: (ordenId: number, clienteId: number, descuento?: number) => Promise<void>
   registrarReimpresion: (
@@ -406,8 +407,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const cobrarOrden = useCallback(
-    async (ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number) => {
-      await api.ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento)
+    async (ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number, pin?: string) => {
+      await api.ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento, pin)
       await Promise.all([
         refrescarOrdenes(),
         refrescarMesas(),
@@ -419,16 +420,16 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const cancelarOrden = useCallback(
-    async (ordenId: number, motivo: string, usuario?: string) => {
-      await api.ordenes.cancelar(ordenId, motivo, usuario)
+    async (ordenId: number, motivo: string, usuario?: string, pin?: string) => {
+      await api.ordenes.cancelar(ordenId, motivo, usuario, pin)
       await Promise.all([refrescarOrdenes(), refrescarMesas(), refrescarCancelaciones()])
     },
     [refrescarOrdenes, refrescarMesas, refrescarCancelaciones]
   )
 
   const devolverOrden = useCallback(
-    async (ordenId: number, motivo: string, usuario?: string) => {
-      await api.ordenes.devolver(ordenId, motivo, usuario)
+    async (ordenId: number, motivo: string, usuario?: string, pin?: string) => {
+      await api.ordenes.devolver(ordenId, motivo, usuario, pin)
       await Promise.all([
         refrescarResumen(),
         refrescarCobradas(),

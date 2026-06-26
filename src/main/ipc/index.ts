@@ -28,9 +28,21 @@ import * as reportes from '../repos/reportes'
 import * as usuarios from '../repos/usuarios'
 import * as reimpresiones from '../repos/reimpresiones'
 import * as config from '../repos/config'
+import * as sesion from '../sesion'
 import { bytesCocina, bytesFinal, bytesPrueba } from '../printer/tickets'
 import { listarPuertos, enviarAPuerto } from '../printer/serial'
 import { respaldar, listarRespaldos, carpetaRespaldos, restaurar } from '../db/respaldo'
+
+/**
+ * Autoriza una acción sensible EN EL BACKEND (no solo en la UI): pasa si hay un
+ * administrador en sesión, o si el PIN recibido es de un administrador. Si no,
+ * lanza error. Así, aunque se salte la interfaz, la acción queda protegida.
+ */
+function exigirAdmin(pin?: string): void {
+  if (sesion.esAdminEnSesion()) return
+  if (pin && usuarios.verificarPinAdmin(pin)) return
+  throw new Error('Acción no autorizada: se requiere PIN de administrador')
+}
 
 /** Registra todos los handlers IPC. Llamar una sola vez tras inicializar la DB. */
 export function registrarIpc(): void {
@@ -102,17 +114,28 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(
     CANALES.ordenes.cobrar,
-    (_e, ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number) =>
-      ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento)
+    (_e, ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number, pin?: string) => {
+      // Aplicar descuento es una acción sensible: requiere autorización.
+      if (descuento && descuento > 0) exigirAdmin(pin)
+      return ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento)
+    }
   )
   ipcMain.handle(CANALES.ordenes.fiar, (_e, ordenId: number, clienteId: number, descuento?: number) =>
     ordenes.fiar(ordenId, clienteId, descuento)
   )
-  ipcMain.handle(CANALES.ordenes.cancelar, (_e, ordenId: number, motivo: string, usuario?: string) =>
-    ordenes.cancelar(ordenId, motivo, usuario)
+  ipcMain.handle(
+    CANALES.ordenes.cancelar,
+    (_e, ordenId: number, motivo: string, usuario?: string, pin?: string) => {
+      exigirAdmin(pin)
+      return ordenes.cancelar(ordenId, motivo, usuario)
+    }
   )
-  ipcMain.handle(CANALES.ordenes.devolver, (_e, ordenId: number, motivo: string, usuario?: string) =>
-    ordenes.devolver(ordenId, motivo, usuario)
+  ipcMain.handle(
+    CANALES.ordenes.devolver,
+    (_e, ordenId: number, motivo: string, usuario?: string, pin?: string) => {
+      exigirAdmin(pin)
+      return ordenes.devolver(ordenId, motivo, usuario)
+    }
   )
   ipcMain.handle(CANALES.ordenes.cobradasTurno, () => ordenes.cobradasTurno())
 
@@ -154,12 +177,17 @@ export function registrarIpc(): void {
   // --- Usuarios ------------------------------------------------------------
   ipcMain.handle(CANALES.usuarios.listar, () => usuarios.listar())
   ipcMain.handle(CANALES.usuarios.hayUsuarios, () => usuarios.hayUsuarios())
-  ipcMain.handle(CANALES.usuarios.crearPrimerAdmin, (_e, nombre: string, pin: string) =>
-    usuarios.crearPrimerAdmin(nombre, pin)
-  )
-  ipcMain.handle(CANALES.usuarios.login, (_e, usuarioId: number, pin: string) =>
-    usuarios.login(usuarioId, pin)
-  )
+  ipcMain.handle(CANALES.usuarios.crearPrimerAdmin, (_e, nombre: string, pin: string) => {
+    const u = usuarios.crearPrimerAdmin(nombre, pin)
+    sesion.establecerSesion(u)
+    return u
+  })
+  ipcMain.handle(CANALES.usuarios.login, (_e, usuarioId: number, pin: string) => {
+    const u = usuarios.login(usuarioId, pin)
+    if (u) sesion.establecerSesion(u)
+    return u
+  })
+  ipcMain.handle(CANALES.usuarios.logout, () => sesion.establecerSesion(null))
   ipcMain.handle(CANALES.usuarios.guardar, (_e, u: UsuarioInput) => usuarios.guardar(u))
   ipcMain.handle(CANALES.usuarios.eliminar, (_e, id: number) => usuarios.eliminar(id))
   ipcMain.handle(CANALES.usuarios.verificarPinAdmin, (_e, pin: string) =>

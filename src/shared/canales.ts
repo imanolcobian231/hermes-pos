@@ -80,6 +80,7 @@ export const CANALES = {
     hayUsuarios: 'usuarios:hayUsuarios',
     crearPrimerAdmin: 'usuarios:crearPrimerAdmin',
     login: 'usuarios:login',
+    logout: 'usuarios:logout',
     guardar: 'usuarios:guardar',
     eliminar: 'usuarios:eliminar',
     verificarPinAdmin: 'usuarios:verificarPinAdmin'

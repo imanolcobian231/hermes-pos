@@ -72,10 +72,10 @@ export function Corte(): React.JSX.Element {
     const id = devolviendo.id
     const m = motivoDev.trim()
     if (!m) return
-    pedir(() => {
+    pedir((pin) => {
       void (async () => {
         try {
-          await devolverOrden(id, m, usuarioActual?.nombre)
+          await devolverOrden(id, m, usuarioActual?.nombre, pin)
           toast('Venta devuelta', 'info')
         } catch (e) {
           toast(e instanceof Error ? e.message : 'No se pudo devolver', 'error')

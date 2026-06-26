@@ -7,22 +7,26 @@ import { Modal } from '@renderer/components/Modal'
 // directo; si no, pide el PIN de algún administrador para autorizar.
 
 interface AutorizacionContextValue {
-  /** Ejecuta `accion` si hay autorización (admin en sesión o PIN correcto). */
-  pedir: (accion: () => void, motivo?: string) => void
+  /**
+   * Ejecuta `accion` si hay autorización. Si el usuario en sesión es admin,
+   * corre directo con pin indefinido; si no, pide el PIN y se lo pasa a `accion`
+   * para que el backend lo revalide.
+   */
+  pedir: (accion: (pin?: string) => void, motivo?: string) => void
 }
 
 const AutorizacionContext = createContext<AutorizacionContextValue | null>(null)
 
 export function ProveedorAutorizacion({ children }: { children: ReactNode }): React.JSX.Element {
   const { esAdmin } = useAuth()
-  const [pendiente, setPendiente] = useState<(() => void) | null>(null)
+  const [pendiente, setPendiente] = useState<((pin?: string) => void) | null>(null)
   const [motivo, setMotivo] = useState('')
   const [pin, setPin] = useState('')
   const [error, setError] = useState(false)
 
-  const pedir = (accion: () => void, m?: string): void => {
+  const pedir = (accion: (pin?: string) => void, m?: string): void => {
     if (esAdmin) {
-      accion()
+      accion(undefined)
       return
     }
     setMotivo(m ?? 'Esta acción requiere autorización')
@@ -32,15 +36,21 @@ export function ProveedorAutorizacion({ children }: { children: ReactNode }): Re
   }
 
   const confirmar = async (): Promise<void> => {
-    const ok = await window.api.usuarios.verificarPinAdmin(pin)
+    let ok = false
+    try {
+      ok = await window.api.usuarios.verificarPinAdmin(pin)
+    } catch {
+      ok = false
+    }
     if (!ok) {
       setError(true)
       return
     }
     const accion = pendiente
     setPendiente(null)
+    const pinOk = pin
     setPin('')
-    accion?.()
+    accion?.(pinOk)
   }
 
   const cerrar = (): void => {

@@ -97,15 +97,16 @@ const api = {
       ordenId: number,
       pagos: Pago[],
       efectivoRecibido?: number,
-      descuento?: number
+      descuento?: number,
+      pin?: string
     ): Promise<OrdenConDetalle> =>
-      invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento),
+      invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento, pin),
     fiar: (ordenId: number, clienteId: number, descuento?: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.fiar, ordenId, clienteId, descuento),
-    cancelar: (ordenId: number, motivo: string, usuario?: string): Promise<void> =>
-      invoke(CANALES.ordenes.cancelar, ordenId, motivo, usuario),
-    devolver: (ordenId: number, motivo: string, usuario?: string): Promise<void> =>
-      invoke(CANALES.ordenes.devolver, ordenId, motivo, usuario),
+    cancelar: (ordenId: number, motivo: string, usuario?: string, pin?: string): Promise<void> =>
+      invoke(CANALES.ordenes.cancelar, ordenId, motivo, usuario, pin),
+    devolver: (ordenId: number, motivo: string, usuario?: string, pin?: string): Promise<void> =>
+      invoke(CANALES.ordenes.devolver, ordenId, motivo, usuario, pin),
     cobradasTurno: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.cobradasTurno)
   },
   clientes: {
@@ -145,6 +146,7 @@ const api = {
       invoke(CANALES.usuarios.crearPrimerAdmin, nombre, pin),
     login: (usuarioId: number, pin: string): Promise<Usuario | null> =>
       invoke(CANALES.usuarios.login, usuarioId, pin),
+    logout: (): Promise<void> => invoke(CANALES.usuarios.logout),
     guardar: (u: UsuarioInput): Promise<Usuario> => invoke(CANALES.usuarios.guardar, u),
     eliminar: (id: number): Promise<void> => invoke(CANALES.usuarios.eliminar, id),
     verificarPinAdmin: (pin: string): Promise<boolean> =>
