@@ -61,6 +61,14 @@ export const CANALES = {
   reportes: {
     generar: 'reportes:generar'
   },
+  inventario: {
+    listar: 'inventario:listar',
+    resumen: 'inventario:resumen',
+    guardar: 'inventario:guardar',
+    eliminar: 'inventario:eliminar',
+    movimiento: 'inventario:movimiento',
+    movimientos: 'inventario:movimientos'
+  },
   respaldo: {
     obtener: 'respaldo:obtener',
     guardar: 'respaldo:guardar',

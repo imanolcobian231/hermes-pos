@@ -18,6 +18,7 @@ import { Catalogo } from '@renderer/pages/Catalogo'
 import { Finanzas } from '@renderer/pages/Finanzas'
 import { Reportes } from '@renderer/pages/Reportes'
 import { Clientes } from '@renderer/pages/Clientes'
+import { Inventario } from '@renderer/pages/Inventario'
 import { Usuarios } from '@renderer/pages/Usuarios'
 import { Ajustes } from '@renderer/pages/Ajustes'
 import { Gastos } from '@renderer/pages/Gastos'
@@ -32,6 +33,7 @@ type Vista =
   | 'finanzas'
   | 'reportes'
   | 'clientes'
+  | 'inventario'
   | 'usuarios'
   | 'ajustes'
   | 'gastos'
@@ -46,6 +48,7 @@ const NAV: { id: Vista; label: string; icono: NombreIcono; roles: Rol[] }[] = [
   { id: 'clientes', label: 'Clientes', icono: 'usuarios', roles: ['admin', 'cajero'] },
   { id: 'corte', label: 'Corte de caja', icono: 'corte', roles: ['admin'] },
   { id: 'catalogo', label: 'Catálogo', icono: 'catalogo', roles: ['admin'] },
+  { id: 'inventario', label: 'Inventario', icono: 'inventario', roles: ['admin'] },
   { id: 'usuarios', label: 'Usuarios', icono: 'usuarios', roles: ['admin'] },
   { id: 'ajustes', label: 'Ajustes', icono: 'ajustes', roles: ['admin'] }
 ]
@@ -57,6 +60,7 @@ const TITULOS: Record<Vista, string> = {
   finanzas: 'Finanzas',
   reportes: 'Reportes',
   clientes: 'Clientes',
+  inventario: 'Inventario',
   corte: 'Corte de caja',
   catalogo: 'Catálogo',
   usuarios: 'Usuarios',
@@ -80,8 +84,8 @@ function Reloj(): React.JSX.Element {
   const hm = ahora.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })
   return (
     <div className="text-right leading-tight">
-      <div className="text-sm font-semibold text-slate-800">{hm}</div>
-      <div className="text-[11px] capitalize text-slate-400">{fecha}</div>
+      <div className="text-sm font-semibold text-tinta">{hm}</div>
+      <div className="text-[11px] capitalize text-tinta-suave">{fecha}</div>
     </div>
   )
 }
@@ -140,9 +144,9 @@ function Contenido(): React.JSX.Element {
 
   if (cargando) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 text-slate-400">
+      <div className="flex h-screen items-center justify-center bg-fondo text-tinta-suave">
         <div className="flex items-center gap-3">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-tinta" />
           Cargando Hermes…
         </div>
       </div>
@@ -150,20 +154,15 @@ function Contenido(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 text-slate-900">
-      {/* Barra lateral */}
-      <aside className="flex w-60 flex-col bg-slate-950 text-slate-100">
-        <div className="flex items-center gap-3 px-5 py-5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 p-1.5">
-            <LogoHermes className="h-full w-full object-contain" />
-          </span>
-          <div className="leading-tight">
-            <div className="text-sm font-semibold tracking-wide">Hermes</div>
-          </div>
+    <div className="flex h-screen bg-fondo text-tinta">
+      {/* Barra lateral — clara y translúcida, estilo Apple */}
+      <aside className="flex w-64 flex-col border-r border-black/[0.07] bg-white/70 backdrop-blur-xl">
+        <div className="flex items-center justify-center px-5 py-5">
+          <LogoHermes className="w-3/4 object-contain" />
         </div>
 
-        <nav className="flex-1 px-3 py-2">
-          <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-600">
+        <nav className="flex-1 px-3 py-1">
+          <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-tinta-suave/70">
             Operación
           </div>
           {navVisible.map((item) => {
@@ -172,13 +171,13 @@ function Contenido(): React.JSX.Element {
               <button
                 key={item.id}
                 onClick={() => navegar(item.id)}
-                className={`mb-0.5 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
+                className={`mb-0.5 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-[14px] transition ${
                   activo
-                    ? 'bg-slate-800/70 font-semibold text-white'
-                    : 'text-slate-400 hover:bg-slate-900 hover:text-slate-200'
+                    ? 'bg-black/[0.06] font-semibold text-tinta'
+                    : 'font-medium text-tinta-suave hover:bg-black/[0.04] hover:text-tinta'
                 }`}
               >
-                <span className={activo ? 'text-white' : ''}>
+                <span className={activo ? 'text-acento' : 'text-tinta-suave'}>
                   <Icono nombre={item.icono} size={18} />
                 </span>
                 {item.label}
@@ -189,40 +188,40 @@ function Contenido(): React.JSX.Element {
 
         {/* Balance del turno en el pie (solo admin) */}
         {esAdmin && (
-          <div className="mx-3 mb-2 rounded-lg bg-slate-900 px-4 py-3">
-            <div className="text-[11px] uppercase tracking-wider text-slate-500">
+          <div className="mx-3 mb-2 rounded-2xl bg-black/[0.04] px-4 py-3">
+            <div className="text-[11px] uppercase tracking-wider text-tinta-suave">
               Balance del turno
             </div>
-            <div className={`text-lg font-bold ${balance < 0 ? 'text-red-400' : 'text-white'}`}>
+            <div className={`text-xl font-semibold ${balance < 0 ? 'text-red-600' : 'text-tinta'}`}>
               {pesos(balance)}
             </div>
           </div>
         )}
 
         {/* Usuario y cerrar sesión */}
-        <div className="border-t border-slate-800 px-3 py-3">
+        <div className="border-t border-black/[0.07] px-3 py-3">
           <div className="flex items-center justify-between px-2">
             <div className="leading-tight">
-              <div className="text-sm font-semibold text-slate-100">{usuarioActual?.nombre}</div>
-              <div className="text-[11px] capitalize text-slate-500">{usuarioActual?.rol}</div>
+              <div className="text-sm font-semibold text-tinta">{usuarioActual?.nombre}</div>
+              <div className="text-[11px] capitalize text-tinta-suave">{usuarioActual?.rol}</div>
             </div>
             <button
               onClick={logout}
               title="Cerrar sesión"
-              className="flex items-center gap-1 rounded-md px-2 py-1.5 text-xs font-semibold text-slate-400 hover:bg-slate-900 hover:text-slate-200"
+              className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05] hover:text-tinta"
             >
               <Icono nombre="salir" size={16} />
             </button>
           </div>
-          <div className="mt-2 px-2 text-[11px] text-slate-600">v0.1.0 · Olyssea</div>
+          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.1.0 · Olyssea</div>
         </div>
       </aside>
 
       {/* Columna principal */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra superior */}
-        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-3">
-          <div className="text-sm font-semibold text-slate-500">{TITULOS[vista]}</div>
+        {/* Barra superior translúcida */}
+        <header className="flex items-center justify-between border-b border-black/[0.06] bg-white/60 px-8 py-3 backdrop-blur-xl">
+          <div className="text-[15px] font-semibold tracking-tight text-tinta">{TITULOS[vista]}</div>
           <Reloj />
         </header>
 
@@ -248,6 +247,7 @@ function Contenido(): React.JSX.Element {
           {vista === 'finanzas' && <Finanzas />}
           {vista === 'reportes' && <Reportes />}
           {vista === 'clientes' && <Clientes />}
+          {vista === 'inventario' && <Inventario />}
           {vista === 'corte' && <Corte />}
           {vista === 'catalogo' && <Catalogo />}
           {vista === 'usuarios' && <Usuarios />}

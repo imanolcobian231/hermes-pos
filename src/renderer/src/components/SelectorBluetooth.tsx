@@ -16,14 +16,14 @@ export function SelectorBluetooth(): React.JSX.Element | null {
         <>
           <button
             onClick={mostrarTodos}
-            className="mr-auto rounded-lg px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+            className="mr-auto rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             title="Quita el filtro y muestra todos los dispositivos Bluetooth"
           >
             Mostrar todos
           </button>
           <button
             onClick={cancelarSelector}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
           >
             Cancelar
           </button>
@@ -31,8 +31,8 @@ export function SelectorBluetooth(): React.JSX.Element | null {
       }
     >
       {selector.dispositivos.length === 0 ? (
-        <div className="flex items-center justify-center gap-3 py-6 text-slate-500">
-          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+        <div className="flex items-center justify-center gap-3 py-6 text-tinta-suave">
+          <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/10 border-t-tinta" />
           Buscando dispositivos…
         </div>
       ) : (
@@ -41,10 +41,10 @@ export function SelectorBluetooth(): React.JSX.Element | null {
             <button
               key={d.id}
               onClick={() => elegirDispositivo(d.id)}
-              className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3 text-left hover:border-slate-400 hover:bg-slate-50"
+              className="flex items-center justify-between rounded-lg border border-black/[0.06] px-4 py-3 text-left hover:border-black/20 hover:bg-black/[0.03]"
             >
-              <span className="font-semibold text-slate-800">{d.nombre}</span>
-              <span className="text-xs text-slate-400">Conectar</span>
+              <span className="font-semibold text-tinta">{d.nombre}</span>
+              <span className="text-xs text-tinta-suave">Conectar</span>
             </button>
           ))}
         </div>

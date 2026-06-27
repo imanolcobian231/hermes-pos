@@ -25,20 +25,20 @@ export function Gastos(): React.JSX.Element {
   return (
     <div className="mx-auto flex h-full max-w-xl flex-col">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Gastos</h1>
-        <p className="text-sm text-slate-500">Registra los gastos del turno</p>
+        <h1 className="text-2xl font-bold text-tinta">Gastos</h1>
+        <p className="text-sm text-tinta-suave">Registra los gastos del turno</p>
       </header>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="rounded-xl border border-black/[0.06] bg-white p-4">
         <input
           value={concepto}
           onChange={(e) => setConcepto(e.target.value)}
           placeholder="Concepto (ej. Hielo, gas, mandado)"
-          className="mb-2 w-full rounded-md border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+          className="mb-2 w-full rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
         />
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta-suave">
               $
             </span>
             <input
@@ -48,35 +48,35 @@ export function Gastos(): React.JSX.Element {
               onChange={(e) => setMonto(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && guardar()}
               placeholder="0.00"
-              className="w-full rounded-md border border-slate-300 py-2 pl-7 pr-3 text-right text-sm font-semibold outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+              className="w-full rounded-md border border-black/10 py-2 pl-7 pr-3 text-right text-sm font-semibold outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
             />
           </div>
           <button
             onClick={guardar}
-            className="rounded-md bg-slate-900 px-5 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            className="rounded-md bg-acento px-5 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
           >
             Agregar
           </button>
         </div>
       </div>
 
-      <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-slate-500">
+      <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-tinta-suave">
         Gastos del turno
       </h2>
-      <div className="flex-1 overflow-auto rounded-xl border border-slate-200 bg-white">
+      <div className="flex-1 overflow-auto rounded-xl border border-black/[0.06] bg-white">
         {gastos.length === 0 ? (
-          <p className="px-3 py-10 text-center text-sm text-slate-400">Sin gastos en el turno</p>
+          <p className="px-3 py-10 text-center text-sm text-tinta-suave">Sin gastos en el turno</p>
         ) : (
           gastos.map((g) => (
             <div
               key={g.id}
-              className="flex items-center justify-between border-b border-slate-100 px-4 py-2.5 last:border-0"
+              className="flex items-center justify-between border-b border-black/[0.04] px-4 py-2.5 last:border-0"
             >
               <div>
-                <div className="text-sm font-medium text-slate-800">{g.concepto}</div>
-                <div className="text-xs text-slate-400">{hora(g.fecha)}</div>
+                <div className="text-sm font-medium text-tinta">{g.concepto}</div>
+                <div className="text-xs text-tinta-suave">{hora(g.fecha)}</div>
               </div>
-              <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-600">
+              <span className="flex items-center gap-1.5 text-sm font-semibold text-tinta-suave">
                 <Icono nombre="gasto" size={14} />
                 {pesos(g.monto)}
               </span>

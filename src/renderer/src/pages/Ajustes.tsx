@@ -40,14 +40,14 @@ export function Ajustes(): React.JSX.Element {
   }
 
   if (!cfg) {
-    return <div className="flex h-full items-center justify-center text-slate-400">Cargando…</div>
+    return <div className="flex h-full items-center justify-center text-tinta-suave">Cargando…</div>
   }
 
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Ajustes</h1>
-        <p className="text-sm text-slate-500">Impresoras térmicas (Bluetooth o puerto COM)</p>
+        <h1 className="text-2xl font-bold text-tinta">Ajustes</h1>
+        <p className="text-sm text-tinta-suave">Impresoras térmicas (Bluetooth o puerto COM)</p>
       </header>
 
       <div className="flex flex-col gap-5 overflow-auto pb-4">
@@ -76,14 +76,14 @@ export function Ajustes(): React.JSX.Element {
               onGuardar={guardarNegocio}
             />
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-tinta-suave">
             Aparecen como encabezado en los tickets. Déjalos vacíos para no imprimirlos.
           </p>
         </Seccion>
 
         {/* Cantidad de impresoras */}
         <Seccion titulo="Impresoras">
-          <p className="mb-3 text-sm text-slate-500">¿Cuántas impresoras usa el negocio?</p>
+          <p className="mb-3 text-sm text-tinta-suave">¿Cuántas impresoras usa el negocio?</p>
           <div className="grid grid-cols-2 gap-3">
             <OpcionModo
               activo={cfg.modo === 'una'}
@@ -114,7 +114,7 @@ export function Ajustes(): React.JSX.Element {
 
         {/* Tamaño de papel */}
         <Seccion titulo="Tamaño de papel">
-          <p className="mb-3 text-sm text-slate-500">Ancho del rollo de la impresora.</p>
+          <p className="mb-3 text-sm text-tinta-suave">Ancho del rollo de la impresora.</p>
           <div className="grid grid-cols-2 gap-3">
             <OpcionModo
               activo={cfg.ancho === 32}
@@ -141,7 +141,7 @@ export function Ajustes(): React.JSX.Element {
           {cfg.impuestoActivo && (
             <>
               <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-slate-700">Tasa de IVA (%)</span>
+                <span className="text-sm text-tinta">Tasa de IVA (%)</span>
                 <input
                   type="number"
                   inputMode="numeric"
@@ -149,7 +149,7 @@ export function Ajustes(): React.JSX.Element {
                   onChange={(e) =>
                     void actualizarCfg({ impuestoTasa: Math.max(0, Number(e.target.value) || 0) })
                   }
-                  className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-slate-500"
+                  className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
                 />
               </div>
               <Switch
@@ -157,7 +157,7 @@ export function Ajustes(): React.JSX.Element {
                 label="El IVA ya está incluido en los precios"
                 onChange={(v) => void actualizarCfg({ impuestoIncluido: v })}
               />
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-tinta-suave">
                 Activado: el ticket solo desglosa el IVA (el total no cambia). Desactivado: el IVA se
                 suma al total y el cliente paga más.
               </p>
@@ -195,7 +195,7 @@ export function Ajustes(): React.JSX.Element {
         {/* Respaldo de la base de datos */}
         <SeccionRespaldos />
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-tinta-suave">
           La impresora debe estar encendida. <strong>Bluetooth:</strong> al pulsar “Conectar por
           Bluetooth” aparece la lista de dispositivos cercanos; elige la impresora y queda enlazada.{' '}
           <strong>Puerto COM:</strong> para impresoras Bluetooth Clásico o serial (ej. PT-210),
@@ -223,14 +223,14 @@ function CampoNegocio({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-tinta-suave">{label}</label>
       <input
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         onBlur={onGuardar}
         onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+        className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
       />
     </div>
   )
@@ -305,20 +305,20 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
   return (
     <div className="flex flex-col gap-3">
       {/* Estado actual de la impresora */}
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 px-4 py-3">
+      <div className="flex items-center justify-between rounded-lg border border-black/[0.06] px-4 py-3">
         <div className="flex items-center gap-2.5">
           <span
-            className={`h-2.5 w-2.5 rounded-full ${estado.conectado ? 'bg-emerald-500' : 'bg-slate-300'}`}
+            className={`h-2.5 w-2.5 rounded-full ${estado.conectado ? 'bg-emerald-500' : 'bg-black/15'}`}
           />
           <div className="leading-tight">
-            <div className="font-semibold text-slate-800">{estado.nombre ?? 'Sin configurar'}</div>
-            <div className="text-xs text-slate-400">{detalleEstado}</div>
+            <div className="font-semibold text-tinta">{estado.nombre ?? 'Sin configurar'}</div>
+            <div className="text-xs text-tinta-suave">{detalleEstado}</div>
           </div>
         </div>
         {estado.conectado && (
           <button
             onClick={() => desconectar(destino)}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+            className="rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
           >
             Quitar
           </button>
@@ -327,7 +327,7 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
 
       {/* Configuración del transporte (cuando no hay impresora lista) */}
       {!estado.conectado && (
-        <div className="rounded-lg border border-slate-200 p-3">
+        <div className="rounded-lg border border-black/[0.06] p-3">
           <div className="mb-3 grid grid-cols-2 gap-2">
             <TabTransporte activo={!modoCom} onClick={() => setModoCom(false)}>
               Bluetooth
@@ -341,19 +341,19 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
             <button
               onClick={() => void conectar(destino)}
               disabled={conectandoBle}
-              className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+              className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
             >
               {conectandoBle ? 'Buscando…' : 'Conectar por Bluetooth'}
             </button>
           ) : (
             <div className="flex flex-col gap-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Puerto</label>
+                <label className="mb-1 block text-xs font-medium text-tinta-suave">Puerto</label>
                 <div className="flex gap-2">
                   <select
                     value={puerto}
                     onChange={(e) => setPuerto(e.target.value)}
-                    className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-500"
+                    className="flex-1 rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
                   >
                     {puertos.length === 0 && <option value="">Sin puertos detectados</option>}
                     {puertos.map((p) => (
@@ -367,18 +367,18 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
                     onClick={() => void refrescarPuertos()}
                     disabled={cargandoPuertos}
                     title="Actualizar lista de puertos"
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                    className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05] disabled:opacity-50"
                   >
                     {cargandoPuertos ? '…' : '↻'}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-slate-600">Baudios</label>
+                <label className="mb-1 block text-xs font-medium text-tinta-suave">Baudios</label>
                 <select
                   value={baud}
                   onChange={(e) => setBaud(Number(e.target.value))}
-                  className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-slate-500"
+                  className="w-full rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
                 >
                   {BAUDIOS.map((b) => (
                     <option key={b} value={b}>
@@ -389,7 +389,7 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
               </div>
               <button
                 onClick={() => void guardarCom()}
-                className="w-full rounded-md bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
               >
                 Guardar impresora COM
               </button>
@@ -401,7 +401,7 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
       <button
         onClick={() => void probar()}
         disabled={!estado.conectado || probando}
-        className="flex items-center justify-center gap-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-40"
+        className="flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta hover:bg-black/[0.05] disabled:opacity-40"
       >
         <Icono nombre="imprimir" size={15} />
         {probando ? 'Imprimiendo…' : 'Imprimir prueba'}
@@ -426,8 +426,8 @@ function TabTransporte({
       onClick={onClick}
       className={`rounded-md border px-3 py-1.5 text-sm font-semibold transition ${
         activo
-          ? 'border-slate-900 bg-slate-100 text-slate-900'
-          : 'border-slate-200 text-slate-500 hover:border-slate-300'
+          ? 'border-acento bg-black/[0.05] text-tinta'
+          : 'border-black/[0.06] text-tinta-suave hover:border-black/15'
       }`}
     >
       {children}
@@ -443,8 +443,8 @@ function Seccion({
   children: React.ReactNode
 }): React.JSX.Element {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
-      <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">{titulo}</h2>
+    <section className="rounded-xl border border-black/[0.06] bg-white p-5">
+      <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-tinta-suave">{titulo}</h2>
       {children}
     </section>
   )
@@ -498,12 +498,12 @@ function SeccionRespaldos(): React.JSX.Element {
   }
 
   const botonClase =
-    'rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:opacity-50'
+    'rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta hover:bg-black/[0.05] disabled:opacity-50'
 
   if (!cfg) {
     return (
       <Seccion titulo="Respaldos">
-        <p className="text-sm text-slate-400">Cargando…</p>
+        <p className="text-sm text-tinta-suave">Cargando…</p>
       </Seccion>
     )
   }
@@ -515,9 +515,9 @@ function SeccionRespaldos(): React.JSX.Element {
         label="Respaldo automático (diario y al cerrar turno)"
         onChange={(v) => void guardar({ automatico: v })}
       />
-      <div className="mt-2 rounded-lg border border-slate-200 p-3">
-        <div className="mb-1 text-xs font-medium text-slate-500">Carpeta de respaldos</div>
-        <div className="mb-3 break-all text-sm text-slate-700">
+      <div className="mt-2 rounded-lg border border-black/[0.06] p-3">
+        <div className="mb-1 text-xs font-medium text-tinta-suave">Carpeta de respaldos</div>
+        <div className="mb-3 break-all text-sm text-tinta">
           {cfg.carpeta ?? 'Carpeta predeterminada de la app'}
         </div>
         <div className="flex flex-wrap gap-2">
@@ -530,28 +530,28 @@ function SeccionRespaldos(): React.JSX.Element {
           <button
             onClick={() => void respaldarAhora()}
             disabled={ocupado}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md bg-acento px-3 py-1.5 text-xs font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
           >
             {ocupado ? 'Respaldando…' : 'Respaldar ahora'}
           </button>
         </div>
       </div>
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-tinta-suave">
         {cfg.ultimo ? `Último respaldo: ${fechaHora(cfg.ultimo)}` : 'Aún no se ha hecho ningún respaldo.'}
       </p>
       {lista.length > 0 && (
-        <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-slate-200">
+        <div className="mt-3 max-h-44 overflow-auto rounded-lg border border-black/[0.06]">
           {lista.map((r) => (
             <div
               key={r.ruta}
-              className="flex items-center justify-between gap-2 border-b border-slate-100 px-3 py-1.5 text-xs last:border-0"
+              className="flex items-center justify-between gap-2 border-b border-black/[0.04] px-3 py-1.5 text-xs last:border-0"
             >
-              <span className="text-slate-600">{fechaHora(r.fecha)}</span>
+              <span className="text-tinta-suave">{fechaHora(r.fecha)}</span>
               <div className="flex items-center gap-2">
-                <span className="text-slate-400">{Math.max(1, Math.round(r.tamano / 1024))} KB</span>
+                <span className="text-tinta-suave">{Math.max(1, Math.round(r.tamano / 1024))} KB</span>
                 <button
                   onClick={() => setARestaurar(r)}
-                  className="rounded border border-slate-300 px-2 py-0.5 font-semibold text-slate-600 hover:bg-slate-100"
+                  className="rounded border border-black/10 px-2 py-0.5 font-semibold text-tinta-suave hover:bg-black/[0.05]"
                 >
                   Restaurar
                 </button>
@@ -560,7 +560,7 @@ function SeccionRespaldos(): React.JSX.Element {
           ))}
         </div>
       )}
-      <p className="mt-2 text-xs text-slate-400">
+      <p className="mt-2 text-xs text-tinta-suave">
         Se conservan los últimos 14 respaldos. Guarda la carpeta en una USB o servicio en la nube
         para no perder la información si falla el equipo.
       </p>
@@ -573,7 +573,7 @@ function SeccionRespaldos(): React.JSX.Element {
           <>
             <button
               onClick={() => setARestaurar(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
@@ -594,7 +594,7 @@ function SeccionRespaldos(): React.JSX.Element {
         }
       >
         {aRestaurar && (
-          <p className="text-sm text-slate-600">
+          <p className="text-sm text-tinta-suave">
             Se reemplazará toda la información actual por la del respaldo del{' '}
             <strong>{fechaHora(aRestaurar.fecha)}</strong>. Se hará un respaldo de seguridad del
             estado actual antes de hacerlo, y la app se reiniciará. ¿Continuar?
@@ -620,11 +620,11 @@ function OpcionModo({
     <button
       onClick={onClick}
       className={`rounded-lg border-2 p-3 text-left transition ${
-        activo ? 'border-slate-900 bg-slate-100' : 'border-slate-200 hover:border-slate-300'
+        activo ? 'border-acento bg-black/[0.05]' : 'border-black/[0.06] hover:border-black/15'
       }`}
     >
-      <div className="font-semibold text-slate-800">{titulo}</div>
-      <div className="mt-0.5 text-xs text-slate-500">{detalle}</div>
+      <div className="font-semibold text-tinta">{titulo}</div>
+      <div className="mt-0.5 text-xs text-tinta-suave">{detalle}</div>
     </button>
   )
 }
@@ -648,24 +648,24 @@ function Stepper({
   return (
     <div className="flex items-center justify-between py-2">
       <div className="pr-3">
-        <div className="text-sm text-slate-700">{label}</div>
-        {ayuda && <div className="mt-0.5 text-xs text-slate-400">{ayuda}</div>}
+        <div className="text-sm text-tinta">{label}</div>
+        {ayuda && <div className="mt-0.5 text-xs text-tinta-suave">{ayuda}</div>}
       </div>
       <div className="flex items-center gap-2">
         <button
           type="button"
           onClick={() => ajustar(-1)}
           disabled={valor <= min}
-          className="h-8 w-8 rounded-md border border-slate-300 text-lg font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+          className="h-8 w-8 rounded-md border border-black/10 text-lg font-semibold text-tinta-suave hover:bg-black/[0.05] disabled:opacity-40"
         >
           −
         </button>
-        <span className="w-8 text-center text-sm font-semibold text-slate-800">{valor}</span>
+        <span className="w-8 text-center text-sm font-semibold text-tinta">{valor}</span>
         <button
           type="button"
           onClick={() => ajustar(1)}
           disabled={valor >= max}
-          className="h-8 w-8 rounded-md border border-slate-300 text-lg font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+          className="h-8 w-8 rounded-md border border-black/10 text-lg font-semibold text-tinta-suave hover:bg-black/[0.05] disabled:opacity-40"
         >
           +
         </button>
@@ -685,11 +685,11 @@ function Switch({
 }): React.JSX.Element {
   return (
     <label className="flex cursor-pointer items-center justify-between py-2">
-      <span className="text-sm text-slate-700">{label}</span>
+      <span className="text-sm text-tinta">{label}</span>
       <button
         type="button"
         onClick={() => onChange(!activo)}
-        className={`relative h-6 w-11 rounded-full transition ${activo ? 'bg-slate-900' : 'bg-slate-300'}`}
+        className={`relative h-6 w-11 rounded-full transition ${activo ? 'bg-acento' : 'bg-black/15'}`}
       >
         <span
           className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${

@@ -112,6 +112,18 @@ export function migrar(db: Database.Database): void {
     db.exec('ALTER TABLE detalle_ordenes ADD COLUMN comensal INTEGER NOT NULL DEFAULT 1')
   }
 
+  // Control de inventario por producto (aditivas).
+  const colsProd = columnas(db, 'productos')
+  if (!colsProd.includes('controlar_stock')) {
+    db.exec('ALTER TABLE productos ADD COLUMN controlar_stock INTEGER NOT NULL DEFAULT 0')
+  }
+  if (!colsProd.includes('stock')) {
+    db.exec('ALTER TABLE productos ADD COLUMN stock REAL NOT NULL DEFAULT 0')
+  }
+  if (!colsProd.includes('stock_minimo')) {
+    db.exec('ALTER TABLE productos ADD COLUMN stock_minimo REAL NOT NULL DEFAULT 0')
+  }
+
   // Grupos de modificadores reutilizables.
   if (columnas(db, 'grupos_modificadores').includes('producto_id')) {
     reconstruirGrupos(db)

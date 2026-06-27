@@ -20,6 +20,8 @@ import type {
   Gasto,
   GrupoInput,
   GrupoModificador,
+  Insumo,
+  InsumoInput,
   Mesa,
   MesaInput,
   MetodoPago,
@@ -29,7 +31,8 @@ import type {
   Producto,
   ProductoInput,
   Reimpresion,
-  ResumenTurno
+  ResumenTurno,
+  TipoMovInventario
 } from '@shared/types'
 import { useToast } from '@renderer/components/Toast'
 
@@ -156,6 +159,18 @@ interface DatosContextValue {
   eliminarCliente: (clienteId: number) => Promise<void>
   abonarCredito: (clienteId: number, monto: number, metodo: MetodoPago, nota?: string) => Promise<void>
 
+  // Inventario
+  insumos: Insumo[]
+  guardarInsumo: (insumo: InsumoInput) => Promise<void>
+  eliminarInsumo: (insumoId: number) => Promise<void>
+  movimientoInventario: (
+    insumoId: number,
+    tipo: TipoMovInventario,
+    cantidad: number,
+    nota?: string,
+    usuario?: string
+  ) => Promise<void>
+
   // Catálogo
   guardarProducto: (producto: ProductoInput) => Promise<void>
   eliminarProducto: (productoId: number) => Promise<void>
@@ -203,6 +218,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   const [gastos, setGastos] = useState<Gasto[]>([])
   const [cobradas, setCobradas] = useState<OrdenConDetalle[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
+  const [insumos, setInsumos] = useState<Insumo[]>([])
   const [caja, setCaja] = useState<EstadoCaja>({ abierta: false, fondoInicial: 0, abiertoEn: null })
 
   // --- Refrescos puntuales -------------------------------------------------
@@ -225,6 +241,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
   const refrescarClientes = useCallback(async () => setClientes(await api.clientes.listar()), [])
   const refrescarCaja = useCallback(async () => setCaja(await api.cortes.estadoCaja()), [])
+  const refrescarInsumos = useCallback(async () => setInsumos(await api.inventario.listar()), [])
   const refrescarCatalogo = useCallback(async () => {
     const [cats, prods, grps] = await Promise.all([
       api.catalogo.categorias(),
@@ -249,7 +266,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     let activo = true
     ;(async () => {
       try {
-        const [m, cats, prods, grps, ords, crts, reimp, canc, res, gas, cob, clis, cja] =
+        const [m, cats, prods, grps, ords, crts, reimp, canc, res, gas, cob, clis, cja, ins] =
           await Promise.all([
             api.mesas.listar(),
             api.catalogo.categorias(),
@@ -263,7 +280,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
             api.gastos.listar(),
             api.ordenes.cobradasTurno(),
             api.clientes.listar(),
-            api.cortes.estadoCaja()
+            api.cortes.estadoCaja(),
+            api.inventario.listar()
           ])
         if (!activo) return
         setMesas(m)
@@ -279,6 +297,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         setCobradas(cob)
         setClientes(clis)
         setCaja(cja)
+        setInsumos(ins)
       } finally {
         // Aunque falle algo, sale de la pantalla de carga (el error ya se notificó).
         if (activo) setCargando(false)
@@ -413,10 +432,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarOrdenes(),
         refrescarMesas(),
         refrescarResumen(),
-        refrescarCobradas()
+        refrescarCobradas(),
+        refrescarCatalogo()
       ])
     },
-    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas]
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarCatalogo]
   )
 
   const cancelarOrden = useCallback(
@@ -434,10 +454,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarResumen(),
         refrescarCobradas(),
         refrescarCancelaciones(),
-        refrescarClientes()
+        refrescarClientes(),
+        refrescarCatalogo()
       ])
     },
-    [refrescarResumen, refrescarCobradas, refrescarCancelaciones, refrescarClientes]
+    [refrescarResumen, refrescarCobradas, refrescarCancelaciones, refrescarClientes, refrescarCatalogo]
   )
 
   const fiarOrden = useCallback(
@@ -448,10 +469,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarMesas(),
         refrescarResumen(),
         refrescarCobradas(),
-        refrescarClientes()
+        refrescarClientes(),
+        refrescarCatalogo()
       ])
     },
-    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarClientes]
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarClientes, refrescarCatalogo]
   )
 
   const registrarReimpresion = useCallback(
@@ -485,6 +507,37 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       await Promise.all([refrescarClientes(), refrescarResumen()])
     },
     [refrescarClientes, refrescarResumen]
+  )
+
+  // --- Inventario ----------------------------------------------------------
+  const guardarInsumo = useCallback(
+    async (insumo: InsumoInput) => {
+      await api.inventario.guardar(insumo)
+      await refrescarInsumos()
+    },
+    [refrescarInsumos]
+  )
+
+  const eliminarInsumo = useCallback(
+    async (insumoId: number) => {
+      await api.inventario.eliminar(insumoId)
+      await refrescarInsumos()
+    },
+    [refrescarInsumos]
+  )
+
+  const movimientoInventario = useCallback(
+    async (
+      insumoId: number,
+      tipo: TipoMovInventario,
+      cantidad: number,
+      nota?: string,
+      usuario?: string
+    ) => {
+      await api.inventario.movimiento(insumoId, tipo, cantidad, nota, usuario)
+      await refrescarInsumos()
+    },
+    [refrescarInsumos]
   )
 
   // --- Catálogo ------------------------------------------------------------
@@ -655,6 +708,10 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       guardarCliente,
       eliminarCliente,
       abonarCredito,
+      insumos,
+      guardarInsumo,
+      eliminarInsumo,
+      movimientoInventario,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,
@@ -708,6 +765,10 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       guardarCliente,
       eliminarCliente,
       abonarCredito,
+      insumos,
+      guardarInsumo,
+      eliminarInsumo,
+      movimientoInventario,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,

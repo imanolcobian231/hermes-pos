@@ -40,14 +40,14 @@ export function Clientes(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="mb-5 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-tinta">Clientes</h1>
+          <p className="text-sm text-tinta-suave">
             Cuentas de crédito (fiados) · por cobrar <strong>{pesos(totalPorCobrar)}</strong>
           </p>
         </div>
         <button
           onClick={() => setForm({ nombre: '', telefono: '', nota: '' })}
-          className="flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 font-semibold text-white hover:bg-slate-800"
+          className="flex items-center gap-2 rounded-lg bg-acento px-4 py-2.5 font-semibold text-white hover:bg-acento-hover"
         >
           <Icono nombre="mas" size={16} />
           Nuevo cliente
@@ -55,8 +55,8 @@ export function Clientes(): React.JSX.Element {
       </header>
 
       {clientes.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-          <Icono nombre="usuarios" size={40} className="text-slate-300" />
+        <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
+          <Icono nombre="usuarios" size={40} className="text-tinta-suave/60" />
           <p className="mt-3 font-semibold">No hay clientes con crédito</p>
         </div>
       ) : (
@@ -65,10 +65,10 @@ export function Clientes(): React.JSX.Element {
             <button
               key={c.id}
               onClick={() => setDetalleId(c.id)}
-              className="flex flex-col rounded-xl border border-slate-200 bg-white p-4 text-left hover:border-slate-400"
+              className="flex flex-col rounded-xl border border-black/[0.06] bg-white p-4 text-left hover:border-black/20"
             >
               <div className="flex items-center justify-between">
-                <span className="font-semibold text-slate-800">{c.nombre}</span>
+                <span className="font-semibold text-tinta">{c.nombre}</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                     c.saldo > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
@@ -77,7 +77,7 @@ export function Clientes(): React.JSX.Element {
                   {c.saldo > 0 ? `Debe ${pesos(c.saldo)}` : 'Al corriente'}
                 </span>
               </div>
-              {c.telefono && <span className="mt-1 text-xs text-slate-400">{c.telefono}</span>}
+              {c.telefono && <span className="mt-1 text-xs text-tinta-suave">{c.telefono}</span>}
             </button>
           ))}
         </div>
@@ -92,13 +92,13 @@ export function Clientes(): React.JSX.Element {
           <>
             <button
               onClick={() => setForm(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
             <button
               onClick={() => void guardar()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Guardar
             </button>
@@ -209,42 +209,42 @@ function DetalleCliente({
           </button>
           <button
             onClick={() => onEditar(cliente)}
-            className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            className="rounded-lg border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
           >
             Editar
           </button>
           <button
             onClick={onCerrar}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
           >
             Listo
           </button>
         </>
       }
     >
-      <div className="mb-4 flex items-center justify-between rounded-lg bg-slate-50 px-4 py-3">
-        <span className="text-sm font-medium text-slate-600">Saldo</span>
+      <div className="mb-4 flex items-center justify-between rounded-lg bg-black/[0.03] px-4 py-3">
+        <span className="text-sm font-medium text-tinta-suave">Saldo</span>
         <span className={`text-xl font-bold ${cliente.saldo > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
           {cliente.saldo > 0 ? pesos(cliente.saldo) : 'Al corriente'}
         </span>
       </div>
 
       {/* Abonar */}
-      <div className="mb-4 rounded-lg border border-slate-200 p-3">
-        <div className="mb-2 text-sm font-semibold text-slate-700">Registrar abono</div>
+      <div className="mb-4 rounded-lg border border-black/[0.06] p-3">
+        <div className="mb-2 text-sm font-semibold text-tinta">Registrar abono</div>
         <div className="mb-2 flex items-center gap-2">
-          <span className="text-sm text-slate-400">$</span>
+          <span className="text-sm text-tinta-suave">$</span>
           <input
             type="number"
             value={monto}
             onChange={(e) => setMonto(e.target.value)}
             placeholder="0.00"
-            className="flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm outline-none focus:border-slate-500"
+            className="flex-1 rounded-md border border-black/10 px-2 py-1.5 text-right text-sm outline-none focus:border-acento"
           />
           {cliente.saldo > 0 && (
             <button
               onClick={() => setMonto(String(cliente.saldo))}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+              className="rounded-md border border-black/[0.06] px-2 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Saldar
             </button>
@@ -257,8 +257,8 @@ function DetalleCliente({
               onClick={() => setMetodo(m.id)}
               className={`flex items-center justify-center gap-1.5 rounded-md border py-1.5 text-xs font-semibold ${
                 metodo === m.id
-                  ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 text-slate-600 hover:border-slate-400'
+                  ? 'border-acento bg-acento text-white'
+                  : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
               }`}
             >
               <Icono nombre={m.icono} size={14} />
@@ -269,26 +269,26 @@ function DetalleCliente({
         <button
           onClick={() => void abonar()}
           disabled={montoNum <= 0}
-          className="w-full rounded-md bg-slate-900 py-2 text-sm font-bold text-white hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400"
+          className="w-full rounded-md bg-acento py-2 text-sm font-bold text-white hover:bg-acento-hover disabled:bg-black/10 disabled:text-tinta-suave/50"
         >
           Abonar {montoNum > 0 ? pesos(montoNum) : ''}
         </button>
       </div>
 
       {/* Movimientos */}
-      <div className="text-sm font-semibold text-slate-700">Movimientos</div>
+      <div className="text-sm font-semibold text-tinta">Movimientos</div>
       {movs.length === 0 ? (
-        <p className="py-2 text-sm text-slate-400">Sin movimientos.</p>
+        <p className="py-2 text-sm text-tinta-suave">Sin movimientos.</p>
       ) : (
         <div className="mt-1 max-h-52 overflow-auto">
           {movs.map((m) => (
-            <div key={m.id} className="flex items-center justify-between border-b border-slate-100 py-1.5 text-sm last:border-0">
+            <div key={m.id} className="flex items-center justify-between border-b border-black/[0.04] py-1.5 text-sm last:border-0">
               <div>
                 <span className={`font-semibold ${m.tipo === 'cargo' ? 'text-red-600' : 'text-emerald-600'}`}>
                   {m.tipo === 'cargo' ? 'Cargo' : 'Abono'}
                 </span>
-                <span className="ml-2 text-xs text-slate-400">{fechaHora(m.creadoEn)}</span>
-                {m.metodo && <span className="ml-2 text-xs text-slate-400">· {m.metodo}</span>}
+                <span className="ml-2 text-xs text-tinta-suave">{fechaHora(m.creadoEn)}</span>
+                {m.metodo && <span className="ml-2 text-xs text-tinta-suave">· {m.metodo}</span>}
               </div>
               <span className={m.tipo === 'cargo' ? 'text-red-600' : 'text-emerald-600'}>
                 {m.tipo === 'cargo' ? '+' : '−'}
@@ -317,13 +317,13 @@ function Campo({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-tinta-suave">{label}</label>
       <input
         autoFocus={autoFocus}
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+        className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
       />
     </div>
   )

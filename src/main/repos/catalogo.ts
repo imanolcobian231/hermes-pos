@@ -171,17 +171,34 @@ export function eliminarModificador(id: number): void {
 export function guardarProducto(prod: ProductoInput): Producto {
   const db = obtenerDb()
   const activo = prod.activo ? 1 : 0
+  const controla = prod.controlarStock ? 1 : 0
+  const stock = prod.stock || 0
+  const minimo = Math.max(0, prod.stockMinimo || 0)
   if (prod.id != null) {
     db.prepare(
-      'UPDATE productos SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ? WHERE id = ?'
-    ).run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, prod.id)
+      `UPDATE productos
+         SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ?,
+             controlar_stock = ?, stock = ?, stock_minimo = ?
+       WHERE id = ?`
+    ).run(
+      prod.nombre.trim(),
+      prod.precio,
+      prod.categoriaId,
+      activo,
+      prod.descripcion ?? null,
+      controla,
+      stock,
+      minimo,
+      prod.id
+    )
     return obtenerProducto(prod.id)
   }
   const r = db
     .prepare(
-      'INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion) VALUES (?, ?, ?, ?, ?)'
+      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null)
+    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo)
   return obtenerProducto(Number(r.lastInsertRowid))
 }
 

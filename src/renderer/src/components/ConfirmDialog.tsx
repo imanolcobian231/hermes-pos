@@ -31,14 +31,14 @@ export function ConfirmDialog({
         <>
           <button
             onClick={onCancelar}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
           >
             {textoCancelar}
           </button>
           <button
             onClick={onConfirmar}
             className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
-              peligro ? 'bg-red-600 hover:bg-red-700' : 'bg-slate-800 hover:bg-slate-700'
+              peligro ? 'bg-red-600 hover:bg-red-700' : 'bg-acento hover:bg-acento-hover'
             }`}
           >
             {textoConfirmar}
@@ -46,7 +46,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      <div className="text-sm text-slate-600">{mensaje}</div>
+      <div className="text-sm text-tinta-suave">{mensaje}</div>
     </Modal>
   )
 }

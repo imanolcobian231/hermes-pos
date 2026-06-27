@@ -58,20 +58,20 @@ export function Usuarios(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Usuarios</h1>
-          <p className="text-sm text-slate-500">Cajeros y administradores · acceso por PIN</p>
+          <h1 className="text-2xl font-bold text-tinta">Usuarios</h1>
+          <p className="text-sm text-tinta-suave">Cajeros y administradores · acceso por PIN</p>
         </div>
         <button
           onClick={() => setEditando({ nombre: '', rol: 'cajero', pin: '' })}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
         >
           + Nuevo usuario
         </button>
       </header>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
             <tr>
               <th className="px-4 py-2.5">Nombre</th>
               <th className="px-4 py-2.5">Rol</th>
@@ -81,30 +81,30 @@ export function Usuarios(): React.JSX.Element {
           </thead>
           <tbody>
             {usuarios.map((u) => (
-              <tr key={u.id} className="border-t border-slate-100">
-                <td className="px-4 py-2.5 font-medium text-slate-800">{u.nombre}</td>
+              <tr key={u.id} className="border-t border-black/[0.04]">
+                <td className="px-4 py-2.5 font-medium text-tinta">{u.nombre}</td>
                 <td className="px-4 py-2.5">
                   <span
                     className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                      u.rol === 'admin' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600'
+                      u.rol === 'admin' ? 'bg-acento text-white' : 'bg-black/[0.05] text-tinta-suave'
                     }`}
                   >
                     {ETIQUETA_ROL[u.rol]}
                   </span>
                 </td>
-                <td className="px-4 py-2.5 text-slate-500">{u.email ?? '—'}</td>
+                <td className="px-4 py-2.5 text-tinta-suave">{u.email ?? '—'}</td>
                 <td className="px-4 py-2.5">
                   <div className="flex justify-end gap-1">
                     <button
                       onClick={() => setEditando({ id: u.id, nombre: u.nombre, rol: u.rol, email: u.email })}
-                      className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      className="rounded-md p-1.5 text-tinta-suave hover:bg-black/[0.05] hover:text-tinta"
                       aria-label="Editar"
                     >
                       <Icono nombre="editar" size={16} />
                     </button>
                     <button
                       onClick={() => setAEliminar(u)}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      className="rounded-md p-1.5 text-tinta-suave hover:bg-red-50 hover:text-red-600"
                       aria-label="Eliminar"
                     >
                       <Icono nombre="eliminar" size={16} />
@@ -125,13 +125,13 @@ export function Usuarios(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
             <button
               onClick={guardar}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Guardar
             </button>
@@ -144,14 +144,14 @@ export function Usuarios(): React.JSX.Element {
               <input
                 value={editando.nombre}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
             <Campo label="Rol">
               <select
                 value={editando.rol}
                 onChange={(e) => setEditando({ ...editando, rol: e.target.value as Rol })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               >
                 <option value="cajero">Cajero</option>
                 <option value="mesero">Mesero</option>
@@ -167,7 +167,7 @@ export function Usuarios(): React.JSX.Element {
                   setEditando({ ...editando, pin: e.target.value.replace(/\D/g, '') })
                 }
                 placeholder="••••"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 tracking-widest outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 tracking-widest outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
             <Campo label="Email (opcional)">
@@ -176,7 +176,7 @@ export function Usuarios(): React.JSX.Element {
                 value={editando.email ?? ''}
                 onChange={(e) => setEditando({ ...editando, email: e.target.value })}
                 placeholder="Para una futura versión en la nube"
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
           </div>
@@ -215,7 +215,7 @@ function Campo({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-tinta-suave">{label}</label>
       {children}
     </div>
   )

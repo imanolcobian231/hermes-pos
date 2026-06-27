@@ -30,12 +30,16 @@ CREATE TABLE IF NOT EXISTS categorias (
 );
 
 CREATE TABLE IF NOT EXISTS productos (
-  id           INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre       TEXT    NOT NULL,
-  precio       REAL    NOT NULL DEFAULT 0,
-  categoria_id INTEGER NOT NULL REFERENCES categorias(id),
-  activo       INTEGER NOT NULL DEFAULT 1,
-  descripcion  TEXT
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre        TEXT    NOT NULL,
+  precio        REAL    NOT NULL DEFAULT 0,
+  categoria_id  INTEGER NOT NULL REFERENCES categorias(id),
+  activo        INTEGER NOT NULL DEFAULT 1,
+  descripcion   TEXT,
+  -- Control de inventario del producto (descuento automático al vender).
+  controlar_stock INTEGER NOT NULL DEFAULT 0,
+  stock           REAL    NOT NULL DEFAULT 0,
+  stock_minimo    REAL    NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS ordenes (
@@ -173,6 +177,28 @@ CREATE TABLE IF NOT EXISTS movimientos_credito (
   creado_en  TEXT    NOT NULL
 );
 
+-- Inventario de insumos.
+CREATE TABLE IF NOT EXISTS insumos (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre       TEXT    NOT NULL,
+  unidad       TEXT    NOT NULL DEFAULT 'pieza',
+  stock        REAL    NOT NULL DEFAULT 0,
+  stock_minimo REAL    NOT NULL DEFAULT 0,
+  costo        REAL    NOT NULL DEFAULT 0,
+  activo       INTEGER NOT NULL DEFAULT 1
+);
+
+-- Movimientos de inventario: entrada (+), salida/merma (−), ajuste (fija stock).
+CREATE TABLE IF NOT EXISTS movimientos_inventario (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  insumo_id INTEGER NOT NULL REFERENCES insumos(id) ON DELETE CASCADE,
+  tipo      TEXT    NOT NULL,
+  cantidad  REAL    NOT NULL DEFAULT 0,
+  nota      TEXT,
+  usuario   TEXT    NOT NULL DEFAULT 'caja',
+  creado_en TEXT    NOT NULL
+);
+
 -- Configuración general de la app (clave/valor con JSON). Ej. impresoras.
 CREATE TABLE IF NOT EXISTS config (
   clave TEXT PRIMARY KEY,
@@ -187,6 +213,7 @@ CREATE INDEX IF NOT EXISTS idx_prodgrupos_producto ON producto_grupos(producto_i
 CREATE INDEX IF NOT EXISTS idx_detmod_detalle ON detalle_modificadores(detalle_id);
 CREATE INDEX IF NOT EXISTS idx_pagos_orden ON pagos(orden_id);
 CREATE INDEX IF NOT EXISTS idx_movcred_cliente ON movimientos_credito(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_movinv_insumo ON movimientos_inventario(insumo_id);
 `
 
 export function crearEsquema(db: Database.Database): void {

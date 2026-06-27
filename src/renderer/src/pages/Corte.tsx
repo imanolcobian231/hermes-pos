@@ -92,13 +92,13 @@ export function Corte(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Corte de caja</h1>
-          <p className="text-sm text-slate-500">Turno actual e historial de cortes</p>
+          <h1 className="text-2xl font-bold text-tinta">Corte de caja</h1>
+          <p className="text-sm text-tinta-suave">Turno actual e historial de cortes</p>
         </div>
         <button
           onClick={abrirCierre}
           disabled={numOrdenes === 0}
-          className="rounded-lg bg-slate-800 px-4 py-2.5 font-semibold text-white transition enabled:hover:bg-slate-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+          className="rounded-lg bg-acento px-4 py-2.5 font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
         >
           Cerrar turno
         </button>
@@ -114,12 +114,12 @@ export function Corte(): React.JSX.Element {
           <span className={`h-2.5 w-2.5 rounded-full ${caja.abierta ? 'bg-emerald-500' : 'bg-amber-500'}`} />
           <div className="text-sm">
             {caja.abierta ? (
-              <span className="text-slate-700">
+              <span className="text-tinta">
                 Caja <strong>abierta</strong> · fondo <strong>{pesos(caja.fondoInicial)}</strong>
                 {caja.abiertoEn ? ` · desde ${hora(caja.abiertoEn)}` : ''}
               </span>
             ) : (
-              <span className="text-slate-700">Caja cerrada — ábrela con su fondo de cambio al iniciar el turno.</span>
+              <span className="text-tinta">Caja cerrada — ábrela con su fondo de cambio al iniciar el turno.</span>
             )}
           </div>
         </div>
@@ -129,7 +129,7 @@ export function Corte(): React.JSX.Element {
               setFondoApertura('')
               setAbriendo(true)
             }}
-            className="rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-800"
+            className="rounded-md bg-acento px-3 py-1.5 text-xs font-semibold text-white hover:bg-acento-hover"
           >
             Abrir caja
           </button>
@@ -148,7 +148,7 @@ export function Corte(): React.JSX.Element {
           <Tarjeta label="Gastos" monto={gastos} icono="gasto" negativo />
           <Tarjeta label="Balance del turno" monto={balance} icono="corte" destacar />
         </div>
-        <p className="mt-3 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-tinta-suave">
           {numOrdenes} {numOrdenes === 1 ? 'orden cobrada' : 'órdenes cobradas'} en el turno
         </p>
       </section>
@@ -156,10 +156,10 @@ export function Corte(): React.JSX.Element {
       {/* Ventas del turno (con opción de devolver) */}
       {cobradas.length > 0 && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-bold text-slate-700">Ventas del turno</h2>
-          <div className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-white">
+          <h2 className="mb-3 text-lg font-bold text-tinta">Ventas del turno</h2>
+          <div className="max-h-64 overflow-auto rounded-xl border border-black/[0.06] bg-white">
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <thead className="sticky top-0 bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Hora</th>
                   <th className="px-4 py-2.5">Orden</th>
@@ -170,13 +170,13 @@ export function Corte(): React.JSX.Element {
               </thead>
               <tbody>
                 {cobradas.map((o) => (
-                  <tr key={o.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 text-slate-600">{hora(o.cerradoEn)}</td>
-                    <td className="px-4 py-2 text-slate-700">
+                  <tr key={o.id} className="border-t border-black/[0.04]">
+                    <td className="px-4 py-2 text-tinta-suave">{hora(o.cerradoEn)}</td>
+                    <td className="px-4 py-2 text-tinta">
                       {o.paraLlevar ? o.nombre ?? 'Para llevar' : nombreOrden(o.id)}
                     </td>
-                    <td className="px-4 py-2 capitalize text-slate-600">{o.metodoPago ?? '—'}</td>
-                    <td className="px-4 py-2 text-right font-semibold text-slate-700">
+                    <td className="px-4 py-2 capitalize text-tinta-suave">{o.metodoPago ?? '—'}</td>
+                    <td className="px-4 py-2 text-right font-semibold text-tinta">
                       {pesos(netoOrden(o))}
                     </td>
                     <td className="px-4 py-2 text-right">
@@ -185,7 +185,7 @@ export function Corte(): React.JSX.Element {
                           setMotivoDev('')
                           setDevolviendo(o)
                         }}
-                        className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        className="rounded-md border border-black/10 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
                       >
                         Devolver
                       </button>
@@ -200,13 +200,13 @@ export function Corte(): React.JSX.Element {
 
       {/* Historial */}
       <section className="flex-1 overflow-auto">
-        <h2 className="mb-3 text-lg font-bold text-slate-700">Historial de cortes</h2>
+        <h2 className="mb-3 text-lg font-bold text-tinta">Historial de cortes</h2>
         {cortes.length === 0 ? (
-          <p className="text-sm text-slate-400">Aún no se ha cerrado ningún turno.</p>
+          <p className="text-sm text-tinta-suave">Aún no se ha cerrado ningún turno.</p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Fecha</th>
                   <th className="px-4 py-2.5 text-right">Efectivo</th>
@@ -222,21 +222,21 @@ export function Corte(): React.JSX.Element {
                 {cortes.map((c) => {
                   const ventas = c.totalEfectivo + c.totalTarjeta + c.totalTransferencia
                   return (
-                    <tr key={c.id} className="border-t border-slate-100">
-                      <td className="px-4 py-2.5 text-slate-600">{fechaHora(c.cerradoEn)}</td>
+                    <tr key={c.id} className="border-t border-black/[0.04]">
+                      <td className="px-4 py-2.5 text-tinta-suave">{fechaHora(c.cerradoEn)}</td>
                       <td className="px-4 py-2.5 text-right">{pesos(c.totalEfectivo)}</td>
                       <td className="px-4 py-2.5 text-right">{pesos(c.totalTarjeta)}</td>
                       <td className="px-4 py-2.5 text-right">{pesos(c.totalTransferencia)}</td>
-                      <td className="px-4 py-2.5 text-right text-slate-700">{pesos(ventas)}</td>
+                      <td className="px-4 py-2.5 text-right text-tinta">{pesos(ventas)}</td>
                       <td className="px-4 py-2.5 text-right text-red-600">
                         {c.totalGastos > 0 ? `−${pesos(c.totalGastos)}` : pesos(0)}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-bold text-slate-900">
+                      <td className="px-4 py-2.5 text-right font-bold text-tinta">
                         {pesos(ventas - c.totalGastos)}
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         {c.diferencia == null ? (
-                          <span className="text-slate-300">—</span>
+                          <span className="text-tinta-suave/60">—</span>
                         ) : Math.abs(c.diferencia) < 0.01 ? (
                           <span className="font-semibold text-emerald-600">Cuadra</span>
                         ) : (
@@ -260,10 +260,10 @@ export function Corte(): React.JSX.Element {
       {/* Auditoría de reimpresiones del turno */}
       {reimpresiones.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-lg font-bold text-slate-700">Reimpresiones del turno</h2>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <h2 className="mb-3 text-lg font-bold text-tinta">Reimpresiones del turno</h2>
+          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Hora</th>
                   <th className="px-4 py-2.5">Tipo</th>
@@ -273,21 +273,21 @@ export function Corte(): React.JSX.Element {
               </thead>
               <tbody>
                 {reimpresiones.map((r) => (
-                  <tr key={r.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2.5 text-slate-600">{hora(r.reimprimirEn)}</td>
+                  <tr key={r.id} className="border-t border-black/[0.04]">
+                    <td className="px-4 py-2.5 text-tinta-suave">{hora(r.reimprimirEn)}</td>
                     <td className="px-4 py-2.5">
                       <span
                         className={`rounded px-2 py-0.5 text-xs font-semibold ${
                           r.tipo === 'cocina'
-                            ? 'bg-slate-100 text-slate-700'
-                            : 'bg-slate-900 text-white'
+                            ? 'bg-black/[0.05] text-tinta'
+                            : 'bg-acento text-white'
                         }`}
                       >
                         {r.tipo === 'cocina' ? 'Cocina' : 'Ticket final'}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5 text-slate-700">{nombreOrden(r.ordenId)}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{r.usuario}</td>
+                    <td className="px-4 py-2.5 text-tinta">{nombreOrden(r.ordenId)}</td>
+                    <td className="px-4 py-2.5 text-tinta-suave">{r.usuario}</td>
                   </tr>
                 ))}
               </tbody>
@@ -299,10 +299,10 @@ export function Corte(): React.JSX.Element {
       {/* Auditoría de cancelaciones del turno */}
       {cancelaciones.length > 0 && (
         <section className="mt-6">
-          <h2 className="mb-3 text-lg font-bold text-slate-700">Cancelaciones y devoluciones del turno</h2>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <h2 className="mb-3 text-lg font-bold text-tinta">Cancelaciones y devoluciones del turno</h2>
+          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
             <table className="w-full text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+              <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Hora</th>
                   <th className="px-4 py-2.5">Orden</th>
@@ -313,12 +313,12 @@ export function Corte(): React.JSX.Element {
               </thead>
               <tbody>
                 {cancelaciones.map((c) => (
-                  <tr key={c.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2.5 text-slate-600">{hora(c.canceladoEn)}</td>
-                    <td className="px-4 py-2.5 text-slate-700">{nombreOrden(c.ordenId)}</td>
-                    <td className="px-4 py-2.5 text-slate-700">{c.motivo}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{c.usuario}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-700">{pesos(c.total)}</td>
+                  <tr key={c.id} className="border-t border-black/[0.04]">
+                    <td className="px-4 py-2.5 text-tinta-suave">{hora(c.canceladoEn)}</td>
+                    <td className="px-4 py-2.5 text-tinta">{nombreOrden(c.ordenId)}</td>
+                    <td className="px-4 py-2.5 text-tinta">{c.motivo}</td>
+                    <td className="px-4 py-2.5 text-tinta-suave">{c.usuario}</td>
+                    <td className="px-4 py-2.5 text-right text-tinta">{pesos(c.total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -335,27 +335,27 @@ export function Corte(): React.JSX.Element {
           <>
             <button
               onClick={() => setConfirmar(false)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
             <button
               onClick={() => void confirmarCierre()}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Cerrar turno
             </button>
           </>
         }
       >
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-tinta-suave">
           Ventas <strong>{pesos(total)}</strong> − gastos <strong>{pesos(gastos)}</strong> ={' '}
           <strong>{pesos(balance)}</strong> de balance ({numOrdenes} órdenes).
         </p>
 
         {/* Cuadre de caja (opcional pero recomendado) */}
-        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
-          <h3 className="mb-3 text-sm font-bold text-slate-700">Cuadre de caja (efectivo)</h3>
+        <div className="mt-4 rounded-lg border border-black/[0.06] bg-black/[0.03] p-4">
+          <h3 className="mb-3 text-sm font-bold text-tinta">Cuadre de caja (efectivo)</h3>
           <div className="grid grid-cols-2 gap-3">
             <CampoMonto
               label="Fondo inicial"
@@ -371,7 +371,7 @@ export function Corte(): React.JSX.Element {
             />
           </div>
           <div className="mt-3 space-y-1 text-sm">
-            <div className="flex justify-between text-slate-600">
+            <div className="flex justify-between text-tinta-suave">
               <span>Efectivo esperado en cajón</span>
               <span className="font-semibold">{pesos(efectivoEsperado)}</span>
             </div>
@@ -399,12 +399,12 @@ export function Corte(): React.JSX.Element {
               </div>
             )}
           </div>
-          <p className="mt-2 text-xs text-slate-400">
+          <p className="mt-2 text-xs text-tinta-suave">
             Esperado = fondo + ventas en efectivo − gastos. Déjalos vacíos para omitir el cuadre.
           </p>
         </div>
 
-        <p className="mt-4 text-xs text-slate-400">
+        <p className="mt-4 text-xs text-tinta-suave">
           Se cerrará el turno e iniciará uno nuevo. Esta acción no se puede deshacer.
         </p>
       </Modal>
@@ -418,20 +418,20 @@ export function Corte(): React.JSX.Element {
           <>
             <button
               onClick={() => setAbriendo(false)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
             <button
               onClick={() => void confirmarApertura()}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Abrir caja
             </button>
           </>
         }
       >
-        <p className="mb-3 text-sm text-slate-600">
+        <p className="mb-3 text-sm text-tinta-suave">
           Captura el efectivo (fondo de cambio) con el que inicias el turno. Se usará para el cuadre
           al cerrar.
         </p>
@@ -453,7 +453,7 @@ export function Corte(): React.JSX.Element {
                 setDevolviendo(null)
                 setMotivoDev('')
               }}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
@@ -469,7 +469,7 @@ export function Corte(): React.JSX.Element {
       >
         {devolviendo && (
           <>
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-tinta-suave">
               Se devolverá{' '}
               <strong>
                 {devolviendo.paraLlevar ? devolviendo.nombre ?? 'Para llevar' : nombreOrden(devolviendo.id)}
@@ -477,15 +477,15 @@ export function Corte(): React.JSX.Element {
               por <strong>{pesos(netoOrden(devolviendo))}</strong>. Sale de los ingresos del turno
               {devolviendo.metodoPago === 'credito' ? ' y se revierte el cargo al cliente' : ''}.
             </p>
-            <label className="mb-1 mt-4 block text-sm font-medium text-slate-600">Motivo</label>
+            <label className="mb-1 mt-4 block text-sm font-medium text-tinta-suave">Motivo</label>
             <input
               autoFocus
               value={motivoDev}
               onChange={(e) => setMotivoDev(e.target.value)}
               placeholder="Ej. producto en mal estado, error de cobro…"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+              className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
             />
-            <p className="mt-2 text-xs text-slate-400">Queda registrado en el corte para auditoría.</p>
+            <p className="mt-2 text-xs text-tinta-suave">Queda registrado en el corte para auditoría.</p>
           </>
         )}
       </Modal>
@@ -512,16 +512,16 @@ function Tarjeta({
       : 'text-white'
     : negativo
       ? 'text-red-600'
-      : 'text-slate-900'
+      : 'text-tinta'
   return (
     <div
       className={`rounded-lg border p-5 ${
-        destacar ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
+        destacar ? 'border-acento bg-acento text-white' : 'border-black/[0.06] bg-white'
       }`}
     >
       <div
         className={`mb-2 flex items-center gap-2 text-sm ${
-          destacar ? 'text-slate-300' : 'text-slate-500'
+          destacar ? 'text-white/70' : 'text-tinta-suave'
         }`}
       >
         <Icono nombre={icono} size={16} />
@@ -547,9 +547,9 @@ function CampoMonto({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-slate-600">{label}</label>
-      <div className="flex items-center rounded-lg border border-slate-300 bg-white px-2 focus-within:border-slate-500">
-        <span className="text-sm text-slate-400">$</span>
+      <label className="mb-1 block text-xs font-medium text-tinta-suave">{label}</label>
+      <div className="flex items-center rounded-lg border border-black/10 bg-white px-2 focus-within:border-acento">
+        <span className="text-sm text-tinta-suave">$</span>
         <input
           type="number"
           inputMode="decimal"
@@ -560,7 +560,7 @@ function CampoMonto({
           className="w-full bg-transparent px-1 py-2 text-right text-sm outline-none"
         />
       </div>
-      {ayuda && <p className="mt-0.5 text-[11px] text-slate-400">{ayuda}</p>}
+      {ayuda && <p className="mt-0.5 text-[11px] text-tinta-suave">{ayuda}</p>}
     </div>
   )
 }

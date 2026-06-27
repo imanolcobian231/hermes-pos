@@ -10,9 +10,9 @@ interface ItemToast {
 }
 
 const estilos: Record<TipoToast, { fondo: string; icono: NombreIcono }> = {
-  exito: { fondo: 'bg-slate-900', icono: 'check' },
+  exito: { fondo: 'bg-acento', icono: 'check' },
   error: { fondo: 'bg-red-700', icono: 'alerta' },
-  info: { fondo: 'bg-slate-900', icono: 'info' }
+  info: { fondo: 'bg-acento', icono: 'info' }
 }
 
 type FnToast = (mensaje: string, tipo?: TipoToast) => void
@@ -35,7 +35,7 @@ export function ProveedorToast({ children }: { children: ReactNode }): React.JSX
         {items.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-center gap-2.5 rounded-md px-4 py-3 text-sm font-medium text-white shadow-lg ${estilos[t.tipo].fondo}`}
+            className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-lg ${estilos[t.tipo].fondo}`}
           >
             <Icono nombre={estilos[t.tipo].icono} size={16} />
             {t.mensaje}

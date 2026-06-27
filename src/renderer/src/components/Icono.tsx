@@ -26,6 +26,7 @@ export type NombreIcono =
   | 'salir'
   | 'ajustes'
   | 'recargar'
+  | 'inventario'
 
 interface Props {
   nombre: NombreIcono
@@ -34,6 +35,12 @@ interface Props {
 }
 
 const paths: Record<NombreIcono, React.ReactNode> = {
+  inventario: (
+    <>
+      <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z" />
+      <path d="M3 7l9 4 9-4M12 11v10" />
+    </>
+  ),
   mesas: (
     <>
       <rect x="3" y="4" width="18" height="12" rx="1.5" />

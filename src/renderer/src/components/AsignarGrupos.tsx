@@ -12,14 +12,14 @@ export function AsignarGrupos({ productoId }: Props): React.JSX.Element {
   const asignados = new Set((producto?.grupos ?? []).map((g) => g.id))
 
   return (
-    <div className="mt-4 border-t border-slate-100 pt-4">
-      <h3 className="mb-1 text-sm font-semibold text-slate-700">Grupos de modificadores</h3>
-      <p className="mb-2 text-xs text-slate-400">
+    <div className="mt-4 border-t border-black/[0.04] pt-4">
+      <h3 className="mb-1 text-sm font-semibold text-tinta">Grupos de modificadores</h3>
+      <p className="mb-2 text-xs text-tinta-suave">
         Marca los grupos que aplican a este producto. Se crean y editan en la pestaña Modificadores.
       </p>
 
       {grupos.length === 0 ? (
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-tinta-suave">
           No hay grupos. Créalos en la pestaña Modificadores.
         </p>
       ) : (
@@ -30,10 +30,10 @@ export function AsignarGrupos({ productoId }: Props): React.JSX.Element {
               <label
                 key={g.id}
                 className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
-                  marcado ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
+                  marcado ? 'border-acento bg-black/[0.03]' : 'border-black/[0.06] hover:border-black/15'
                 }`}
               >
-                <span className="flex items-center gap-2 text-slate-700">
+                <span className="flex items-center gap-2 text-tinta">
                   <input
                     type="checkbox"
                     checked={marcado}
@@ -42,11 +42,11 @@ export function AsignarGrupos({ productoId }: Props): React.JSX.Element {
                     }
                   />
                   <span className="font-medium">{g.nombre}</span>
-                  <span className="text-xs text-slate-400">
+                  <span className="text-xs text-tinta-suave">
                     {g.obligatorio ? 'obligatorio' : 'opcional'} · {g.multiple ? 'varios' : 'uno'}
                   </span>
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-tinta-suave">
                   {g.modificadores.length} ·{' '}
                   {g.modificadores.some((m) => m.precio > 0)
                     ? `desde ${pesos(Math.min(...g.modificadores.filter((m) => m.precio > 0).map((m) => m.precio)))}`

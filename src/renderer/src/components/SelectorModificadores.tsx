@@ -51,14 +51,14 @@ export function SelectorModificadores({ producto, onConfirmar, onCerrar }: Props
         <>
           <button
             onClick={onCerrar}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
           >
             Cancelar
           </button>
           <button
             onClick={() => onConfirmar(idsSeleccionados)}
             disabled={faltanObligatorios}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+            className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
           >
             Agregar · {pesos(producto.precio + extra)}
           </button>
@@ -69,8 +69,8 @@ export function SelectorModificadores({ producto, onConfirmar, onCerrar }: Props
         {grupos.map((g) => (
           <div key={g.id}>
             <div className="mb-1.5 flex items-center gap-2">
-              <span className="text-sm font-semibold text-slate-800">{g.nombre}</span>
-              <span className="text-xs text-slate-400">
+              <span className="text-sm font-semibold text-tinta">{g.nombre}</span>
+              <span className="text-xs text-tinta-suave">
                 {g.obligatorio ? 'obligatorio' : 'opcional'} ·{' '}
                 {g.multiple ? 'varios' : 'uno'}
               </span>
@@ -82,10 +82,10 @@ export function SelectorModificadores({ producto, onConfirmar, onCerrar }: Props
                   <label
                     key={m.id}
                     className={`flex cursor-pointer items-center justify-between rounded-md border px-3 py-2 text-sm transition ${
-                      marcado ? 'border-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-300'
+                      marcado ? 'border-acento bg-black/[0.03]' : 'border-black/[0.06] hover:border-black/15'
                     }`}
                   >
-                    <span className="flex items-center gap-2 text-slate-700">
+                    <span className="flex items-center gap-2 text-tinta">
                       <input
                         type={g.multiple ? 'checkbox' : 'radio'}
                         name={`grupo-${g.id}`}
@@ -94,14 +94,14 @@ export function SelectorModificadores({ producto, onConfirmar, onCerrar }: Props
                       />
                       {m.nombre}
                     </span>
-                    <span className="text-slate-500">
+                    <span className="text-tinta-suave">
                       {m.precio > 0 ? `+${pesos(m.precio)}` : 'sin costo'}
                     </span>
                   </label>
                 )
               })}
               {g.modificadores.length === 0 && (
-                <span className="text-xs text-slate-400">Sin opciones en este grupo.</span>
+                <span className="text-xs text-tinta-suave">Sin opciones en este grupo.</span>
               )}
             </div>
           </div>

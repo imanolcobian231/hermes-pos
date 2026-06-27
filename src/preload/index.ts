@@ -17,19 +17,24 @@ import type {
   Gasto,
   GrupoInput,
   GrupoModificador,
+  Insumo,
+  InsumoInput,
   Mesa,
   MesaInput,
   MetodoPago,
   Modificador,
   ModificadorInput,
   MovimientoCredito,
+  MovimientoInventario,
   OrdenConDetalle,
   Pago,
   Producto,
   ProductoInput,
   Reimpresion,
   ReporteVentas,
+  ResumenInventario,
   RespaldoInfo,
+  TipoMovInventario,
   ResumenTurno,
   Usuario,
   UsuarioInput
@@ -132,6 +137,22 @@ const api = {
   reportes: {
     generar: (desde: string, hasta: string): Promise<ReporteVentas> =>
       invoke(CANALES.reportes.generar, desde, hasta)
+  },
+  inventario: {
+    listar: (): Promise<Insumo[]> => invoke(CANALES.inventario.listar),
+    resumen: (): Promise<ResumenInventario> => invoke(CANALES.inventario.resumen),
+    guardar: (i: InsumoInput): Promise<Insumo> => invoke(CANALES.inventario.guardar, i),
+    eliminar: (id: number): Promise<void> => invoke(CANALES.inventario.eliminar, id),
+    movimiento: (
+      insumoId: number,
+      tipo: TipoMovInventario,
+      cantidad: number,
+      nota?: string,
+      usuario?: string
+    ): Promise<Insumo> =>
+      invoke(CANALES.inventario.movimiento, insumoId, tipo, cantidad, nota, usuario),
+    movimientos: (insumoId: number): Promise<MovimientoInventario[]> =>
+      invoke(CANALES.inventario.movimientos, insumoId)
   },
   gastos: {
     listar: (): Promise<Gasto[]> => invoke(CANALES.gastos.listar),

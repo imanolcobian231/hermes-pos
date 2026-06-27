@@ -23,8 +23,8 @@ export function Catalogo(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Catálogo</h1>
-        <p className="text-sm text-slate-500">Administra productos, categorías y modificadores</p>
+        <h1 className="text-2xl font-bold text-tinta">Catálogo</h1>
+        <p className="text-sm text-tinta-suave">Administra productos, categorías y modificadores</p>
       </header>
 
       <div className="mb-5 flex gap-2">
@@ -34,8 +34,8 @@ export function Catalogo(): React.JSX.Element {
             onClick={() => setPestana(p.id)}
             className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
               pestana === p.id
-                ? 'bg-slate-800 text-white'
-                : 'bg-white text-slate-600 hover:bg-slate-200'
+                ? 'bg-acento text-white'
+                : 'bg-white text-tinta-suave hover:bg-black/[0.08]'
             }`}
           >
             {p.label}
@@ -70,33 +70,52 @@ function PanelProductos(): React.JSX.Element {
         <button
           onClick={nuevo}
           disabled={categorias.length === 0}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-slate-800 disabled:bg-slate-200 disabled:text-slate-400"
+          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-acento-hover disabled:bg-black/10 disabled:text-tinta-suave/50"
         >
           + Nuevo producto
         </button>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-left text-xs uppercase text-slate-500">
+          <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
             <tr>
               <th className="px-4 py-2.5">Producto</th>
               <th className="px-4 py-2.5">Categoría</th>
               <th className="px-4 py-2.5 text-right">Precio</th>
+              <th className="px-4 py-2.5 text-right">Stock</th>
               <th className="px-4 py-2.5 text-center">Estado</th>
               <th className="px-4 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
             {productos.map((p) => (
-              <tr key={p.id} className="border-t border-slate-100">
-                <td className="px-4 py-2.5 font-medium text-slate-800">{p.nombre}</td>
-                <td className="px-4 py-2.5 text-slate-600">{nombreCategoria(p.categoriaId)}</td>
-                <td className="px-4 py-2.5 text-right text-slate-700">{pesos(p.precio)}</td>
+              <tr key={p.id} className="border-t border-black/[0.04]">
+                <td className="px-4 py-2.5 font-medium text-tinta">{p.nombre}</td>
+                <td className="px-4 py-2.5 text-tinta-suave">{nombreCategoria(p.categoriaId)}</td>
+                <td className="px-4 py-2.5 text-right text-tinta">{pesos(p.precio)}</td>
+                <td className="px-4 py-2.5 text-right">
+                  {p.controlarStock ? (
+                    <span
+                      className={`font-semibold ${
+                        p.stock <= p.stockMinimo ? 'text-amber-600' : 'text-tinta'
+                      }`}
+                    >
+                      {p.stock}
+                      {p.stock <= p.stockMinimo && (
+                        <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          bajo
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-tinta-suave/50">—</span>
+                  )}
+                </td>
                 <td className="px-4 py-2.5 text-center">
                   <span
                     className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                      p.activo ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-500'
+                      p.activo ? 'bg-acento text-white' : 'bg-black/[0.05] text-tinta-suave'
                     }`}
                   >
                     {p.activo ? 'Activo' : 'Inactivo'}
@@ -106,14 +125,14 @@ function PanelProductos(): React.JSX.Element {
                   <div className="flex justify-end gap-1">
                     <button
                       onClick={() => setEditando(p)}
-                      className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                      className="rounded-md p-1.5 text-tinta-suave hover:bg-black/[0.05] hover:text-tinta"
                       aria-label="Editar"
                     >
                       <Icono nombre="editar" size={16} />
                     </button>
                     <button
                       onClick={() => setAEliminar(p)}
-                      className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                      className="rounded-md p-1.5 text-tinta-suave hover:bg-red-50 hover:text-red-600"
                       aria-label="Eliminar"
                     >
                       <Icono nombre="eliminar" size={16} />
@@ -124,7 +143,7 @@ function PanelProductos(): React.JSX.Element {
             ))}
             {productos.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
+                <td colSpan={6} className="px-4 py-8 text-center text-tinta-suave">
                   No hay productos
                 </td>
               </tr>
@@ -142,7 +161,7 @@ function PanelProductos(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
@@ -156,12 +175,15 @@ function PanelProductos(): React.JSX.Element {
                   precio: Number(editando.precio) || 0,
                   categoriaId: editando.categoriaId,
                   activo: editando.activo ?? true,
-                  descripcion: editando.descripcion
+                  descripcion: editando.descripcion,
+                  controlarStock: editando.controlarStock ?? false,
+                  stock: Number(editando.stock) || 0,
+                  stockMinimo: Number(editando.stockMinimo) || 0
                 })
                 setEditando(null)
                 toast(esNuevo ? 'Producto creado' : 'Producto actualizado')
               }}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Guardar
             </button>
@@ -174,7 +196,7 @@ function PanelProductos(): React.JSX.Element {
               <input
                 value={editando.nombre ?? ''}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
             <div className="grid grid-cols-2 gap-3">
@@ -183,7 +205,7 @@ function PanelProductos(): React.JSX.Element {
                   type="number"
                   value={editando.precio ?? 0}
                   onChange={(e) => setEditando({ ...editando, precio: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                 />
               </Campo>
               <Campo label="Categoría">
@@ -192,7 +214,7 @@ function PanelProductos(): React.JSX.Element {
                   onChange={(e) =>
                     setEditando({ ...editando, categoriaId: Number(e.target.value) })
                   }
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                  className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                 >
                   {categorias.map((c) => (
                     <option key={c.id} value={c.id}>
@@ -202,7 +224,7 @@ function PanelProductos(): React.JSX.Element {
                 </select>
               </Campo>
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <label className="flex items-center gap-2 text-sm text-tinta-suave">
               <input
                 type="checkbox"
                 checked={editando.activo ?? true}
@@ -212,10 +234,48 @@ function PanelProductos(): React.JSX.Element {
               Producto activo (visible en pedidos)
             </label>
 
+            {/* Control de inventario: descuenta stock automáticamente al vender */}
+            <div className="rounded-xl border border-black/[0.06] p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-tinta">
+                <input
+                  type="checkbox"
+                  checked={editando.controlarStock ?? false}
+                  onChange={(e) => setEditando({ ...editando, controlarStock: e.target.checked })}
+                  className="h-4 w-4 rounded"
+                />
+                Controlar inventario
+              </label>
+              {editando.controlarStock && (
+                <>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <Campo label="Stock actual">
+                      <input
+                        type="number"
+                        value={editando.stock ?? 0}
+                        onChange={(e) => setEditando({ ...editando, stock: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+                      />
+                    </Campo>
+                    <Campo label="Stock mínimo">
+                      <input
+                        type="number"
+                        value={editando.stockMinimo ?? 0}
+                        onChange={(e) => setEditando({ ...editando, stockMinimo: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+                      />
+                    </Campo>
+                  </div>
+                  <p className="mt-2 text-xs text-tinta-suave/80">
+                    El stock baja solo al cobrar y se repone al devolver la venta.
+                  </p>
+                </>
+              )}
+            </div>
+
             {editando.id != null ? (
               <AsignarGrupos productoId={editando.id} />
             ) : (
-              <p className="mt-2 border-t border-slate-100 pt-3 text-xs text-slate-400">
+              <p className="mt-2 border-t border-black/[0.04] pt-3 text-xs text-tinta-suave">
                 Guarda el producto para poder asignarle grupos de modificadores.
               </p>
             )}
@@ -268,7 +328,7 @@ function PanelCategorias(): React.JSX.Element {
       <div className="mb-3 flex justify-end">
         <button
           onClick={() => setEditando({ nombre: '', orden: (ordenadas.at(-1)?.orden ?? 0) + 1 })}
-          className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
         >
           + Nueva categoría
         </button>
@@ -278,18 +338,18 @@ function PanelCategorias(): React.JSX.Element {
         {ordenadas.map((c) => (
           <div
             key={c.id}
-            className="flex items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3"
+            className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-white px-4 py-3"
           >
             <div>
-              <span className="font-semibold text-slate-800">{c.nombre}</span>
-              <span className="ml-2 text-xs text-slate-400">
+              <span className="font-semibold text-tinta">{c.nombre}</span>
+              <span className="ml-2 text-xs text-tinta-suave">
                 {cuenta(c.id)} {cuenta(c.id) === 1 ? 'producto' : 'productos'}
               </span>
             </div>
             <div className="flex gap-1">
               <button
                 onClick={() => setEditando(c)}
-                className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                className="rounded-md p-1.5 text-tinta-suave hover:bg-black/[0.05] hover:text-tinta"
                 aria-label="Editar"
               >
                 <Icono nombre="editar" size={16} />
@@ -298,7 +358,7 @@ function PanelCategorias(): React.JSX.Element {
                 onClick={() => cuenta(c.id) === 0 && setAEliminar(c)}
                 disabled={cuenta(c.id) > 0}
                 title={cuenta(c.id) > 0 ? 'Mueve o elimina sus productos primero' : ''}
-                className="rounded-md p-1.5 text-slate-400 enabled:hover:bg-red-50 enabled:hover:text-red-600 disabled:cursor-not-allowed disabled:text-slate-300"
+                className="rounded-md p-1.5 text-tinta-suave enabled:hover:bg-red-50 enabled:hover:text-red-600 disabled:cursor-not-allowed disabled:text-tinta-suave/40"
                 aria-label="Eliminar"
               >
                 <Icono nombre="eliminar" size={16} />
@@ -307,7 +367,7 @@ function PanelCategorias(): React.JSX.Element {
           </div>
         ))}
         {ordenadas.length === 0 && (
-          <p className="py-8 text-center text-slate-400">No hay categorías</p>
+          <p className="py-8 text-center text-tinta-suave">No hay categorías</p>
         )}
       </div>
 
@@ -319,7 +379,7 @@ function PanelCategorias(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               Cancelar
             </button>
@@ -335,7 +395,7 @@ function PanelCategorias(): React.JSX.Element {
                 setEditando(null)
                 toast(esNueva ? 'Categoría creada' : 'Categoría actualizada')
               }}
-              className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Guardar
             </button>
@@ -348,7 +408,7 @@ function PanelCategorias(): React.JSX.Element {
               <input
                 value={editando.nombre ?? ''}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
             <Campo label="Orden">
@@ -356,7 +416,7 @@ function PanelCategorias(): React.JSX.Element {
                 type="number"
                 value={editando.orden ?? 1}
                 onChange={(e) => setEditando({ ...editando, orden: Number(e.target.value) })}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
           </div>
@@ -395,7 +455,7 @@ function Campo({
 }): React.JSX.Element {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-slate-600">{label}</label>
+      <label className="mb-1 block text-sm font-medium text-tinta-suave">{label}</label>
       {children}
     </div>
   )

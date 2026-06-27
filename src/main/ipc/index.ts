@@ -9,11 +9,13 @@ import type {
   DestinoImpresion,
   DetalleOrden,
   GrupoInput,
+  InsumoInput,
   MesaInput,
   MetodoPago,
   ModificadorInput,
   Pago,
   ProductoInput,
+  TipoMovInventario,
   Reimpresion,
   UsuarioInput
 } from '@shared/types'
@@ -25,6 +27,7 @@ import * as gastos from '../repos/gastos'
 import * as cancelaciones from '../repos/cancelaciones'
 import * as creditos from '../repos/creditos'
 import * as reportes from '../repos/reportes'
+import * as inventario from '../repos/inventario'
 import * as usuarios from '../repos/usuarios'
 import * as reimpresiones from '../repos/reimpresiones'
 import * as config from '../repos/config'
@@ -165,6 +168,20 @@ export function registrarIpc(): void {
   // --- Reportes históricos -------------------------------------------------
   ipcMain.handle(CANALES.reportes.generar, (_e, desde: string, hasta: string) =>
     reportes.generar(desde, hasta)
+  )
+
+  // --- Inventario ----------------------------------------------------------
+  ipcMain.handle(CANALES.inventario.listar, () => inventario.listarInsumos())
+  ipcMain.handle(CANALES.inventario.resumen, () => inventario.resumen())
+  ipcMain.handle(CANALES.inventario.guardar, (_e, i: InsumoInput) => inventario.guardarInsumo(i))
+  ipcMain.handle(CANALES.inventario.eliminar, (_e, id: number) => inventario.eliminarInsumo(id))
+  ipcMain.handle(
+    CANALES.inventario.movimiento,
+    (_e, insumoId: number, tipo: TipoMovInventario, cantidad: number, nota?: string, usuario?: string) =>
+      inventario.registrarMovimiento(insumoId, tipo, cantidad, nota, usuario)
+  )
+  ipcMain.handle(CANALES.inventario.movimientos, (_e, insumoId: number) =>
+    inventario.movimientosDe(insumoId)
   )
 
   // --- Gastos --------------------------------------------------------------

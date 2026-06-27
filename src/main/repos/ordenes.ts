@@ -83,6 +83,23 @@ function recalcularTotal(ordenId: number): void {
     .run(ordenId, ordenId)
 }
 
+/**
+ * Ajusta el stock de los productos con control de inventario de una orden.
+ * factor = -1 al vender (descuenta); +1 al devolver (repone). Solo afecta a los
+ * productos con controlar_stock = 1.
+ */
+function ajustarStockProductos(db: ReturnType<typeof obtenerDb>, ordenId: number, factor: number): void {
+  db.prepare(
+    `UPDATE productos
+       SET stock = stock + ? * (
+         SELECT COALESCE(SUM(cantidad), 0) FROM detalle_ordenes
+         WHERE orden_id = ? AND producto_id = productos.id
+       )
+     WHERE controlar_stock = 1
+       AND id IN (SELECT producto_id FROM detalle_ordenes WHERE orden_id = ?)`
+  ).run(factor, ordenId, ordenId)
+}
+
 export function abrir(mesaId: number): OrdenConDetalle {
   const existente = ordenDeMesa(mesaId)
   if (existente) return existente
@@ -281,6 +298,7 @@ export function cobrar(
     db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
     const ins = db.prepare('INSERT INTO pagos (orden_id, metodo, monto) VALUES (?, ?, ?)')
     for (const p of limpios) ins.run(ordenId, p.metodo, p.monto)
+    ajustarStockProductos(db, ordenId, -1) // descuenta inventario al vender
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()
@@ -308,6 +326,7 @@ export function fiar(ordenId: number, clienteId: number, descuento = 0): OrdenCo
     // Sin pagos: el cargo a crédito queda en la cuenta del cliente.
     db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
     creditos.registrarCargo(clienteId, aPagar, ordenId)
+    ajustarStockProductos(db, ordenId, -1) // fiar también es venta: descuenta stock
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()
@@ -335,6 +354,7 @@ export function devolver(ordenId: number, motivo: string, usuario = 'caja'): voi
   const tx = db.transaction(() => {
     db.prepare("UPDATE ordenes SET estado = 'devuelta' WHERE id = ?").run(ordenId)
     if (fila.metodo_pago === 'credito') creditos.revertirCargoDeOrden(ordenId)
+    ajustarStockProductos(db, ordenId, 1) // devolución: repone el inventario vendido
     cancelaciones.registrar(ordenId, `Devolución: ${razon}`, usuario, fila.total)
   })
   tx()

@@ -1,9 +1,6 @@
-import logo from '@renderer/assets/hermes-logo.svg'
+import logo from '@renderer/assets/hermes-logo.png'
 
-// Filtro que tiñe el SVG (negro) al color de marca de Hermes.
-const FILTRO =
-  'brightness(0) saturate(100%) invert(15%) sepia(91%) saturate(3198%) hue-rotate(221deg) brightness(95%) contrast(83%)'
-
+// Logo de marca de Hermes (imagen a color).
 export function LogoHermes({ className }: { className?: string }): React.JSX.Element {
-  return <img src={logo} alt="Hermes" className={className} style={{ filter: FILTRO }} draggable={false} />
+  return <img src={logo} alt="Hermes" className={className} draggable={false} />
 }

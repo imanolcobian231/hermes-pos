@@ -27,16 +27,16 @@ export function TicketCocina({ titulo, lineas, adicional, reimpresion }: Props):
   // Muestra encabezados de comensal solo si hay más de uno.
   const mostrarComensal = new Set(lineas.map((l) => l.comensal ?? 1)).size > 1
   return (
-    <div className="mx-auto w-64 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 font-mono text-xs text-slate-800">
+    <div className="mx-auto w-64 rounded-lg border border-dashed border-black/10 bg-black/[0.03] p-4 font-mono text-xs text-tinta">
       <div className="text-center font-bold">*** COCINA ***</div>
       {adicional && <div className="text-center font-bold">*** ADICIONAL ***</div>}
       {reimpresion && <div className="text-center font-bold">*** REIMPRESION ***</div>}
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="my-2 border-t border-dashed border-black/10" />
       <div className="flex justify-between">
         <span>{titulo}</span>
         <span>{hora(new Date().toISOString())}</span>
       </div>
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="my-2 border-t border-dashed border-black/10" />
       {agruparPorComensal(lineas).map(([comensal, items]) => (
         <div key={comensal} className="mb-1.5">
           {mostrarComensal && (
@@ -50,17 +50,17 @@ export function TicketCocina({ titulo, lineas, adicional, reimpresion }: Props):
                 </span>
               </div>
               {l.modificadores.map((m) => (
-                <div key={m.id} className="pl-3 text-slate-600">
+                <div key={m.id} className="pl-3 text-tinta-suave">
                   + {m.nombre}
                 </div>
               ))}
-              {l.notas && <div className="pl-3 italic text-slate-500">&gt; {l.notas}</div>}
+              {l.notas && <div className="pl-3 italic text-tinta-suave">&gt; {l.notas}</div>}
             </div>
           ))}
         </div>
       ))}
-      <div className="my-2 border-t border-dashed border-slate-300" />
-      <div className="text-center text-[10px] text-slate-400">Hermes · simulación</div>
+      <div className="my-2 border-t border-dashed border-black/10" />
+      <div className="text-center text-[10px] text-tinta-suave">Hermes · simulación</div>
     </div>
   )
 }

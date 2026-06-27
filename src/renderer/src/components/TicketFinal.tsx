@@ -25,25 +25,25 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
     cfg ?? { impuestoActivo: false, impuestoTasa: 0, impuestoIncluido: true }
   )
   return (
-    <div className="mx-auto w-64 rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 font-mono text-xs text-slate-800">
+    <div className="mx-auto w-64 rounded-lg border border-dashed border-black/10 bg-black/[0.03] p-4 font-mono text-xs text-tinta">
       {cfg?.nombreNegocio && (
         <div className="text-center font-bold">{cfg.nombreNegocio}</div>
       )}
       {cfg?.direccion && (
-        <div className="text-center text-[10px] text-slate-500">{cfg.direccion}</div>
+        <div className="text-center text-[10px] text-tinta-suave">{cfg.direccion}</div>
       )}
       {cfg?.telefono && (
-        <div className="text-center text-[10px] text-slate-500">Tel: {cfg.telefono}</div>
+        <div className="text-center text-[10px] text-tinta-suave">Tel: {cfg.telefono}</div>
       )}
-      <div className="text-center text-[10px] text-slate-500">Gracias por su visita</div>
+      <div className="text-center text-[10px] text-tinta-suave">Gracias por su visita</div>
       {copia && <div className="mt-1 text-center font-bold">*** COPIA ***</div>}
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="my-2 border-t border-dashed border-black/10" />
       <div className="flex justify-between">
         <span>{titulo}</span>
         <span>Ticket #{orden.id}</span>
       </div>
-      <div className="text-[10px] text-slate-500">{fechaHora(orden.cerradoEn ?? orden.abiertoEn)}</div>
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="text-[10px] text-tinta-suave">{fechaHora(orden.cerradoEn ?? orden.abiertoEn)}</div>
+      <div className="my-2 border-t border-dashed border-black/10" />
 
       {agruparLineas(orden.detalle).map((d, i) => (
         <div key={i}>
@@ -54,14 +54,14 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
             <span>{pesos(d.cantidad * d.precioUnitario)}</span>
           </div>
           {d.modificadores.map((m, j) => (
-            <div key={j} className="pl-3 text-slate-500">
+            <div key={j} className="pl-3 text-tinta-suave">
               + {m.nombre}
             </div>
           ))}
         </div>
       ))}
 
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="my-2 border-t border-dashed border-black/10" />
       {orden.descuento > 0 && (
         <>
           <div className="flex justify-between">
@@ -90,11 +90,11 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
         <span>TOTAL</span>
         <span>{pesos(imp.total)}</span>
       </div>
-      <div className="mt-1 text-[10px] text-slate-500">Son {totalEnLetra(imp.total)}</div>
+      <div className="mt-1 text-[10px] text-tinta-suave">Son {totalEnLetra(imp.total)}</div>
 
       {orden.pagos && orden.pagos.length > 0 ? (
         <>
-          <div className="my-2 border-t border-dashed border-slate-300" />
+          <div className="my-2 border-t border-dashed border-black/10" />
           {orden.pagos.map((p, i) => (
             <div key={i} className="flex justify-between">
               <span>{etiquetaMetodo[p.metodo]}</span>
@@ -110,7 +110,7 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
         </>
       ) : orden.metodoPago === 'credito' ? (
         <>
-          <div className="my-2 border-t border-dashed border-slate-300" />
+          <div className="my-2 border-t border-dashed border-black/10" />
           <div className="flex justify-between font-semibold">
             <span>CRÉDITO (fiado)</span>
             <span>{pesos(imp.total)}</span>
@@ -118,7 +118,7 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
         </>
       ) : orden.metodoPago && orden.metodoPago !== 'mixto' ? (
         <>
-          <div className="my-2 border-t border-dashed border-slate-300" />
+          <div className="my-2 border-t border-dashed border-black/10" />
           <div className="flex justify-between">
             <span>{etiquetaMetodo[orden.metodoPago]}</span>
             <span>{pesos(orden.montoRecibido ?? imp.total)}</span>
@@ -132,9 +132,9 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
         </>
       ) : null}
 
-      <div className="my-2 border-t border-dashed border-slate-300" />
+      <div className="my-2 border-t border-dashed border-black/10" />
       <div className="text-center text-base font-extrabold tracking-wide">Hermes</div>
-      <div className="text-center text-[10px] text-slate-400">Powered by Olyssea</div>
+      <div className="text-center text-[10px] text-tinta-suave">Powered by Olyssea</div>
     </div>
   )
 }

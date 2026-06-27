@@ -52,8 +52,8 @@ export function Reportes(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Reportes</h1>
-          <p className="text-sm text-slate-500">Ventas por rango de fechas</p>
+          <h1 className="text-2xl font-bold text-tinta">Reportes</h1>
+          <p className="text-sm text-tinta-suave">Ventas por rango de fechas</p>
         </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex items-end gap-2">
@@ -77,10 +77,10 @@ export function Reportes(): React.JSX.Element {
       </header>
 
       {cargando && !rep ? (
-        <div className="flex flex-1 items-center justify-center text-slate-400">Cargando…</div>
+        <div className="flex flex-1 items-center justify-center text-tinta-suave">Cargando…</div>
       ) : !rep || rep.resumen.numOrdenes === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-          <Icono nombre="finanzas" size={40} className="text-slate-300" />
+        <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
+          <Icono nombre="finanzas" size={40} className="text-tinta-suave/60" />
           <p className="mt-3 font-semibold">Sin ventas en este rango</p>
         </div>
       ) : (
@@ -94,22 +94,22 @@ export function Reportes(): React.JSX.Element {
           </div>
 
           {/* Ventas por día */}
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
-            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
+          <section className="rounded-xl border border-black/[0.06] bg-white p-5">
+            <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-tinta-suave">
               Ventas por día
             </h2>
             <div className="flex items-end gap-2 overflow-x-auto pb-2" style={{ minHeight: 160 }}>
               {rep.porDia.map((d) => (
                 <div key={d.fecha} className="flex w-12 shrink-0 flex-col items-center gap-1">
-                  <span className="text-[10px] font-semibold text-slate-500">
+                  <span className="text-[10px] font-semibold text-tinta-suave">
                     {pesos(d.ventas).replace('.00', '')}
                   </span>
                   <div
-                    className="w-7 rounded-t bg-slate-800"
+                    className="w-7 rounded-t bg-acento"
                     style={{ height: Math.round((d.ventas / maxDia) * 110) + 2 }}
                     title={`${etiquetaDia(d.fecha)}: ${pesos(d.ventas)} · ${d.numOrdenes} órd.`}
                   />
-                  <span className="text-[10px] text-slate-400">{etiquetaDia(d.fecha)}</span>
+                  <span className="text-[10px] text-tinta-suave">{etiquetaDia(d.fecha)}</span>
                 </div>
               ))}
             </div>
@@ -117,12 +117,12 @@ export function Reportes(): React.JSX.Element {
 
           <div className="grid gap-5 lg:grid-cols-2">
             {/* Top productos */}
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
+            <section className="rounded-xl border border-black/[0.06] bg-white p-5">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-tinta-suave">
                 Productos más vendidos
               </h2>
               <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase text-slate-400">
+                <thead className="text-left text-xs uppercase text-tinta-suave">
                   <tr>
                     <th className="pb-2">Producto</th>
                     <th className="pb-2 text-right">Cant.</th>
@@ -131,10 +131,10 @@ export function Reportes(): React.JSX.Element {
                 </thead>
                 <tbody>
                   {rep.topProductos.map((p) => (
-                    <tr key={p.nombre} className="border-t border-slate-100">
-                      <td className="py-1.5 text-slate-700">{p.nombre}</td>
-                      <td className="py-1.5 text-right font-semibold text-slate-700">{p.cantidad}</td>
-                      <td className="py-1.5 text-right text-slate-600">{pesos(p.importe)}</td>
+                    <tr key={p.nombre} className="border-t border-black/[0.04]">
+                      <td className="py-1.5 text-tinta">{p.nombre}</td>
+                      <td className="py-1.5 text-right font-semibold text-tinta">{p.cantidad}</td>
+                      <td className="py-1.5 text-right text-tinta-suave">{pesos(p.importe)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -142,8 +142,8 @@ export function Reportes(): React.JSX.Element {
             </section>
 
             {/* Por método de pago */}
-            <section className="rounded-xl border border-slate-200 bg-white p-5">
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
+            <section className="rounded-xl border border-black/[0.06] bg-white p-5">
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wider text-tinta-suave">
                 Por método de pago
               </h2>
               <div className="flex flex-col gap-3">
@@ -178,7 +178,7 @@ function CampoFecha({
   max?: string
 }): React.JSX.Element {
   return (
-    <label className="flex flex-col text-xs font-medium text-slate-500">
+    <label className="flex flex-col text-xs font-medium text-tinta-suave">
       {label}
       <input
         type="date"
@@ -186,7 +186,7 @@ function CampoFecha({
         min={min}
         max={max}
         onChange={(e) => onChange(e.target.value)}
-        className="mt-1 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-700 outline-none focus:border-slate-500"
+        className="mt-1 rounded-md border border-black/10 px-2 py-1.5 text-sm text-tinta outline-none focus:border-acento"
       />
     </label>
   )
@@ -202,7 +202,7 @@ function BotonRango({
   return (
     <button
       onClick={onClick}
-      className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+      className="rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
     >
       {children}
     </button>
@@ -223,16 +223,16 @@ function Tarjeta({
   return (
     <div
       className={`rounded-lg border p-4 ${
-        destacar ? 'border-slate-900 bg-slate-900 text-white' : 'border-slate-200 bg-white'
+        destacar ? 'border-acento bg-acento text-white' : 'border-black/[0.06] bg-white'
       }`}
     >
       <div
-        className={`mb-1.5 flex items-center gap-2 text-xs ${destacar ? 'text-slate-300' : 'text-slate-500'}`}
+        className={`mb-1.5 flex items-center gap-2 text-xs ${destacar ? 'text-white/70' : 'text-tinta-suave'}`}
       >
         <Icono nombre={icono} size={15} />
         {label}
       </div>
-      <div className={`text-xl font-bold ${destacar ? 'text-white' : 'text-slate-900'}`}>{valor}</div>
+      <div className={`text-xl font-bold ${destacar ? 'text-white' : 'text-tinta'}`}>{valor}</div>
     </div>
   )
 }
@@ -252,16 +252,16 @@ function BarraMetodo({
   return (
     <div>
       <div className="mb-1 flex items-center justify-between text-sm">
-        <span className="flex items-center gap-1.5 text-slate-600">
+        <span className="flex items-center gap-1.5 text-tinta-suave">
           <Icono nombre={icono} size={15} />
           {label}
         </span>
-        <span className="font-semibold text-slate-700">
-          {pesos(monto)} <span className="text-xs text-slate-400">· {pct}%</span>
+        <span className="font-semibold text-tinta">
+          {pesos(monto)} <span className="text-xs text-tinta-suave">· {pct}%</span>
         </span>
       </div>
-      <div className="h-2 w-full rounded-full bg-slate-100">
-        <div className="h-2 rounded-full bg-slate-800" style={{ width: `${pct}%` }} />
+      <div className="h-2 w-full rounded-full bg-black/[0.05]">
+        <div className="h-2 rounded-full bg-acento" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )

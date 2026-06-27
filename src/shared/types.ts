@@ -60,6 +60,10 @@ export interface Producto {
   categoriaId: number
   activo: boolean
   descripcion?: string
+  /** Si true, el stock se descuenta automáticamente al vender. */
+  controlarStock: boolean
+  stock: number
+  stockMinimo: number
   /** Grupos de modificadores del producto (incluidos al listar el catálogo). */
   grupos?: GrupoModificador[]
 }
@@ -348,6 +352,50 @@ export interface MovimientoCredito {
   ordenId?: number
   nota?: string
   creadoEn: string
+}
+
+// --- Inventario de insumos ---------------------------------------------------
+
+export type TipoMovInventario = 'entrada' | 'salida' | 'merma' | 'ajuste'
+
+export interface Insumo {
+  id: number
+  nombre: string
+  /** Unidad de medida: 'kg', 'pieza', 'litro', etc. */
+  unidad: string
+  stock: number
+  /** Umbral para alertar stock bajo. */
+  stockMinimo: number
+  /** Costo por unidad (para valuar el inventario). */
+  costo: number
+  activo: boolean
+}
+
+export interface InsumoInput {
+  id?: number
+  nombre: string
+  unidad: string
+  stockMinimo: number
+  costo: number
+}
+
+export interface MovimientoInventario {
+  id: number
+  insumoId: number
+  tipo: TipoMovInventario
+  /** Cantidad capturada (positiva). En 'ajuste' es el nuevo stock fijado. */
+  cantidad: number
+  nota?: string
+  usuario: string
+  creadoEn: string
+}
+
+/** Totales del inventario para el encabezado. */
+export interface ResumenInventario {
+  numInsumos: number
+  bajoStock: number
+  /** Valor total = Σ stock × costo. */
+  valorTotal: number
 }
 
 // --- Reportes históricos -----------------------------------------------------

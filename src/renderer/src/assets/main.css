@@ -1,8 +1,20 @@
 @import "tailwindcss";
 
-/* Tipografía base profesional con Inter (empaquetada, funciona sin internet). */
+/* Tipografía base con Inter (empaquetada, funciona sin internet). Inter es muy
+   cercana a la San Francisco de Apple, así que el look queda natural. */
 @theme {
   --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Paleta estilo Apple: gris de fondo, tinta casi negra, grises secundarios,
+     azul de acento y hairline. Disponibles como bg-fondo, text-tinta, etc. */
+  --color-fondo: #f5f5f7;
+  --color-superficie: #ffffff;
+  --color-tinta: #1d1d1f;
+  --color-tinta-suave: #6e6e73;
+  --color-acento: #006039;
+  --color-acento-hover: #00754a;
+  --color-secundario: #006039;
+  --color-hairline: rgba(0, 0, 0, 0.08);
 }
 
 :root {
@@ -18,17 +30,58 @@ body,
 
 body {
   font-family: var(--font-sans);
+  background: var(--color-fondo);
+  color: var(--color-tinta);
   /* Render más nítido y números alineados (precios/totales). */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.006em;
+  letter-spacing: -0.01em;
   text-rendering: optimizeLegibility;
 }
 
-/* Títulos un poco más compactos, estilo dashboard profesional. */
+/* Títulos compactos y con peso, al estilo de las páginas de Apple. */
 h1,
 h2,
 h3 {
-  letter-spacing: -0.02em;
+  letter-spacing: -0.022em;
+}
+
+/* Primitivos de diseño estilo Apple (botones píldora, tarjetas, campos). Se usan
+   como clases en los componentes para mantener todo consistente. */
+@layer components {
+  .btn-primario {
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-acento px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-neutro {
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-semibold text-tinta transition hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  .btn-texto {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta;
+  }
+  .tarjeta {
+    @apply rounded-2xl border border-black/[0.06] bg-superficie;
+  }
+  .campo {
+    @apply w-full rounded-xl border border-black/10 bg-superficie px-3 py-2 text-tinta outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15;
+  }
+}
+
+/* Scrollbar discreta, acorde al estilo limpio. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.18);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

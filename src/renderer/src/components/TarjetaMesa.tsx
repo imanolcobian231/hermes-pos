@@ -7,16 +7,16 @@ const estilosPorEstado: Record<
   { punto: string; etiqueta: string; texto: string; barra: string }
 > = {
   libre: {
-    punto: 'bg-slate-400',
-    etiqueta: 'text-slate-500',
+    punto: 'bg-black/25',
+    etiqueta: 'text-tinta-suave',
     texto: 'Libre',
-    barra: 'bg-slate-200'
+    barra: 'bg-black/10'
   },
   ocupada: {
-    punto: 'bg-slate-800',
-    etiqueta: 'text-slate-700',
+    punto: 'bg-acento',
+    etiqueta: 'text-acento',
     texto: 'Ocupada',
-    barra: 'bg-slate-800'
+    barra: 'bg-acento'
   },
   por_cobrar: {
     punto: 'bg-amber-500',
@@ -39,7 +39,7 @@ export function TarjetaMesa({ mesa, total, onClick, onEditar }: Props): React.JS
   return (
     <div
       onClick={() => onClick?.(mesa)}
-      className="group relative flex aspect-square cursor-pointer flex-col justify-between overflow-hidden rounded-lg border border-slate-200 bg-white p-4 transition hover:border-slate-400 hover:shadow-sm"
+      className="group relative flex aspect-square cursor-pointer flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] bg-superficie p-4 shadow-sm transition hover:shadow-md"
     >
       {mesa.color ? (
         <span className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: mesa.color }} />
@@ -53,7 +53,7 @@ export function TarjetaMesa({ mesa, total, onClick, onEditar }: Props): React.JS
             e.stopPropagation()
             onEditar(mesa)
           }}
-          className="absolute right-2 top-2.5 rounded-md p-1 text-slate-300 opacity-0 transition hover:bg-slate-100 hover:text-slate-600 group-hover:opacity-100"
+          className="absolute right-2 top-2.5 rounded-lg p-1 text-tinta-suave/50 opacity-0 transition hover:bg-black/[0.05] hover:text-tinta group-hover:opacity-100"
           aria-label={`Editar ${mesa.nombre}`}
           title="Editar mesa"
         >
@@ -62,13 +62,13 @@ export function TarjetaMesa({ mesa, total, onClick, onEditar }: Props): React.JS
       )}
 
       <div>
-        <div className="text-lg font-semibold leading-tight text-slate-900">{mesa.nombre}</div>
-        <div className="text-xs text-slate-400">{mesa.capacidad} personas</div>
+        <div className="text-lg font-semibold leading-tight text-tinta">{mesa.nombre}</div>
+        <div className="text-xs text-tinta-suave">{mesa.capacidad} personas</div>
       </div>
 
       <div>
         {mesa.estado !== 'libre' && total != null && total > 0 && (
-          <div className="mb-1.5 text-sm font-semibold text-slate-800">{pesos(total)}</div>
+          <div className="mb-1.5 text-sm font-semibold text-tinta">{pesos(total)}</div>
         )}
         <div className={`flex items-center gap-1.5 text-xs font-medium ${estilo.etiqueta}`}>
           <span className={`h-2 w-2 rounded-full ${estilo.punto}`} />

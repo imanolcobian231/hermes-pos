@@ -9,12 +9,15 @@ import type {
   EstadoMesa,
   EstadoOrden,
   GrupoModificador,
+  Insumo,
   Mesa,
   MetodoPago,
   MetodoPagoOrden,
   Modificador,
   MovimientoCredito,
+  MovimientoInventario,
   Orden,
+  TipoMovInventario,
   Producto,
   Reimpresion,
   Rol,
@@ -59,7 +62,10 @@ export function aProducto(r: Record<string, unknown>): Producto {
     precio: r.precio as number,
     categoriaId: r.categoria_id as number,
     activo: Boolean(r.activo),
-    descripcion: (r.descripcion as string | null) ?? undefined
+    descripcion: (r.descripcion as string | null) ?? undefined,
+    controlarStock: Boolean(r.controlar_stock),
+    stock: (r.stock as number | null) ?? 0,
+    stockMinimo: (r.stock_minimo as number | null) ?? 0
   }
 }
 
@@ -190,6 +196,30 @@ export function aMovimientoCredito(r: Record<string, unknown>): MovimientoCredit
     metodo: (r.metodo as MetodoPago | null) ?? undefined,
     ordenId: (r.orden_id as number | null) ?? undefined,
     nota: (r.nota as string | null) ?? undefined,
+    creadoEn: r.creado_en as string
+  }
+}
+
+export function aInsumo(r: Record<string, unknown>): Insumo {
+  return {
+    id: r.id as number,
+    nombre: r.nombre as string,
+    unidad: r.unidad as string,
+    stock: r.stock as number,
+    stockMinimo: r.stock_minimo as number,
+    costo: r.costo as number,
+    activo: Boolean(r.activo)
+  }
+}
+
+export function aMovimientoInventario(r: Record<string, unknown>): MovimientoInventario {
+  return {
+    id: r.id as number,
+    insumoId: r.insumo_id as number,
+    tipo: r.tipo as TipoMovInventario,
+    cantidad: r.cantidad as number,
+    nota: (r.nota as string | null) ?? undefined,
+    usuario: r.usuario as string,
     creadoEn: r.creado_en as string
   }
 }

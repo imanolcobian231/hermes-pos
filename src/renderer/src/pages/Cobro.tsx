@@ -240,13 +240,13 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Cobro</h1>
-        <p className="text-sm text-slate-500">Selecciona una cuenta por cobrar y registra el pago</p>
+        <h1 className="text-2xl font-bold text-tinta">Cobro</h1>
+        <p className="text-sm text-tinta-suave">Selecciona una cuenta por cobrar y registra el pago</p>
       </header>
 
       {porCobrar.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
-          <Icono nombre="recibo" size={40} className="text-slate-300" />
+        <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
+          <Icono nombre="recibo" size={40} className="text-tinta-suave/60" />
           <p className="mt-3 font-semibold">No hay cuentas por cobrar</p>
         </div>
       ) : (
@@ -259,12 +259,12 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                 onClick={() => setOrdenId(o.id)}
                 className={`flex items-center justify-between rounded-lg border-2 px-4 py-3 text-left transition ${
                   ordenId === o.id
-                    ? 'border-slate-900 bg-slate-100'
-                    : 'border-slate-200 bg-white hover:border-slate-300'
+                    ? 'border-acento bg-black/[0.05]'
+                    : 'border-black/[0.06] bg-white hover:border-black/10'
                 }`}
               >
-                <span className="font-semibold text-slate-800">{etiqueta(o)}</span>
-                <span className="font-bold text-slate-700">{pesos(o.total)}</span>
+                <span className="font-semibold text-tinta">{etiqueta(o)}</span>
+                <span className="font-bold text-tinta">{pesos(o.total)}</span>
               </button>
             ))}
           </div>
@@ -273,12 +273,12 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
           {orden && (
             <div className="flex flex-1 gap-6">
               {/* Detalle */}
-              <div className="flex flex-1 flex-col rounded-lg border border-slate-200 bg-white p-5">
+              <div className="flex flex-1 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
                 <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-slate-800">{etiqueta(orden)}</h2>
+                  <h2 className="text-lg font-bold text-tinta">{etiqueta(orden)}</h2>
                   <button
                     onClick={reimprimirCocina}
-                    className="flex items-center gap-1.5 rounded-md border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                    className="flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
                     title="Reimprimir comanda de cocina"
                   >
                     <Icono nombre="imprimir" size={14} />
@@ -289,29 +289,29 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                   {orden.detalle.map((d) => (
                     <div key={d.id} className="py-1 text-sm">
                       <div className="flex justify-between">
-                        <span className="text-slate-600">
+                        <span className="text-tinta-suave">
                           {d.cantidad}× {d.nombreProducto}
                         </span>
-                        <span className="font-medium text-slate-700">
+                        <span className="font-medium text-tinta">
                           {pesos(d.cantidad * d.precioUnitario)}
                         </span>
                       </div>
                       {d.modificadores.map((m) => (
-                        <div key={m.id} className="pl-4 text-xs text-slate-400">
+                        <div key={m.id} className="pl-4 text-xs text-tinta-suave">
                           + {m.nombre}
                         </div>
                       ))}
                     </div>
                   ))}
                 </div>
-                <div className="mt-3 border-t border-slate-100 pt-3">
+                <div className="mt-3 border-t border-black/[0.04] pt-3">
                   {descClamp > 0 && (
                     <>
-                      <div className="flex justify-between text-sm text-slate-500">
+                      <div className="flex justify-between text-sm text-tinta-suave">
                         <span>Importe</span>
                         <span>{pesos(subtotal)}</span>
                       </div>
-                      <div className="flex justify-between text-sm text-slate-500">
+                      <div className="flex justify-between text-sm text-tinta-suave">
                         <span>Descuento</span>
                         <span>−{pesos(descClamp)}</span>
                       </div>
@@ -319,26 +319,26 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                   )}
                   {imp.tasa > 0 && (
                     <>
-                      <div className="flex justify-between text-sm text-slate-500">
+                      <div className="flex justify-between text-sm text-tinta-suave">
                         <span>Subtotal</span>
                         <span>{pesos(imp.base)}</span>
                       </div>
-                      <div className="flex justify-between text-sm text-slate-500">
+                      <div className="flex justify-between text-sm text-tinta-suave">
                         <span>IVA {imp.tasa}%</span>
                         <span>{pesos(imp.iva)}</span>
                       </div>
                     </>
                   )}
                   <div className="flex justify-between text-xl">
-                    <span className="font-semibold text-slate-600">Total</span>
-                    <span className="font-bold text-slate-900">{pesos(neto)}</span>
+                    <span className="font-semibold text-tinta-suave">Total</span>
+                    <span className="font-bold text-tinta">{pesos(neto)}</span>
                   </div>
                 </div>
               </div>
 
               {/* Pago */}
-              <div className="flex w-80 flex-col rounded-lg border border-slate-200 bg-white p-5">
-                <span className="mb-2 text-sm font-medium text-slate-600">Método de pago</span>
+              <div className="flex w-80 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
+                <span className="mb-2 text-sm font-medium text-tinta-suave">Método de pago</span>
                 <div className="mb-4 grid grid-cols-2 gap-2">
                   {OPCIONES.map((m) => (
                     <button
@@ -346,8 +346,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                       onClick={() => setMetodo(m.id)}
                       className={`flex flex-col items-center gap-1.5 rounded-md border py-3 text-xs font-semibold transition ${
                         metodo === m.id
-                          ? 'border-slate-900 bg-slate-900 text-white'
-                          : 'border-slate-200 text-slate-600 hover:border-slate-400'
+                          ? 'border-acento bg-acento text-white'
+                          : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
                       }`}
                     >
                       <Icono nombre={m.icono} size={20} />
@@ -357,7 +357,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                 </div>
 
                 {/* Descuento */}
-                <span className="mb-2 text-sm font-medium text-slate-600">Descuento</span>
+                <span className="mb-2 text-sm font-medium text-tinta-suave">Descuento</span>
                 <div className="mb-2 flex flex-wrap gap-2">
                   {[0, 10, 15, 20].map((p) => {
                     const monto = p === 0 ? 0 : Math.round(subtotal * p) / 100
@@ -368,8 +368,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                         onClick={() => setDescuento(monto)}
                         className={`rounded-md border px-3 py-1 text-sm font-semibold transition ${
                           activo
-                            ? 'border-slate-900 bg-slate-900 text-white'
-                            : 'border-slate-200 text-slate-600 hover:border-slate-400'
+                            ? 'border-acento bg-acento text-white'
+                            : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
                         }`}
                       >
                         {p === 0 ? 'Sin' : `${p}%`}
@@ -377,54 +377,54 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                     )
                   })}
                   <div className="flex items-center gap-1">
-                    <span className="text-sm text-slate-400">$</span>
+                    <span className="text-sm text-tinta-suave">$</span>
                     <input
                       type="number"
                       value={descuento || ''}
                       onChange={(e) => setDescuento(Math.max(0, Number(e.target.value) || 0))}
                       placeholder="Otro"
-                      className="w-20 rounded-md border border-slate-300 px-2 py-1 text-right text-sm outline-none focus:border-slate-500"
+                      className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
                     />
                   </div>
                 </div>
                 {descClamp > 0 && (
-                  <div className="mb-3 flex justify-between rounded-md bg-slate-50 px-3 py-2 text-sm">
-                    <span className="text-slate-500">Descuento</span>
-                    <span className="font-semibold text-slate-700">−{pesos(descClamp)}</span>
+                  <div className="mb-3 flex justify-between rounded-md bg-black/[0.03] px-3 py-2 text-sm">
+                    <span className="text-tinta-suave">Descuento</span>
+                    <span className="font-semibold text-tinta">−{pesos(descClamp)}</span>
                   </div>
                 )}
 
                 {metodo === 'efectivo' && (
                   <>
-                    <span className="mb-2 text-sm font-medium text-slate-600">Monto recibido</span>
+                    <span className="mb-2 text-sm font-medium text-tinta-suave">Monto recibido</span>
                     <input
                       type="number"
                       value={recibidoTexto}
                       onChange={(e) => setRecibidoTexto(e.target.value)}
                       placeholder="0.00"
-                      className="mb-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-lg font-semibold outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-200"
+                      className="mb-2 w-full rounded-lg border border-black/10 px-3 py-2 text-right text-lg font-semibold outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                     />
                     <div className="mb-3 flex flex-wrap gap-2">
                       {RAPIDOS.map((v) => (
                         <button
                           key={v}
                           onClick={() => setRecibidoTexto(String(v))}
-                          className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                          className="rounded-lg bg-black/[0.05] px-3 py-1 text-sm font-semibold text-tinta-suave hover:bg-black/[0.08]"
                         >
                           ${v}
                         </button>
                       ))}
                       <button
                         onClick={() => setRecibidoTexto(String(neto))}
-                        className="rounded-lg bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                        className="rounded-lg bg-black/[0.05] px-3 py-1 text-sm font-semibold text-tinta-suave hover:bg-black/[0.08]"
                       >
                         Exacto
                       </button>
                     </div>
-                    <div className="mb-4 flex justify-between rounded-lg bg-slate-50 px-4 py-3">
-                      <span className="font-semibold text-slate-600">Cambio</span>
+                    <div className="mb-4 flex justify-between rounded-lg bg-black/[0.03] px-4 py-3">
+                      <span className="font-semibold text-tinta-suave">Cambio</span>
                       <span
-                        className={`text-xl font-bold ${cambio < 0 ? 'text-red-600' : 'text-slate-900'}`}
+                        className={`text-xl font-bold ${cambio < 0 ? 'text-red-600' : 'text-tinta'}`}
                       >
                         {pesos(Math.max(0, cambio))}
                       </span>
@@ -434,26 +434,26 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
 
                 {metodo === 'mixto' && (
                   <>
-                    <span className="mb-2 text-sm font-medium text-slate-600">Reparte el pago</span>
+                    <span className="mb-2 text-sm font-medium text-tinta-suave">Reparte el pago</span>
                     <div className="mb-2 flex flex-col gap-2">
                       {METODOS.map((m) => (
                         <div key={m.id} className="flex items-center gap-2">
-                          <span className="flex w-24 items-center gap-1.5 text-sm text-slate-600">
+                          <span className="flex w-24 items-center gap-1.5 text-sm text-tinta-suave">
                             <Icono nombre={m.icono} size={15} />
                             {m.label}
                           </span>
-                          <span className="text-sm text-slate-400">$</span>
+                          <span className="text-sm text-tinta-suave">$</span>
                           <input
                             type="number"
                             value={mixto[m.id]}
                             onChange={(e) => setMixto((s) => ({ ...s, [m.id]: e.target.value }))}
                             placeholder="0.00"
-                            className="w-24 flex-1 rounded-md border border-slate-300 px-2 py-1.5 text-right text-sm outline-none focus:border-slate-500"
+                            className="w-24 flex-1 rounded-md border border-black/10 px-2 py-1.5 text-right text-sm outline-none focus:border-acento"
                           />
                           <button
                             type="button"
                             onClick={() => ponerResto(m.id)}
-                            className="rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:bg-slate-100"
+                            className="rounded-md border border-black/[0.06] px-2 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
                             title="Asignar lo que falta a este método"
                           >
                             resto
@@ -461,8 +461,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                         </div>
                       ))}
                     </div>
-                    <div className="mb-4 flex justify-between rounded-lg bg-slate-50 px-4 py-3">
-                      <span className="font-semibold text-slate-600">
+                    <div className="mb-4 flex justify-between rounded-lg bg-black/[0.03] px-4 py-3">
+                      <span className="font-semibold text-tinta-suave">
                         {restante > 0 ? 'Falta' : restante < 0 ? 'Sobra' : 'Restante'}
                       </span>
                       <span
@@ -478,7 +478,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
 
                 {metodo === 'credito' && (
                   <>
-                    <span className="mb-2 text-sm font-medium text-slate-600">Cliente</span>
+                    <span className="mb-2 text-sm font-medium text-tinta-suave">Cliente</span>
                     {clientes.length === 0 ? (
                       <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
                         No hay clientes registrados. Crea uno en la sección Clientes.
@@ -487,7 +487,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                       <select
                         value={clienteSel ?? ''}
                         onChange={(e) => setClienteSel(e.target.value ? Number(e.target.value) : null)}
-                        className="mb-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+                        className="mb-3 w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento"
                       >
                         <option value="">Selecciona un cliente…</option>
                         {clientes.map((c) => (
@@ -498,8 +498,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                         ))}
                       </select>
                     )}
-                    <div className="mb-4 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                      Se cargará <strong className="text-slate-800">{pesos(neto)}</strong> a la cuenta
+                    <div className="mb-4 rounded-lg bg-black/[0.03] px-4 py-3 text-sm text-tinta-suave">
+                      Se cargará <strong className="text-tinta">{pesos(neto)}</strong> a la cuenta
                       del cliente.
                     </div>
                   </>
@@ -508,7 +508,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                 <button
                   onClick={confirmar}
                   disabled={noPuedeCobrar}
-                  className="mt-auto w-full rounded-md bg-slate-900 py-3 font-bold text-white transition enabled:hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                  className="mt-auto w-full rounded-md bg-acento py-3 font-bold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
                 >
                   {efectivoInsuficiente
                     ? 'Monto insuficiente'
@@ -536,14 +536,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
           <>
             <button
               onClick={reimprimirCopia}
-              className="flex items-center gap-1.5 rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100"
+              className="flex items-center gap-1.5 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
             >
               <Icono nombre="imprimir" size={15} />
               Reimprimir copia
             </button>
             <button
               onClick={finalizar}
-              className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
             >
               Listo
             </button>
@@ -562,7 +562,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
         pie={
           <button
             onClick={() => setTicketCocina(null)}
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
           >
             Listo
           </button>
