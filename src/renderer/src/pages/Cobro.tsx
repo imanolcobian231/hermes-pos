@@ -61,6 +61,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const [descuento, setDescuento] = useState(0)
   // PIN autorizado para el descuento (se valida también en el backend al cobrar).
   const [pinDescuento, setPinDescuento] = useState<string | undefined>(undefined)
+  // Evita doble cobro/cargo por doble clic en "Listo".
+  const [procesando, setProcesando] = useState(false)
   // Ticket final tras cobrar (modo simulación) y reimpresión de cocina.
   const [ticketFinal, setTicketFinal] = useState<{ titulo: string; orden: OrdenConDetalle } | null>(
     null
@@ -186,18 +188,30 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
 
   // Confirma el cobro (cierra la venta) al dar "Listo".
   const finalizar = async (): Promise<void> => {
-    if (!ticketFinal) return
+    if (!ticketFinal || procesando) return
     const snap = ticketFinal.orden
-    if (snap.metodoPago === 'credito') {
-      if (clienteSel == null) return
-      await fiarOrden(snap.id, clienteSel, snap.descuento)
-    } else {
-      await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento, pinDescuento)
+    const esCredito = snap.metodoPago === 'credito'
+    const cliente = clienteSel
+    if (esCredito && cliente == null) return
+
+    // El cobro/cargo se hace UNA sola vez; el botón queda bloqueado mientras tanto.
+    setProcesando(true)
+    try {
+      if (esCredito) {
+        await fiarOrden(snap.id, cliente as number, snap.descuento)
+      } else {
+        await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento, pinDescuento)
+      }
+    } catch (e) {
+      // Si falla, NO cerramos el ticket: se puede reintentar sin doble cargo.
+      toast(e instanceof Error ? e.message : 'No se pudo cerrar la venta', 'error')
+      setProcesando(false)
+      return
     }
     // Imprime el ticket de caja (ya cerrada en la DB).
     try {
       await imprimirFinal(snap.id)
-      toast(`${ticketFinal.titulo} ${snap.metodoPago === 'credito' ? 'fiada' : 'cobrada'} · ticket impreso`)
+      toast(`${ticketFinal.titulo} ${esCredito ? 'fiada' : 'cobrada'} · ticket impreso`)
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Cerrada, pero no se pudo imprimir el ticket', 'error')
     }
@@ -208,6 +222,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setMetodo('efectivo')
     setDescuento(0)
     setPinDescuento(undefined)
+    setProcesando(false)
     setOrdenId(null)
   }
 
@@ -531,7 +546,10 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       <Modal
         abierto={ticketFinal !== null}
         titulo="Ticket de cliente"
-        onCerrar={() => setTicketFinal(null)}
+        onCerrar={() => {
+          if (procesando) return
+          setTicketFinal(null)
+        }}
         pie={
           <>
             <button
@@ -543,9 +561,10 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
             </button>
             <button
               onClick={finalizar}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              disabled={procesando}
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Listo
+              {procesando ? 'Procesando…' : 'Listo'}
             </button>
           </>
         }

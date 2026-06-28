@@ -72,6 +72,15 @@ export function ordenDeMesa(mesaId: number): OrdenConDetalle | undefined {
 
 // --- Escritura -------------------------------------------------------------
 
+/** Lanza error si la orden no existe o ya no está abierta (no se puede editar). */
+function exigirOrdenAbierta(ordenId: number): void {
+  const r = obtenerDb().prepare('SELECT estado FROM ordenes WHERE id = ?').get(ordenId) as
+    | { estado: string }
+    | undefined
+  if (!r) throw new Error(`Orden ${ordenId} no encontrada`)
+  if (r.estado !== 'abierta') throw new Error('La orden ya fue cerrada; no se puede modificar')
+}
+
 function recalcularTotal(ordenId: number): void {
   obtenerDb()
     .prepare(
@@ -136,6 +145,7 @@ export function agregarProducto(
   comensal = 1
 ): OrdenConDetalle {
   const db = obtenerDb()
+  exigirOrdenAbierta(ordenId)
   const prod = db.prepare('SELECT * FROM productos WHERE id = ?').get(productoId) as
     | Record<string, unknown>
     | undefined
@@ -194,6 +204,7 @@ export function cambiarCantidad(
   delta: number
 ): OrdenConDetalle {
   const db = obtenerDb()
+  exigirOrdenAbierta(ordenId)
   const linea = db.prepare('SELECT * FROM detalle_ordenes WHERE id = ?').get(detalleId) as
     | Record<string, unknown>
     | undefined
@@ -221,6 +232,7 @@ export function cambiarNota(ordenId: number, detalleId: number, nota: string): O
 
 export function quitarLinea(ordenId: number, detalleId: number): OrdenConDetalle {
   const db = obtenerDb()
+  exigirOrdenAbierta(ordenId)
   db.prepare('DELETE FROM detalle_ordenes WHERE id = ?').run(detalleId)
   recalcularTotal(ordenId)
   return obtenerConDetalle(ordenId)
@@ -272,6 +284,8 @@ export function cobrar(
 ): OrdenConDetalle {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
+  // Guarda contra doble cobro (ej. doble clic): solo se cobra una orden abierta.
+  if (orden.estado !== 'abierta') throw new Error('Esta orden ya fue cerrada')
   const desc = Math.max(0, Math.min(descuento, orden.total)) // no mayor al subtotal
 
   // Descarta montos no positivos; debe quedar al menos un pago.
@@ -312,6 +326,8 @@ export function cobrar(
 export function fiar(ordenId: number, clienteId: number, descuento = 0): OrdenConDetalle {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
+  // Guarda contra doble cargo (ej. doble clic): solo se fía una orden abierta.
+  if (orden.estado !== 'abierta') throw new Error('Esta orden ya fue cerrada')
   const desc = Math.max(0, Math.min(descuento, orden.total))
   const neto = orden.total - desc
   const aPagar = calcularImpuesto(neto, obtenerImpresoras()).total
@@ -376,6 +392,8 @@ export function descartar(ordenId: number): void {
 export function cancelar(ordenId: number, motivo: string, usuario = 'caja'): void {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
+  // Solo se cancela una orden abierta; una venta ya cobrada se revierte con "devolver".
+  if (orden.estado !== 'abierta') throw new Error('Esta orden ya fue cerrada; usa "devolver" si necesitas revertir una venta')
   const razon = motivo.trim()
   if (!razon) throw new Error('Se requiere un motivo para cancelar la orden')
   const tx = db.transaction(() => {
