@@ -3,14 +3,14 @@ import type {
   ConfigImpresoras,
   DestinoImpresion,
   DetalleOrden,
-  DispositivoBluetooth
+  DispositivoBluetooth,
+  Impresora
 } from '@shared/types'
 
-// Impresión térmica por Web Bluetooth (BLE). La conexión y el envío de bytes
-// viven en el renderer (Chromium); el proceso main solo arma los bytes ESC/POS.
+// Impresión térmica de varias impresoras. La conexión y el envío de bytes viven
+// en el renderer (Chromium para BLE; el main para COM). El proceso main solo
+// arma los bytes ESC/POS. Cada impresora se identifica por su id local.
 
-// Servicios BLE típicos de impresoras térmicas. Hay que declararlos para poder
-// acceder a sus características tras conectar (requisito de Web Bluetooth).
 const SERVICIOS_CONOCIDOS = [
   '000018f0-0000-1000-8000-00805f9b34fb',
   '0000ff00-0000-1000-8000-00805f9b34fb',
@@ -21,32 +21,11 @@ const SERVICIOS_CONOCIDOS = [
   'e7810a71-73ae-499d-8c15-faa9aef0c3f2'
 ]
 
-// Prefijos de nombre habituales de impresoras térmicas Bluetooth. Sirven para
-// que aparezca la impresora aunque no anuncie su servicio en el escaneo.
 const PREFIJOS_NOMBRE = [
-  'POS',
-  'PT-',
-  'PTP',
-  'MTP',
-  'MPT',
-  'RPP',
-  'GP-',
-  'XP-',
-  'ZJ',
-  'EC-',
-  'SP-',
-  'Printer',
-  'PRINTER',
-  'Thermal',
-  'BlueTooth',
-  'Bluetooth Printer',
-  'Goojprt',
-  'InnerPrinter'
+  'POS', 'PT-', 'PTP', 'MTP', 'MPT', 'RPP', 'GP-', 'XP-', 'ZJ', 'EC-', 'SP-',
+  'Printer', 'PRINTER', 'Thermal', 'BlueTooth', 'Bluetooth Printer', 'Goojprt', 'InnerPrinter'
 ]
 
-// Solo se ofrecen dispositivos que anuncian un servicio conocido o cuyo nombre
-// empieza con un prefijo típico de impresora. Así no aparece el ruido de
-// celulares, audífonos, etc.
 const FILTROS = [
   ...SERVICIOS_CONOCIDOS.map((services) => ({ services: [services] })),
   ...PREFIJOS_NOMBRE.map((namePrefix) => ({ namePrefix }))
@@ -54,6 +33,7 @@ const FILTROS = [
 
 interface EstadoImpresora {
   conectado: boolean
+  /** Etiqueta de la conexión (nombre del dispositivo BLE o puerto COM). */
   nombre: string | null
 }
 
@@ -69,32 +49,36 @@ interface Aviso {
 
 interface ImpresionContextValue {
   cfg: ConfigImpresoras | null
-  estados: Record<DestinoImpresion, EstadoImpresora>
+  impresoras: Impresora[]
+  estados: Record<string, EstadoImpresora>
   selector: SelectorState
-  /** Destino que se está conectando ahora mismo (null = ninguno). */
-  conectando: DestinoImpresion | null
-  /** Aviso para mostrar como toast (la página lo consume y lo limpia). */
+  /** Id de la impresora que se está conectando ahora (null = ninguna). */
+  conectando: string | null
   aviso: Aviso | null
   limpiarAviso: () => void
   actualizarCfg: (parcial: Partial<ConfigImpresoras>) => Promise<void>
-  /** Conecta una impresora Bluetooth LE (abre el selector). */
-  conectar: (destino: DestinoImpresion) => Promise<void>
-  /** Configura una impresora por COM (Bluetooth Clásico / serial). */
-  configurarCom: (destino: DestinoImpresion, puerto: string, baudRate: number) => Promise<void>
-  /** Lista los puertos COM disponibles en Windows. */
+  // Gestión de impresoras
+  agregarImpresora: (nombre: string) => Promise<void>
+  renombrarImpresora: (id: string, nombre: string) => Promise<void>
+  eliminarImpresora: (id: string) => Promise<void>
+  marcarRol: (id: string, rol: 'caja' | 'cocina' | 'barra') => Promise<void>
+  // Conexión
+  conectar: (id: string) => Promise<void>
+  configurarCom: (id: string, puerto: string, baudRate: number) => Promise<void>
+  desconectar: (id: string) => void
   listarPuertos: () => Promise<string[]>
-  /** Reintenta la conexión en curso mostrando TODOS los dispositivos (sin filtro). */
   mostrarTodos: () => void
-  desconectar: (destino: DestinoImpresion) => void
-  elegirDispositivo: (id: string) => void
+  elegirDispositivo: (deviceId: string) => void
   cancelarSelector: () => void
-  imprimirCocina: (
+  // Impresión
+  imprimirComanda: (
+    impresoraId: string,
     titulo: string,
     lineas: DetalleOrden[],
     opciones?: { adicional?: boolean; reimpresion?: boolean }
   ) => Promise<void>
   imprimirFinal: (ordenId: number, opciones?: { copia?: boolean }) => Promise<void>
-  imprimirPrueba: (destino: DestinoImpresion) => Promise<void>
+  imprimirPrueba: (impresoraId: string) => Promise<void>
 }
 
 const ImpresionContext = createContext<ImpresionContextValue | null>(null)
@@ -116,19 +100,10 @@ async function encontrarEscritura(
 
 const espera = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
-/** Aborta una promesa que tarda demasiado (evita que `connect()` se cuelgue). */
 function conTimeout<T>(p: Promise<T>, ms: number, msg: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))
-  ])
+  return Promise.race([p, new Promise<T>((_, rej) => setTimeout(() => rej(new Error(msg)), ms))])
 }
 
-/**
- * Conecta el GATT y localiza la característica de escritura, con reintentos y
- * TIEMPO LÍMITE. Las impresoras BLE económicas a veces dejan `connect()`
- * colgado para siempre; el timeout hace que falle con un mensaje claro.
- */
 async function conectarYBuscar(
   device: BluetoothDevice
 ): Promise<BluetoothRemoteGATTCharacteristic> {
@@ -139,7 +114,6 @@ async function conectarYBuscar(
       const server = device.gatt.connected
         ? device.gatt
         : await conTimeout(device.gatt.connect(), 8000, 'La impresora no respondió al conectar')
-      // Deja que la conexión se estabilice antes de descubrir servicios.
       await espera(intento === 0 ? 350 : 600)
       if (!device.gatt.connected) throw new Error('GATT desconectado tras conectar')
       return await conTimeout(encontrarEscritura(server), 8000, 'No se pudieron leer los servicios de la impresora')
@@ -164,7 +138,7 @@ async function escribirBytes(
   datos: number[]
 ): Promise<void> {
   const bytes = Uint8Array.from(datos)
-  const TAM = 180 // BLE entrega en paquetes pequeños; troceamos.
+  const TAM = 180
   const sinRespuesta = car.properties.writeWithoutResponse
   for (let i = 0; i < bytes.length; i += TAM) {
     const trozo = bytes.subarray(i, i + TAM)
@@ -172,17 +146,9 @@ async function escribirBytes(
     else await car.writeValue(trozo)
     await espera(20)
   }
-  // Deja que la impresora procese los últimos bytes (avance de papel y corte)
-  // ANTES de soltar la conexión. Con writeWithoutResponse no hay confirmación,
-  // así que sin esta espera se perdería el avance/corte final.
   await espera(1200)
 }
 
-/**
- * Conecta, ejecuta `fn` con la característica de escritura y SIEMPRE desconecta
- * al terminar. Mantener una sola conexión a la vez evita que un adaptador BLE
- * (que no soporta conexiones simultáneas) se cuelgue al conectar la segunda.
- */
 async function usarImpresora<T>(
   device: BluetoothDevice,
   fn: (car: BluetoothRemoteGATTCharacteristic) => Promise<T>
@@ -199,57 +165,39 @@ async function usarImpresora<T>(
   }
 }
 
+const nuevoId = (): string =>
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `imp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
 // --- Provider ----------------------------------------------------------------
 
 export function ProveedorImpresion({ children }: { children: ReactNode }): React.JSX.Element {
   const [cfg, setCfg] = useState<ConfigImpresoras | null>(null)
-  const [estados, setEstados] = useState<Record<DestinoImpresion, EstadoImpresora>>({
-    caja: { conectado: false, nombre: null },
-    cocina: { conectado: false, nombre: null }
-  })
+  const [estados, setEstados] = useState<Record<string, EstadoImpresora>>({})
   const [selector, setSelector] = useState<SelectorState>({ visible: false, dispositivos: [] })
-  const [conectando, setConectando] = useState<DestinoImpresion | null>(null)
+  const [conectando, setConectando] = useState<string | null>(null)
   const [aviso, setAviso] = useState<Aviso | null>(null)
 
-  // Dispositivos recordados. NO se mantienen conectados: se conecta solo en el
-  // momento de imprimir y se suelta enseguida.
-  const dispositivos = useRef<Partial<Record<DestinoImpresion, BluetoothDevice>>>({})
+  // Referencias a los dispositivos BLE recordados, por id de impresora. NO se
+  // mantienen conectados: se conecta solo al imprimir y se suelta enseguida.
+  const dispositivos = useRef<Record<string, BluetoothDevice>>({})
   const cfgRef = useRef<ConfigImpresoras | null>(null)
   cfgRef.current = cfg
-  // Destino cuya conexión está en curso (para el botón "mostrar todos").
-  const destinoEnCurso = useRef<DestinoImpresion | null>(null)
-  // Cola para serializar las operaciones BLE (nunca dos al mismo tiempo).
+  const enCurso = useRef<string | null>(null)
   const cola = useRef<Promise<unknown>>(Promise.resolve())
 
-  const setEstado = (destino: DestinoImpresion, e: EstadoImpresora): void =>
-    setEstados((prev) => ({ ...prev, [destino]: e }))
+  const setEstado = (id: string, e: EstadoImpresora): void =>
+    setEstados((prev) => ({ ...prev, [id]: e }))
 
   const limpiarAviso = (): void => setAviso(null)
 
   function enColaBLE<T>(tarea: () => Promise<T>): Promise<T> {
     const siguiente = cola.current.then(tarea, tarea)
-    // La cadena nunca se rompe aunque una tarea falle.
-    cola.current = siguiente.then(
-      () => undefined,
-      () => undefined
-    )
+    cola.current = siguiente.then(() => undefined, () => undefined)
     return siguiente
   }
 
-  async function resolverDevice(destino: DestinoImpresion): Promise<BluetoothDevice> {
-    const enMemoria = dispositivos.current[destino]
-    if (enMemoria) return enMemoria
-    const guardado = cfgRef.current?.[destino]
-    if (!guardado) throw new Error('Impresora no configurada')
-    if (!navigator.bluetooth?.getDevices) throw new Error('Reconecta la impresora en Ajustes')
-    const conocidos = await navigator.bluetooth.getDevices()
-    const device = conocidos.find((d) => d.id === guardado.id)
-    if (!device) throw new Error('La impresora guardada no está disponible; reconéctala en Ajustes')
-    dispositivos.current[destino] = device
-    return device
-  }
-
-  // Carga la config y precarga las referencias a las impresoras recordadas.
   useEffect(() => {
     const quitar = window.api.ble.alDetectarDispositivos((lista) =>
       setSelector({ visible: true, dispositivos: lista })
@@ -257,39 +205,38 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     void (async () => {
       const inicial = await window.api.config.obtenerImpresoras()
       setCfg(inicial)
-      setEstados({
-        caja: { conectado: false, nombre: inicial.caja?.nombre ?? null },
-        cocina: { conectado: false, nombre: inicial.cocina?.nombre ?? null }
-      })
-      await precargarDispositivos(inicial)
+      await precargar(inicial)
     })()
     return quitar
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function precargarDispositivos(config: ConfigImpresoras): Promise<void> {
+  async function precargar(config: ConfigImpresoras): Promise<void> {
     let conocidos: BluetoothDevice[] = []
     if (navigator.bluetooth?.getDevices) {
       try {
         conocidos = await navigator.bluetooth.getDevices()
       } catch {
-        /* sin Bluetooth disponible */
+        /* sin Bluetooth */
       }
     }
-    for (const destino of ['caja', 'cocina'] as DestinoImpresion[]) {
-      const guardado = config[destino]
-      if (!guardado) continue
-      // COM: lista si tiene puerto (no hay conexión persistente).
-      if (guardado.tipo === 'com') {
-        setEstado(destino, { conectado: !!guardado.puerto, nombre: guardado.puerto ?? guardado.nombre })
-        continue
+    const nuevos: Record<string, EstadoImpresora> = {}
+    for (const imp of config.impresoras) {
+      if (imp.tipo === 'com') {
+        nuevos[imp.id] = { conectado: !!imp.puerto, nombre: imp.puerto ?? null }
+      } else if (imp.tipo === 'bluetooth') {
+        const device = conocidos.find((d) => d.id === imp.dispositivoId)
+        if (device) {
+          dispositivos.current[imp.id] = device
+          nuevos[imp.id] = { conectado: true, nombre: device.name ?? 'Bluetooth' }
+        } else {
+          nuevos[imp.id] = { conectado: false, nombre: imp.dispositivoId ? 'Guardada' : null }
+        }
+      } else {
+        nuevos[imp.id] = { conectado: false, nombre: null }
       }
-      // Bluetooth: carga la referencia del dispositivo recordado.
-      const device = conocidos.find((d) => d.id === guardado.id)
-      if (!device) continue
-      dispositivos.current[destino] = device
-      setEstado(destino, { conectado: true, nombre: device.name ?? guardado.nombre })
     }
+    setEstados(nuevos)
   }
 
   const actualizarCfg = async (parcial: Partial<ConfigImpresoras>): Promise<void> => {
@@ -300,25 +247,80 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     await window.api.config.guardarImpresoras(nuevo)
   }
 
-  const conectar = async (destino: DestinoImpresion, todos = false): Promise<void> => {
+  const actualizarImpresora = async (id: string, parcial: Partial<Impresora>): Promise<void> => {
+    const base = cfgRef.current
+    if (!base) return
+    await actualizarCfg({
+      impresoras: base.impresoras.map((i) => (i.id === id ? { ...i, ...parcial } : i))
+    })
+  }
+
+  // --- Gestión de impresoras -------------------------------------------------
+
+  const agregarImpresora = async (nombre: string): Promise<void> => {
+    const base = cfgRef.current
+    if (!base) return
+    const imp: Impresora = { id: nuevoId(), nombre: nombre.trim() || 'Impresora' }
+    const esPrimera = base.impresoras.length === 0
+    await actualizarCfg({
+      impresoras: [...base.impresoras, imp],
+      // La primera impresora se marca como Caja por defecto.
+      impresoraCajaId: esPrimera ? imp.id : base.impresoraCajaId
+    })
+  }
+
+  const renombrarImpresora = (id: string, nombre: string): Promise<void> =>
+    actualizarImpresora(id, { nombre: nombre.trim() || 'Impresora' })
+
+  const eliminarImpresora = async (id: string): Promise<void> => {
+    const base = cfgRef.current
+    if (!base) return
+    delete dispositivos.current[id]
+    setEstados((prev) => {
+      const n = { ...prev }
+      delete n[id]
+      return n
+    })
+    await actualizarCfg({
+      impresoras: base.impresoras.filter((i) => i.id !== id),
+      impresoraCajaId: base.impresoraCajaId === id ? null : base.impresoraCajaId,
+      impresoraCocinaId: base.impresoraCocinaId === id ? null : base.impresoraCocinaId,
+      impresoraBarraId: base.impresoraBarraId === id ? null : base.impresoraBarraId
+    })
+  }
+
+  const marcarRol = (id: string, rol: 'caja' | 'cocina' | 'barra'): Promise<void> =>
+    actualizarCfg(
+      rol === 'caja'
+        ? { impresoraCajaId: id }
+        : rol === 'cocina'
+          ? { impresoraCocinaId: id }
+          : { impresoraBarraId: id }
+    )
+
+  // --- Conexión --------------------------------------------------------------
+
+  const conectar = async (id: string, todos = false): Promise<void> => {
     if (!navigator.bluetooth) {
       setAviso({ texto: 'Este equipo no tiene soporte de Bluetooth', tipo: 'error' })
       return
     }
-    destinoEnCurso.current = destino
-    setConectando(destino)
+    enCurso.current = id
+    setConectando(id)
     try {
       const device = await navigator.bluetooth.requestDevice(
         todos
           ? { acceptAllDevices: true, optionalServices: SERVICIOS_CONOCIDOS }
           : { filters: FILTROS, optionalServices: SERVICIOS_CONOCIDOS }
       )
-      // Verifica que conecta y suelta enseguida (no se mantiene abierta).
       await enColaBLE(() => usarImpresora(device, async () => undefined))
-      dispositivos.current[destino] = device
-      setEstado(destino, { conectado: true, nombre: device.name ?? 'Impresora' })
-      await actualizarCfg({
-        [destino]: { tipo: 'bluetooth', id: device.id, nombre: device.name ?? 'Impresora' }
+      dispositivos.current[id] = device
+      setEstado(id, { conectado: true, nombre: device.name ?? 'Bluetooth' })
+      await actualizarImpresora(id, {
+        tipo: 'bluetooth',
+        dispositivoId: device.id,
+        puerto: undefined,
+        baudRate: undefined
       })
       setAviso({ texto: 'Impresora lista', tipo: 'info' })
     } catch (e) {
@@ -329,42 +331,40 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     }
   }
 
-  // Configura una impresora por COM (Bluetooth Clásico / serial). No mantiene
-  // conexión: imprime por el puerto en el momento (lo hace el proceso main).
-  const configurarCom = async (
-    destino: DestinoImpresion,
-    puerto: string,
-    baudRate: number
-  ): Promise<void> => {
-    delete dispositivos.current[destino] // por si antes era Bluetooth
-    setEstado(destino, { conectado: !!puerto, nombre: puerto || null })
-    await actualizarCfg({ [destino]: { tipo: 'com', nombre: puerto, puerto, baudRate } })
+  const configurarCom = async (id: string, puerto: string, baudRate: number): Promise<void> => {
+    delete dispositivos.current[id]
+    setEstado(id, { conectado: !!puerto, nombre: puerto || null })
+    await actualizarImpresora(id, { tipo: 'com', puerto, baudRate, dispositivoId: undefined })
   }
 
   const listarPuertos = (): Promise<string[]> => window.api.printer.listarPuertos()
 
-  // Reintenta la conexión en curso pero mostrando TODOS los dispositivos.
   const mostrarTodos = (): void => {
-    const destino = destinoEnCurso.current
-    window.api.ble.seleccionar('') // cancela el requestDevice filtrado en curso
+    const id = enCurso.current
+    window.api.ble.seleccionar('')
     setSelector({ visible: false, dispositivos: [] })
-    if (destino) void espera(250).then(() => conectar(destino, true))
+    if (id) void espera(250).then(() => conectar(id, true))
   }
 
-  const desconectar = (destino: DestinoImpresion): void => {
-    const device = dispositivos.current[destino]
+  const desconectar = (id: string): void => {
+    const device = dispositivos.current[id]
     try {
       device?.gatt?.disconnect()
     } catch {
       /* ignora */
     }
-    delete dispositivos.current[destino]
-    setEstado(destino, { conectado: false, nombre: null })
-    void actualizarCfg({ [destino]: null })
+    delete dispositivos.current[id]
+    setEstado(id, { conectado: false, nombre: null })
+    void actualizarImpresora(id, {
+      tipo: undefined,
+      dispositivoId: undefined,
+      puerto: undefined,
+      baudRate: undefined
+    })
   }
 
-  const elegirDispositivo = (id: string): void => {
-    window.api.ble.seleccionar(id)
+  const elegirDispositivo = (deviceId: string): void => {
+    window.api.ble.seleccionar(deviceId)
     setSelector({ visible: false, dispositivos: [] })
   }
 
@@ -373,65 +373,91 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     setSelector({ visible: false, dispositivos: [] })
   }
 
-  const enviar = async (destino: DestinoImpresion, bytes: number[]): Promise<void> => {
-    // Resuelve qué impresora usar según el modo (una/dos).
-    const config = cfgRef.current
-    const efectivo: DestinoImpresion =
-      destino === 'cocina' && config?.modo === 'dos' ? 'cocina' : 'caja'
-    const impresora = config?.[efectivo]
-    if (!impresora && !dispositivos.current[efectivo]) {
-      throw new Error(
-        efectivo === 'cocina'
-          ? 'La impresora de cocina no está configurada'
-          : 'La impresora no está configurada'
-      )
-    }
-    // COM (Bluetooth Clásico/serial): lo envía el proceso main por el puerto.
-    if (impresora?.tipo === 'com') {
-      if (!impresora.puerto) throw new Error('Falta el puerto COM de la impresora')
-      await window.api.printer.enviarCom(impresora.puerto, impresora.baudRate ?? 9600, bytes)
-      return
-    }
-    // Bluetooth LE: conecta solo para imprimir y suelta (serializado en la cola).
-    await enColaBLE(async () => {
-      const device = await resolverDevice(efectivo)
-      await usarImpresora(device, (car) => escribirBytes(car, bytes))
-    })
+  // --- Envío e impresión -----------------------------------------------------
+
+  async function resolverDevice(imp: Impresora): Promise<BluetoothDevice> {
+    const enMem = dispositivos.current[imp.id]
+    if (enMem) return enMem
+    if (!imp.dispositivoId) throw new Error(`${imp.nombre}: reconéctala en Ajustes`)
+    if (!navigator.bluetooth?.getDevices) throw new Error('Reconecta la impresora en Ajustes')
+    const conocidos = await navigator.bluetooth.getDevices()
+    const device = conocidos.find((d) => d.id === imp.dispositivoId)
+    if (!device) throw new Error(`${imp.nombre} no está disponible; reconéctala en Ajustes`)
+    dispositivos.current[imp.id] = device
+    return device
   }
 
-  const imprimirCocina: ImpresionContextValue['imprimirCocina'] = async (titulo, lineas, opciones) => {
+  const enviarA = async (imp: Impresora, bytes: number[]): Promise<void> => {
+    if (imp.tipo === 'com') {
+      if (!imp.puerto) throw new Error(`${imp.nombre}: falta el puerto COM`)
+      await window.api.printer.enviarCom(imp.puerto, imp.baudRate ?? 9600, bytes)
+      return
+    }
+    if (imp.tipo === 'bluetooth') {
+      await enColaBLE(async () => {
+        const device = await resolverDevice(imp)
+        await usarImpresora(device, (car) => escribirBytes(car, bytes))
+      })
+      return
+    }
+    throw new Error(`${imp.nombre}: impresora sin configurar`)
+  }
+
+  const buscarImpresora = (id: string): Impresora | undefined =>
+    cfgRef.current?.impresoras.find((i) => i.id === id)
+
+  const imprimirComanda: ImpresionContextValue['imprimirComanda'] = async (
+    impresoraId,
+    titulo,
+    lineas,
+    opciones
+  ) => {
+    const imp = buscarImpresora(impresoraId)
+    if (!imp) throw new Error('La impresora de esta categoría ya no existe')
     const bytes = await window.api.printer.bytesCocina(titulo, lineas, opciones)
-    await enviar('cocina', bytes)
+    await enviarA(imp, bytes)
   }
 
   const imprimirFinal: ImpresionContextValue['imprimirFinal'] = async (ordenId, opciones) => {
+    const conf = cfgRef.current
+    const caja = conf?.impresoras.find((i) => i.id === conf.impresoraCajaId)
+    if (!caja) throw new Error('No hay impresora de Caja configurada (asígnala en Ajustes)')
     const bytes = await window.api.printer.bytesFinal(ordenId, opciones)
-    await enviar('caja', bytes)
+    await enviarA(caja, bytes)
   }
 
-  const imprimirPrueba: ImpresionContextValue['imprimirPrueba'] = async (destino) => {
+  const imprimirPrueba: ImpresionContextValue['imprimirPrueba'] = async (impresoraId) => {
+    const imp = buscarImpresora(impresoraId)
+    if (!imp) throw new Error('Impresora no encontrada')
+    const destino: DestinoImpresion =
+      cfgRef.current?.impresoraCajaId === impresoraId ? 'caja' : 'cocina'
     const bytes = await window.api.printer.bytesPrueba(destino)
-    await enviar(destino, bytes)
+    await enviarA(imp, bytes)
   }
 
   return (
     <ImpresionContext.Provider
       value={{
         cfg,
+        impresoras: cfg?.impresoras ?? [],
         estados,
         selector,
         conectando,
         aviso,
         limpiarAviso,
         actualizarCfg,
+        agregarImpresora,
+        renombrarImpresora,
+        eliminarImpresora,
+        marcarRol,
         conectar,
         configurarCom,
+        desconectar,
         listarPuertos,
         mostrarTodos,
-        desconectar,
         elegirDispositivo,
         cancelarSelector,
-        imprimirCocina,
+        imprimirComanda,
         imprimirFinal,
         imprimirPrueba
       }}

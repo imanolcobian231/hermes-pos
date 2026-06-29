@@ -24,9 +24,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
 );
 
 CREATE TABLE IF NOT EXISTS categorias (
-  id     INTEGER PRIMARY KEY AUTOINCREMENT,
-  nombre TEXT    NOT NULL,
-  orden  INTEGER NOT NULL DEFAULT 1
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre      TEXT    NOT NULL,
+  orden       INTEGER NOT NULL DEFAULT 1,
+  impresora_id TEXT
 );
 
 CREATE TABLE IF NOT EXISTS productos (

@@ -7,13 +7,23 @@ const CLAVE_IMPRESORAS = 'impresoras'
 const CLAVE_RESPALDO = 'respaldo'
 const CLAVE_CAJA = 'caja'
 
+// Los 3 roles que trae el POS de fábrica. Siempre presentes; el usuario solo los
+// conecta. Puede agregar impresoras extra además de estos.
+export const ROLES_PREDEFINIDOS: { id: string; nombre: string }[] = [
+  { id: 'caja', nombre: 'Caja' },
+  { id: 'barra', nombre: 'Barra' },
+  { id: 'cocina', nombre: 'Cocina' }
+]
+
 export const IMPRESORAS_PREDETERMINADO: ConfigImpresoras = {
   nombreNegocio: '',
   direccion: '',
   telefono: '',
   modo: 'una',
-  caja: null,
-  cocina: null,
+  impresoras: ROLES_PREDEFINIDOS.map((r) => ({ id: r.id, nombre: r.nombre })),
+  impresoraCajaId: 'caja',
+  impresoraCocinaId: 'cocina',
+  impresoraBarraId: 'barra',
   cortarPapel: true,
   abrirCajon: false,
   avanceFinal: 4,

@@ -140,4 +140,116 @@ export function migrar(db: Database.Database): void {
       WHERE estado = 'cobrada' AND metodo_pago IS NOT NULL
     `)
   }
+
+  // Impresora por categoría (aditiva) + migración de la config a varias impresoras.
+  if (!columnas(db, 'categorias').includes('impresora_id')) {
+    db.exec('ALTER TABLE categorias ADD COLUMN impresora_id TEXT')
+  }
+  migrarImpresoras(db)
+  asegurarRolesPredefinidos(db)
+}
+
+// Garantiza que existan los 3 roles predefinidos (Caja, Barra, Cocina) en la
+// config, agregando los que falten. Idempotente: corre en cada arranque.
+function asegurarRolesPredefinidos(db: Database.Database): void {
+  const fila = db.prepare("SELECT valor FROM config WHERE clave = 'impresoras'").get() as
+    | { valor: string }
+    | undefined
+  if (!fila) return // sin config aún: el default ya trae los 3
+  let cfg: Record<string, unknown>
+  try {
+    cfg = JSON.parse(fila.valor)
+  } catch {
+    return
+  }
+  if (!Array.isArray(cfg.impresoras)) return
+  const lista = cfg.impresoras as { id: string; nombre: string }[]
+  const predef: [string, string][] = [
+    ['caja', 'Caja'],
+    ['barra', 'Barra'],
+    ['cocina', 'Cocina']
+  ]
+  let cambio = false
+  for (const [id, nombre] of predef) {
+    if (!lista.some((i) => i.id === id)) {
+      lista.push({ id, nombre })
+      cambio = true
+    }
+  }
+  const tieneId = (id: string): boolean => lista.some((i) => i.id === id)
+  if (!cfg.impresoraCajaId && tieneId('caja')) {
+    cfg.impresoraCajaId = 'caja'
+    cambio = true
+  }
+  if (cfg.impresoraCocinaId === undefined && tieneId('cocina')) {
+    cfg.impresoraCocinaId = 'cocina'
+    cambio = true
+  }
+  if (cfg.impresoraBarraId === undefined && tieneId('barra')) {
+    cfg.impresoraBarraId = 'barra'
+    cambio = true
+  }
+  if (cfg.modo !== 'una' && cfg.modo !== 'multiple') {
+    cfg.modo = 'una'
+    cambio = true
+  }
+  if (cambio) {
+    db.prepare("UPDATE config SET valor = ? WHERE clave = 'impresoras'").run(JSON.stringify(cfg))
+  }
+}
+
+// Convierte la config vieja (caja/cocina/modo) al modelo nuevo (lista de
+// impresoras + impresoraCajaId) y asigna las categorías existentes a la cocina,
+// preservando el comportamiento previo.
+function migrarImpresoras(db: Database.Database): void {
+  const fila = db.prepare("SELECT valor FROM config WHERE clave = 'impresoras'").get() as
+    | { valor: string }
+    | undefined
+  if (!fila) return
+  let cfg: Record<string, unknown>
+  try {
+    cfg = JSON.parse(fila.valor)
+  } catch {
+    return
+  }
+  if (Array.isArray(cfg.impresoras)) return // ya está en el modelo nuevo
+
+  const impresoras: Record<string, unknown>[] = []
+  const conv = (old: Record<string, unknown> | null | undefined, id: string, nombre: string): void => {
+    if (!old) return
+    impresoras.push({
+      id,
+      nombre,
+      tipo: old.tipo,
+      dispositivoId: old.id ?? undefined,
+      puerto: old.puerto ?? undefined,
+      baudRate: old.baudRate ?? undefined
+    })
+  }
+  conv(cfg.caja as Record<string, unknown> | null, 'caja', 'Caja')
+  const teniaCocina = cfg.modo === 'dos' && cfg.cocina
+  if (teniaCocina) conv(cfg.cocina as Record<string, unknown>, 'cocina', 'Cocina')
+  const cocinaId = teniaCocina ? 'cocina' : cfg.caja ? 'caja' : null
+
+  const nuevo = {
+    nombreNegocio: cfg.nombreNegocio ?? '',
+    direccion: cfg.direccion ?? '',
+    telefono: cfg.telefono ?? '',
+    modo: cfg.modo === 'dos' ? 'multiple' : 'una',
+    cortarPapel: cfg.cortarPapel ?? true,
+    abrirCajon: cfg.abrirCajon ?? false,
+    avanceFinal: cfg.avanceFinal ?? 4,
+    ancho: cfg.ancho ?? 32,
+    cocinaGrande: cfg.cocinaGrande ?? true,
+    impuestoActivo: cfg.impuestoActivo ?? false,
+    impuestoTasa: cfg.impuestoTasa ?? 16,
+    impuestoIncluido: cfg.impuestoIncluido ?? true,
+    impresoras,
+    impresoraCajaId: cfg.caja ? 'caja' : null,
+    impresoraCocinaId: cocinaId,
+    impresoraBarraId: cocinaId
+  }
+  db.prepare("UPDATE config SET valor = ? WHERE clave = 'impresoras'").run(JSON.stringify(nuevo))
+  // Las comandas viejas eran de cocina → la columna impresora_id guarda el ROL.
+  db.prepare("UPDATE categorias SET impresora_id = 'cocina' WHERE impresora_id IS NULL").run()
 }

@@ -47,10 +47,15 @@ export interface Mesa {
   color?: string
 }
 
+/** Rol de impresión de comanda de una categoría. */
+export type RolComanda = 'cocina' | 'barra'
+
 export interface Categoria {
   id: number
   nombre: string
   orden: number
+  /** Rol al que va la comanda de esta categoría (undefined = no imprime). */
+  rol?: RolComanda
 }
 
 export interface Producto {
@@ -240,16 +245,19 @@ export type DestinoImpresion = 'cocina' | 'caja'
 export type TipoImpresora = 'bluetooth' | 'com'
 
 /**
- * Impresora configurada. 'bluetooth' = Bluetooth LE (conexión directa desde la
- * app, sin emparejar). 'com' = Bluetooth Clásico/serial por puerto COM (ej.
- * PT-210), emparejada en Windows (sin drivers).
+ * Una impresora configurada. El negocio puede tener varias (Caja, Cocina,
+ * Barra…) y a cada categoría del catálogo se le asigna a cuál va su comanda.
+ * 'bluetooth' = Bluetooth LE directo; 'com' = Bluetooth Clásico/serial por COM.
  */
-export interface ConfigImpresora {
-  tipo: TipoImpresora
-  /** Nombre legible para mostrar en Ajustes. */
+export interface Impresora {
+  /** Id local estable, para referenciarla desde las categorías y la config. */
+  id: string
+  /** Nombre/rol legible: "Caja", "Cocina", "Barra". */
   nombre: string
+  /** Tipo de conexión (null = aún sin configurar). */
+  tipo?: TipoImpresora
   /** Bluetooth BLE: id del dispositivo (asignado por Web Bluetooth). */
-  id?: string
+  dispositivoId?: string
   /** COM: puerto (ej. "COM5") y baudios. */
   puerto?: string
   baudRate?: number
@@ -262,12 +270,19 @@ export interface ConfigImpresoras {
   direccion: string
   /** Teléfono del negocio (se imprime bajo la dirección). Opcional. */
   telefono: string
-  /** 'una' = una sola impresora para todo; 'dos' = cocina y caja por separado. */
-  modo: 'una' | 'dos'
-  /** Impresora de caja / ticket final. En modo 'una' imprime también la cocina. */
-  caja: ConfigImpresora | null
-  /** Impresora de cocina (comandas). Solo se usa en modo 'dos'. */
-  cocina: ConfigImpresora | null
+  /**
+   * 'una' = una sola impresora imprime cobro y comandas; 'multiple' = varias
+   * impresoras por rol y la comanda se rutea por categoría.
+   */
+  modo: 'una' | 'multiple'
+  /** Impresoras del negocio. */
+  impresoras: Impresora[]
+  /** Impresora con rol Caja: imprime el ticket de cobro (y abre el cajón). */
+  impresoraCajaId: string | null
+  /** Impresora con rol Cocina: comandas de categorías marcadas como cocina. */
+  impresoraCocinaId: string | null
+  /** Impresora con rol Barra: comandas de categorías marcadas como barra. */
+  impresoraBarraId: string | null
   /** Cortar el papel automáticamente al final de cada ticket. */
   cortarPapel: boolean
   /** Enviar pulso para abrir el cajón de dinero al imprimir el ticket de caja. */

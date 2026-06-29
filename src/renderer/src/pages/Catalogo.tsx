@@ -312,6 +312,8 @@ function PanelProductos(): React.JSX.Element {
 function PanelCategorias(): React.JSX.Element {
   const { categorias, productos, guardarCategoria, eliminarCategoria } = useDatos()
   const toast = useToast()
+  const etiquetaRol = (rol?: 'cocina' | 'barra'): string | null =>
+    rol === 'cocina' ? 'Cocina' : rol === 'barra' ? 'Barra' : null
   const [editando, setEditando] = useState<Partial<Categoria> | null>(null)
   const [aEliminar, setAEliminar] = useState<Categoria | null>(null)
 
@@ -344,6 +346,15 @@ function PanelCategorias(): React.JSX.Element {
               <span className="font-semibold text-tinta">{c.nombre}</span>
               <span className="ml-2 text-xs text-tinta-suave">
                 {cuenta(c.id)} {cuenta(c.id) === 1 ? 'producto' : 'productos'}
+              </span>
+              <span className="ml-2 text-xs">
+                {etiquetaRol(c.rol) ? (
+                  <span className="rounded-full bg-acento/10 px-2 py-0.5 font-semibold text-acento">
+                    🖨 {etiquetaRol(c.rol)}
+                  </span>
+                ) : (
+                  <span className="text-amber-600">sin impresora</span>
+                )}
               </span>
             </div>
             <div className="flex gap-1">
@@ -390,7 +401,8 @@ function PanelCategorias(): React.JSX.Element {
                 guardarCategoria({
                   id: editando.id,
                   nombre: editando.nombre.trim(),
-                  orden: Number(editando.orden) || 1
+                  orden: Number(editando.orden) || 1,
+                  rol: editando.rol
                 })
                 setEditando(null)
                 toast(esNueva ? 'Categoría creada' : 'Categoría actualizada')
@@ -418,6 +430,26 @@ function PanelCategorias(): React.JSX.Element {
                 onChange={(e) => setEditando({ ...editando, orden: Number(e.target.value) })}
                 className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
+            </Campo>
+            <Campo label="Comanda (rol de impresora)">
+              <select
+                value={editando.rol ?? ''}
+                onChange={(e) =>
+                  setEditando({
+                    ...editando,
+                    rol: (e.target.value || undefined) as 'cocina' | 'barra' | undefined
+                  })
+                }
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+              >
+                <option value="">Sin comanda (no imprime)</option>
+                <option value="cocina">Cocina</option>
+                <option value="barra">Barra</option>
+              </select>
+              <p className="mt-1 text-xs text-tinta-suave">
+                La comanda de esta categoría va a la impresora marcada con ese rol (en modo varias
+                impresoras).
+              </p>
             </Campo>
           </div>
         )}

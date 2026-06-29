@@ -48,10 +48,13 @@ export function aUsuario(r: Record<string, unknown>): Usuario {
 }
 
 export function aCategoria(r: Record<string, unknown>): Categoria {
+  // La columna impresora_id guarda el ROL de la comanda ('cocina' | 'barra').
+  const rolRaw = (r.impresora_id as string | null) ?? null
   return {
     id: r.id as number,
     nombre: r.nombre as string,
-    orden: r.orden as number
+    orden: r.orden as number,
+    rol: rolRaw === 'cocina' || rolRaw === 'barra' ? rolRaw : undefined
   }
 }
 

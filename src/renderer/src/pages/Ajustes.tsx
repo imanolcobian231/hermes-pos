@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { ConfigRespaldo, DestinoImpresion, RespaldoInfo } from '@shared/types'
+import type { ConfigRespaldo, Impresora, RespaldoInfo } from '@shared/types'
 import { useImpresion } from '@renderer/store/impresion'
 import { useToast } from '@renderer/components/Toast'
 import { fechaHora } from '@renderer/lib/format'
@@ -81,36 +81,8 @@ export function Ajustes(): React.JSX.Element {
           </p>
         </Seccion>
 
-        {/* Cantidad de impresoras */}
-        <Seccion titulo="Impresoras">
-          <p className="mb-3 text-sm text-tinta-suave">¿Cuántas impresoras usa el negocio?</p>
-          <div className="grid grid-cols-2 gap-3">
-            <OpcionModo
-              activo={cfg.modo === 'una'}
-              titulo="Una impresora"
-              detalle="La misma imprime comandas de cocina y tickets de caja."
-              onClick={() => void actualizarCfg({ modo: 'una' })}
-            />
-            <OpcionModo
-              activo={cfg.modo === 'dos'}
-              titulo="Dos impresoras"
-              detalle="Una en cocina (comandas) y otra en caja (ticket del cliente)."
-              onClick={() => void actualizarCfg({ modo: 'dos' })}
-            />
-          </div>
-        </Seccion>
-
-        {/* Impresora de caja (o única) */}
-        <Seccion titulo={cfg.modo === 'dos' ? 'Impresora de caja' : 'Impresora'}>
-          <Impresora destino="caja" />
-        </Seccion>
-
-        {/* Impresora de cocina (solo en modo dos) */}
-        {cfg.modo === 'dos' && (
-          <Seccion titulo="Impresora de cocina">
-            <Impresora destino="cocina" />
-          </Seccion>
-        )}
+        {/* Impresoras (varias, con rol) */}
+        <SeccionImpresoras />
 
         {/* Tamaño de papel */}
         <Seccion titulo="Tamaño de papel">
@@ -236,29 +208,135 @@ function CampoNegocio({
   )
 }
 
-// Configura una impresora (caja o cocina) por Bluetooth LE o por puerto COM.
-// Maneja su propio estado: prueba en curso, vista COM y selección de puerto.
-function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Element {
-  const { cfg, estados, conectando, conectar, desconectar, configurarCom, listarPuertos, imprimirPrueba } =
-    useImpresion()
-  const toast = useToast()
-  const estado = estados[destino]
-  const conf = cfg?.[destino] ?? null
+// Sección que gestiona TODAS las impresoras del negocio (agregar, conectar,
+// asignar rol de Caja, probar, eliminar). El ruteo por categoría se hace en
+// Catálogo; el ticket de cobro va a la marcada como Caja.
+function SeccionImpresoras(): React.JSX.Element {
+  const { impresoras, cfg, actualizarCfg, agregarImpresora } = useImpresion()
+  const [nueva, setNueva] = useState('')
 
+  const modo = cfg?.modo ?? 'una'
+  const cajaId = cfg?.impresoraCajaId ?? 'caja'
+  const cajaImp = impresoras.find((i) => i.id === cajaId) ?? impresoras[0]
+
+  const agregar = (): void => {
+    if (!nueva.trim()) return
+    void agregarImpresora(nueva)
+    setNueva('')
+  }
+
+  return (
+    <Seccion titulo="Impresoras">
+      {/* Modo: una o varias */}
+      <div className="mb-4 grid grid-cols-2 gap-3">
+        <OpcionModo
+          activo={modo === 'una'}
+          titulo="Una impresora"
+          detalle="La misma imprime el cobro y las comandas."
+          onClick={() => void actualizarCfg({ modo: 'una' })}
+        />
+        <OpcionModo
+          activo={modo === 'multiple'}
+          titulo="Varias (por rol)"
+          detalle="Caja, Barra y Cocina; la comanda se rutea por categoría."
+          onClick={() => void actualizarCfg({ modo: 'multiple' })}
+        />
+      </div>
+
+      {modo === 'una' ? (
+        <>
+          <p className="mb-3 text-sm text-tinta-suave">
+            Conecta tu impresora: imprimirá tanto el ticket de cobro como las comandas.
+          </p>
+          {cajaImp ? (
+            <FilaImpresora impresora={cajaImp} />
+          ) : (
+            <p className="text-sm text-tinta-suave">No hay impresora configurada.</p>
+          )}
+        </>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-tinta-suave">
+            Conecta cada impresora. La marcada como <strong>Caja</strong> imprime el ticket de cobro;
+            en <strong>Catálogo</strong> eliges a qué impresora va la comanda de cada categoría.
+          </p>
+          <div className="flex flex-col gap-3">
+            {impresoras.map((imp) => (
+              <FilaImpresora key={imp.id} impresora={imp} mostrarRoles />
+            ))}
+          </div>
+          <div className="mt-3 flex gap-2">
+            <input
+              value={nueva}
+              onChange={(e) => setNueva(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && agregar()}
+              placeholder="Agregar impresora extra (ej. Cocina 2)"
+              className="flex-1 rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+            />
+            <button
+              onClick={agregar}
+              className="rounded-full bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            >
+              Agregar
+            </button>
+          </div>
+        </>
+      )}
+    </Seccion>
+  )
+}
+
+// Una impresora de la lista: nombre editable, roles (Caja/Cocina/Barra),
+// conexión (BLE/COM), prueba y eliminar. `mostrarRoles` muestra los botones de
+// rol (solo en modo "varias impresoras").
+function FilaImpresora({
+  impresora,
+  mostrarRoles
+}: {
+  impresora: Impresora
+  mostrarRoles?: boolean
+}): React.JSX.Element {
+  const {
+    cfg,
+    estados,
+    conectando,
+    conectar,
+    desconectar,
+    configurarCom,
+    listarPuertos,
+    imprimirPrueba,
+    renombrarImpresora,
+    eliminarImpresora,
+    marcarRol
+  } = useImpresion()
+  const toast = useToast()
+  const estado = estados[impresora.id] ?? { conectado: false, nombre: null }
+  const configurada = impresora.tipo != null
+  // Los 3 roles predefinidos no se eliminan (siempre presentes).
+  const esPredefinida = ['caja', 'barra', 'cocina'].includes(impresora.id)
+  // Roles que cumple esta impresora actualmente.
+  const roles: { rol: 'caja' | 'cocina' | 'barra'; label: string; activo: boolean }[] = [
+    { rol: 'caja', label: 'Caja', activo: cfg?.impresoraCajaId === impresora.id },
+    { rol: 'cocina', label: 'Cocina', activo: cfg?.impresoraCocinaId === impresora.id },
+    { rol: 'barra', label: 'Barra', activo: cfg?.impresoraBarraId === impresora.id }
+  ]
+
+  const [nombre, setNombre] = useState(impresora.nombre)
   const [probando, setProbando] = useState(false)
-  // Vista de configuración por puerto COM (Bluetooth Clásico / serial).
-  const [modoCom, setModoCom] = useState(conf?.tipo === 'com')
+  const [editandoConexion, setEditandoConexion] = useState(false)
+  const [modoCom, setModoCom] = useState(impresora.tipo === 'com')
   const [puertos, setPuertos] = useState<string[]>([])
   const [cargandoPuertos, setCargandoPuertos] = useState(false)
-  const [puerto, setPuerto] = useState(conf?.puerto ?? '')
-  const [baud, setBaud] = useState(conf?.baudRate ?? 9600)
+  const [puerto, setPuerto] = useState(impresora.puerto ?? '')
+  const [baud, setBaud] = useState(impresora.baudRate ?? 9600)
+
+  const conectandoBle = conectando === impresora.id
 
   const refrescarPuertos = async (): Promise<void> => {
     setCargandoPuertos(true)
     try {
       const lista = await listarPuertos()
       setPuertos(lista)
-      // Preselecciona el guardado si sigue disponible; si no, el primero.
       if (!lista.includes(puerto)) setPuerto(lista[0] ?? '')
     } catch {
       toast('No se pudieron leer los puertos COM', 'error')
@@ -272,19 +350,25 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
     void refrescarPuertos()
   }
 
+  const conectarBle = async (): Promise<void> => {
+    await conectar(impresora.id)
+    setEditandoConexion(false)
+  }
+
   const guardarCom = async (): Promise<void> => {
     if (!puerto) {
       toast('Elige un puerto COM (empareja antes la impresora en Windows)', 'error')
       return
     }
-    await configurarCom(destino, puerto, baud)
+    await configurarCom(impresora.id, puerto, baud)
+    setEditandoConexion(false)
     toast('Impresora por COM guardada', 'info')
   }
 
   const probar = async (): Promise<void> => {
     setProbando(true)
     try {
-      await imprimirPrueba(destino)
+      await imprimirPrueba(impresora.id)
       toast('Ticket de prueba enviado', 'info')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo imprimir la prueba', 'error')
@@ -293,41 +377,82 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
     }
   }
 
-  const conectandoBle = conectando === destino
-  const detalleEstado = estado.conectado
-    ? conf?.tipo === 'com'
-      ? `Puerto ${conf.puerto} · lista para imprimir`
-      : 'Bluetooth · lista para imprimir'
-    : estado.nombre
-      ? 'Guardada · no disponible'
-      : 'Ninguna impresora'
+  const detalle = configurada
+    ? impresora.tipo === 'com'
+      ? `COM ${impresora.puerto ?? ''}${estado.conectado ? '' : ' · no disponible'}`
+      : `Bluetooth${estado.conectado ? '' : ' · no disponible'}`
+    : 'Sin conexión'
 
   return (
-    <div className="flex flex-col gap-3">
-      {/* Estado actual de la impresora */}
-      <div className="flex items-center justify-between rounded-lg border border-black/[0.06] px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <span
-            className={`h-2.5 w-2.5 rounded-full ${estado.conectado ? 'bg-emerald-500' : 'bg-black/15'}`}
-          />
-          <div className="leading-tight">
-            <div className="font-semibold text-tinta">{estado.nombre ?? 'Sin configurar'}</div>
-            <div className="text-xs text-tinta-suave">{detalleEstado}</div>
-          </div>
-        </div>
-        {estado.conectado && (
+    <div className="rounded-xl border border-black/[0.06] p-3">
+      {/* Encabezado: nombre + rol + estado */}
+      <div className="flex items-center gap-2">
+        <span
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${estado.conectado ? 'bg-emerald-500' : configurada ? 'bg-amber-500' : 'bg-black/15'}`}
+        />
+        <input
+          value={nombre}
+          onChange={(e) => setNombre(e.target.value)}
+          onBlur={() => nombre.trim() && nombre !== impresora.nombre && void renombrarImpresora(impresora.id, nombre)}
+          className="min-w-0 flex-1 rounded-md border border-transparent px-1 py-0.5 font-semibold text-tinta outline-none hover:border-black/10 focus:border-acento"
+        />
+        {mostrarRoles &&
+          roles.map((r) => (
+            <button
+              key={r.rol}
+              onClick={() => void marcarRol(impresora.id, r.rol)}
+              title={`Marcar como ${r.label}`}
+              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold transition ${
+                r.activo
+                  ? 'bg-acento text-white'
+                  : 'border border-black/10 text-tinta-suave hover:bg-black/[0.05]'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        {!esPredefinida && (
           <button
-            onClick={() => desconectar(destino)}
-            className="rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            onClick={() => void eliminarImpresora(impresora.id)}
+            className="rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+            title="Eliminar impresora"
           >
-            Quitar
+            <Icono nombre="eliminar" size={15} />
           </button>
         )}
       </div>
 
-      {/* Configuración del transporte (cuando no hay impresora lista) */}
-      {!estado.conectado && (
-        <div className="rounded-lg border border-black/[0.06] p-3">
+      <div className="mt-1 pl-4.5 text-xs text-tinta-suave">{detalle}</div>
+
+      {/* Conexión */}
+      {configurada && !editandoConexion ? (
+        <div className="mt-3 flex gap-2">
+          <button
+            onClick={() => void probar()}
+            disabled={probando}
+            className="flex flex-1 items-center justify-center gap-2 rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta hover:bg-black/[0.05] disabled:opacity-40"
+          >
+            <Icono nombre="imprimir" size={14} />
+            {probando ? 'Imprimiendo…' : 'Probar'}
+          </button>
+          <button
+            onClick={() => {
+              setModoCom(impresora.tipo === 'com')
+              setEditandoConexion(true)
+            }}
+            className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+          >
+            Reconfigurar
+          </button>
+          <button
+            onClick={() => desconectar(impresora.id)}
+            className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+          >
+            Quitar
+          </button>
+        </div>
+      ) : (
+        <div className="mt-3 rounded-lg border border-black/[0.06] p-3">
           <div className="mb-3 grid grid-cols-2 gap-2">
             <TabTransporte activo={!modoCom} onClick={() => setModoCom(false)}>
               Bluetooth
@@ -336,10 +461,9 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
               Puerto COM
             </TabTransporte>
           </div>
-
           {!modoCom ? (
             <button
-              onClick={() => void conectar(destino)}
+              onClick={() => void conectarBle()}
               disabled={conectandoBle}
               className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
             >
@@ -397,15 +521,6 @@ function Impresora({ destino }: { destino: DestinoImpresion }): React.JSX.Elemen
           )}
         </div>
       )}
-
-      <button
-        onClick={() => void probar()}
-        disabled={!estado.conectado || probando}
-        className="flex items-center justify-center gap-2 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta hover:bg-black/[0.05] disabled:opacity-40"
-      >
-        <Icono nombre="imprimir" size={15} />
-        {probando ? 'Imprimiendo…' : 'Imprimir prueba'}
-      </button>
     </div>
   )
 }

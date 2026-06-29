@@ -22,17 +22,20 @@ export function listarCategorias(): Categoria[] {
 
 export function guardarCategoria(cat: CategoriaInput): Categoria {
   const db = obtenerDb()
+  // La columna impresora_id almacena el ROL ('cocina' | 'barra' | null).
+  const rol = cat.rol ?? null
   if (cat.id != null) {
-    db.prepare('UPDATE categorias SET nombre = ?, orden = ? WHERE id = ?').run(
+    db.prepare('UPDATE categorias SET nombre = ?, orden = ?, impresora_id = ? WHERE id = ?').run(
       cat.nombre.trim(),
       cat.orden,
+      rol,
       cat.id
     )
     return obtenerCategoria(cat.id)
   }
   const r = db
-    .prepare('INSERT INTO categorias (nombre, orden) VALUES (?, ?)')
-    .run(cat.nombre.trim(), cat.orden)
+    .prepare('INSERT INTO categorias (nombre, orden, impresora_id) VALUES (?, ?, ?)')
+    .run(cat.nombre.trim(), cat.orden, rol)
   return obtenerCategoria(Number(r.lastInsertRowid))
 }
 

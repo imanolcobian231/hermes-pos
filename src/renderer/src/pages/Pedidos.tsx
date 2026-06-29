@@ -7,6 +7,7 @@ import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCoc
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { useToast } from '@renderer/components/Toast'
 import { useImpresion } from '@renderer/store/impresion'
+import { agruparPorImpresora, rolesConfigurados } from '@renderer/lib/comandas'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono } from '@renderer/components/Icono'
@@ -32,7 +33,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     cancelarOrden
   } = useDatos()
   const toast = useToast()
-  const { imprimirCocina } = useImpresion()
+  const { imprimirComanda, cfg, impresoras } = useImpresion()
   const { usuarioActual } = useAuth()
   const { pedir } = useAutorizacion()
 
@@ -115,9 +116,29 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
       setTicket({ lineas: nuevas, adicional })
       const total = nuevas.reduce((acc, d) => acc + d.cantidad, 0)
       toast(`${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
-      // Impresión de la comanda en la térmica de cocina.
+      // Imprime la comanda repartida por categoría: cada impresora recibe solo
+      // sus productos (cocina, barra, etc.).
       try {
-        await imprimirCocina(titulo, nuevas, { adicional })
+        if (cfg?.modo === 'una') {
+          // Una sola impresora: toda la comanda va a la de Caja.
+          if (cfg.impresoraCajaId) {
+            await imprimirComanda(cfg.impresoraCajaId, titulo, nuevas, { adicional })
+          }
+        } else {
+          // Varias impresoras: la comanda se reparte por categoría.
+          const { porImpresora, sinImpresora } = agruparPorImpresora(
+            nuevas,
+            productos,
+            categorias,
+            rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null)
+          )
+          for (const [impId, lineas] of porImpresora) {
+            await imprimirComanda(impId, titulo, lineas, { adicional })
+          }
+          if (sinImpresora.length > 0) {
+            toast('Hay productos sin impresora asignada (revísalo en Catálogo)', 'error')
+          }
+        }
       } catch (e) {
         toast(e instanceof Error ? e.message : 'No se pudo imprimir la comanda', 'error')
       }
