@@ -61,6 +61,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const [mixto, setMixto] = useState<Record<MetodoPago, string>>(VACIO_MIXTO)
   const [clienteSel, setClienteSel] = useState<number | null>(null)
   const [descuento, setDescuento] = useState(0)
+  const [propinaTexto, setPropinaTexto] = useState('')
   // PIN autorizado para el descuento (se valida también en el backend al cobrar).
   const [pinDescuento, setPinDescuento] = useState<string | undefined>(undefined)
   // Evita doble cobro/cargo por doble clic en "Listo".
@@ -87,6 +88,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   useEffect(() => {
     setMetodo('efectivo')
     setDescuento(0)
+    setPropinaTexto('')
     setRecibidoTexto('')
     setMixto(VACIO_MIXTO)
     setClienteSel(null)
@@ -100,7 +102,9 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     subtotal - descClamp,
     cfg ?? { impuestoActivo: false, impuestoTasa: 0, impuestoIncluido: true }
   )
-  const neto = imp.total
+  const propina = Math.max(0, parseFloat(propinaTexto) || 0)
+  // Lo que paga el cliente = venta (con IVA) + propina.
+  const neto = imp.total + propina
   const recibido = parseFloat(recibidoTexto) || 0
   const cambio = recibido - neto
 
@@ -163,6 +167,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       ...orden,
       estado: 'cobrada' as const,
       descuento: descClamp,
+      propina,
       cerradoEn: new Date().toISOString()
     }
     if (metodo === 'credito') {
@@ -202,7 +207,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       if (esCredito) {
         await fiarOrden(snap.id, cliente as number, snap.descuento)
       } else {
-        await cobrarOrden(snap.id, snap.pagos ?? [], snap.montoRecibido, snap.descuento, pinDescuento)
+        await cobrarOrden(
+          snap.id,
+          snap.pagos ?? [],
+          snap.montoRecibido,
+          snap.descuento,
+          snap.propina,
+          pinDescuento
+        )
       }
     } catch (e) {
       // Si falla, NO cerramos el ticket: se puede reintentar sin doble cargo.
@@ -350,17 +362,27 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                       </div>
                     </>
                   )}
-                  {imp.tasa > 0 && (
+                  {imp.lineas.length > 0 && (
                     <>
                       <div className="flex justify-between text-sm text-tinta-suave">
                         <span>Subtotal</span>
                         <span>{pesos(imp.base)}</span>
                       </div>
-                      <div className="flex justify-between text-sm text-tinta-suave">
-                        <span>IVA {imp.tasa}%</span>
-                        <span>{pesos(imp.iva)}</span>
-                      </div>
+                      {imp.lineas.map((t, i) => (
+                        <div key={i} className="flex justify-between text-sm text-tinta-suave">
+                          <span>
+                            {t.nombre} {t.tasa}%
+                          </span>
+                          <span>{pesos(t.monto)}</span>
+                        </div>
+                      ))}
                     </>
+                  )}
+                  {propina > 0 && (
+                    <div className="flex justify-between text-sm text-tinta-suave">
+                      <span>Propina</span>
+                      <span>{pesos(propina)}</span>
+                    </div>
                   )}
                   <div className="flex justify-between text-xl">
                     <span className="font-semibold text-tinta-suave">Total</span>
@@ -425,6 +447,43 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                     <span className="text-tinta-suave">Descuento</span>
                     <span className="font-semibold text-tinta">−{pesos(descClamp)}</span>
                   </div>
+                )}
+
+                {/* Propina (no aplica a crédito/fiado) */}
+                {metodo !== 'credito' && (
+                  <>
+                    <span className="mb-2 text-sm font-medium text-tinta-suave">Propina</span>
+                    <div className="mb-3 flex flex-wrap gap-2">
+                      {[0, 5, 10, 15].map((p) => {
+                        const monto = p === 0 ? 0 : Math.round(imp.total * p) / 100
+                        const activo =
+                          Math.abs(propina - monto) < 0.01 && (p !== 0 || propina === 0)
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => setPropinaTexto(monto ? String(monto) : '')}
+                            className={`rounded-md border px-3 py-1 text-sm font-semibold transition ${
+                              activo
+                                ? 'border-acento bg-acento text-white'
+                                : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
+                            }`}
+                          >
+                            {p === 0 ? 'Sin' : `${p}%`}
+                          </button>
+                        )
+                      })}
+                      <div className="flex items-center gap-1">
+                        <span className="text-sm text-tinta-suave">$</span>
+                        <input
+                          type="number"
+                          value={propinaTexto}
+                          onChange={(e) => setPropinaTexto(e.target.value)}
+                          placeholder="Otra"
+                          className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 {metodo === 'efectivo' && (

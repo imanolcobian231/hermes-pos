@@ -136,17 +136,18 @@ export function abrir(mesaId: number): OrdenConDetalle {
 }
 
 /** Abre una orden para llevar (sin mesa física), con etiqueta secuencial. */
-export function abrirLlevar(): OrdenConDetalle {
+export function abrirLlevar(nombre?: string): OrdenConDetalle {
   const db = obtenerDb()
   const previas = db.prepare('SELECT COUNT(*) AS n FROM ordenes WHERE para_llevar = 1').get() as {
     n: number
   }
-  const nombre = `Para llevar #${previas.n + 1}`
+  const limpio = nombre?.trim()
+  const nom = limpio && limpio.length > 0 ? limpio : `Para llevar #${previas.n + 1}`
   const r = db
     .prepare(
       "INSERT INTO ordenes (mesa_id, para_llevar, nombre, estado, total, abierto_en) VALUES (NULL, 1, ?, 'abierta', 0, ?)"
     )
-    .run(nombre, ahora())
+    .run(nom, ahora())
   return obtenerConDetalle(Number(r.lastInsertRowid))
 }
 
@@ -292,13 +293,15 @@ export function cobrar(
   ordenId: number,
   pagos: Pago[],
   efectivoRecibido?: number,
-  descuento = 0
+  descuento = 0,
+  propina = 0
 ): OrdenConDetalle {
   const db = obtenerDb()
   const orden = obtenerConDetalle(ordenId)
   // Guarda contra doble cobro (ej. doble clic): solo se cobra una orden abierta.
   if (orden.estado !== 'abierta') throw new Error('Esta orden ya fue cerrada')
   const desc = Math.max(0, Math.min(descuento, orden.total)) // no mayor al subtotal
+  const prop = Math.max(0, propina || 0)
 
   // Descarta montos no positivos; debe quedar al menos un pago.
   const limpios = pagos.filter((p) => p.monto > 0)
@@ -316,10 +319,10 @@ export function cobrar(
   const tx = db.transaction(() => {
     db.prepare(
       `UPDATE ordenes
-         SET estado = 'cobrada', descuento = ?, metodo_pago = ?, monto_recibido = ?, cambio = ?,
+         SET estado = 'cobrada', descuento = ?, propina = ?, metodo_pago = ?, monto_recibido = ?, cambio = ?,
              ticket_impreso = 1, cerrado_en = ?
        WHERE id = ?`
-    ).run(desc, metodoGuardado, recibido, cambio, ahora(), ordenId)
+    ).run(desc, prop, metodoGuardado, recibido, cambio, ahora(), ordenId)
     // Reemplaza los pagos (por si se recobra) y registra el desglose.
     db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
     const ins = db.prepare('INSERT INTO pagos (orden_id, metodo, monto) VALUES (?, ?, ?)')

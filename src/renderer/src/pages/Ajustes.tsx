@@ -12,7 +12,13 @@ const BAUDIOS = [9600, 19200, 38400, 57600, 115200]
 export function Ajustes(): React.JSX.Element {
   const { cfg, aviso, limpiarAviso, actualizarCfg } = useImpresion()
   const toast = useToast()
-  const [negocio, setNegocio] = useState({ nombreNegocio: '', direccion: '', telefono: '', rfc: '' })
+  const [negocio, setNegocio] = useState({
+    nombreNegocio: '',
+    direccion: '',
+    telefono: '',
+    rfc: '',
+    mensajeTicket: ''
+  })
 
   // Los avisos de conexión (éxito/error) vienen del store; se muestran como toast.
   useEffect(() => {
@@ -28,17 +34,19 @@ export function Ajustes(): React.JSX.Element {
         nombreNegocio: cfg.nombreNegocio,
         direccion: cfg.direccion,
         telefono: cfg.telefono,
-        rfc: cfg.rfc ?? ''
+        rfc: cfg.rfc ?? '',
+        mensajeTicket: cfg.mensajeTicket ?? 'Gracias por su visita'
       })
     }
-  }, [cfg?.nombreNegocio, cfg?.direccion, cfg?.telefono, cfg?.rfc])
+  }, [cfg?.nombreNegocio, cfg?.direccion, cfg?.telefono, cfg?.rfc, cfg?.mensajeTicket])
 
   const guardarNegocio = (): void => {
     void actualizarCfg({
       nombreNegocio: negocio.nombreNegocio.trim(),
       direccion: negocio.direccion.trim(),
       telefono: negocio.telefono.trim(),
-      rfc: negocio.rfc.trim()
+      rfc: negocio.rfc.trim(),
+      mensajeTicket: negocio.mensajeTicket.trim()
     })
   }
 
@@ -86,9 +94,29 @@ export function Ajustes(): React.JSX.Element {
               onChange={(v) => setNegocio((n) => ({ ...n, rfc: v }))}
               onGuardar={guardarNegocio}
             />
+            <CampoNegocio
+              label="Mensaje del ticket"
+              valor={negocio.mensajeTicket}
+              placeholder="Ej. ¡Gracias por su compra!"
+              onChange={(v) => setNegocio((n) => ({ ...n, mensajeTicket: v }))}
+              onGuardar={guardarNegocio}
+            />
           </div>
           <p className="mt-2 text-xs text-tinta-suave">
             Aparecen como encabezado en los tickets. Déjalos vacíos para no imprimirlos.
+          </p>
+        </Seccion>
+
+        {/* Modo de venta */}
+        <Seccion titulo="Modo de venta">
+          <Switch
+            activo={cfg.modoTiendita === true}
+            label="Modo tiendita (venta rápida de productos)"
+            onChange={(v) => void actualizarCfg({ modoTiendita: v })}
+          />
+          <p className="text-xs text-tinta-suave">
+            La pantalla principal muestra los productos para vender directo (carrito) en vez de
+            mesas. Ideal para tiendas o abarrotes.
           </p>
         </Seccion>
 
@@ -99,38 +127,7 @@ export function Ajustes(): React.JSX.Element {
         <SeccionImpresoras />
 
         {/* Impuestos */}
-        <Seccion titulo="Impuestos">
-          <Switch
-            activo={cfg.impuestoActivo}
-            label="Aplicar IVA al ticket"
-            onChange={(v) => void actualizarCfg({ impuestoActivo: v })}
-          />
-          {cfg.impuestoActivo && (
-            <>
-              <div className="flex items-center justify-between py-2">
-                <span className="text-sm text-tinta">Tasa de IVA (%)</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={cfg.impuestoTasa}
-                  onChange={(e) =>
-                    void actualizarCfg({ impuestoTasa: Math.max(0, Number(e.target.value) || 0) })
-                  }
-                  className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
-                />
-              </div>
-              <Switch
-                activo={cfg.impuestoIncluido}
-                label="El IVA ya está incluido en los precios"
-                onChange={(v) => void actualizarCfg({ impuestoIncluido: v })}
-              />
-              <p className="text-xs text-tinta-suave">
-                Activado: el ticket solo desglosa el IVA (el total no cambia). Desactivado: el IVA se
-                suma al total y el cliente paga más.
-              </p>
-            </>
-          )}
-        </Seccion>
+        <SeccionImpuestos />
 
         {/* Opciones de ticket */}
         <Seccion titulo="Opciones del ticket">
@@ -153,6 +150,11 @@ export function Ajustes(): React.JSX.Element {
             activo={cfg.separarBarra !== false}
             label="Separar comandas de Barra y Cocina"
             onChange={(v) => void actualizarCfg({ separarBarra: v })}
+          />
+          <Switch
+            activo={cfg.confirmarEntreTickets === true}
+            label="Confirmar entre comandas (impresoras sin corte)"
+            onChange={(v) => void actualizarCfg({ confirmarEntreTickets: v })}
           />
           <Switch
             activo={cfg.separarComensales !== false}
@@ -314,6 +316,80 @@ function SeccionLogo(): React.JSX.Element {
         Para mejor resultado usa un PNG de alto contraste (logo o texto en negro sobre fondo
         transparente o blanco). Las fotos se difuminan en blanco y negro.
       </p>
+    </Seccion>
+  )
+}
+
+// Impuestos del negocio: lista editable (nombre + tasa). El negocio puede tener
+// uno (IVA) o varios. Si la lista está vacía, se usa el IVA único de respaldo.
+function SeccionImpuestos(): React.JSX.Element {
+  const { cfg, actualizarCfg } = useImpresion()
+  if (!cfg) return <></>
+  const impuestos =
+    cfg.impuestos && cfg.impuestos.length > 0
+      ? cfg.impuestos
+      : [{ nombre: 'IVA', tasa: cfg.impuestoTasa || 16 }]
+
+  const guardar = (lista: { nombre: string; tasa: number }[]): void =>
+    void actualizarCfg({ impuestos: lista })
+  const cambiar = (i: number, parcial: Partial<{ nombre: string; tasa: number }>): void =>
+    guardar(impuestos.map((imp, idx) => (idx === i ? { ...imp, ...parcial } : imp)))
+
+  return (
+    <Seccion titulo="Impuestos">
+      <Switch
+        activo={cfg.impuestoActivo}
+        label="Aplicar impuestos al ticket"
+        onChange={(v) => void actualizarCfg({ impuestoActivo: v })}
+      />
+      {cfg.impuestoActivo && (
+        <>
+          <div className="mt-2 flex flex-col gap-2">
+            {impuestos.map((imp, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <input
+                  value={imp.nombre}
+                  onChange={(e) => cambiar(i, { nombre: e.target.value })}
+                  placeholder="Nombre (ej. IVA, IEPS)"
+                  className="flex-1 rounded-md border border-black/10 px-2 py-1 text-sm outline-none focus:border-acento"
+                />
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={imp.tasa}
+                  onChange={(e) => cambiar(i, { tasa: Math.max(0, Number(e.target.value) || 0) })}
+                  className="w-16 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
+                />
+                <span className="text-sm text-tinta-suave">%</span>
+                <button
+                  onClick={() => guardar(impuestos.filter((_, idx) => idx !== i))}
+                  title="Quitar impuesto"
+                  className="rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                >
+                  <Icono nombre="eliminar" size={15} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => guardar([...impuestos, { nombre: 'Impuesto', tasa: 0 }])}
+            className="mt-2 rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+          >
+            + Agregar impuesto
+          </button>
+          <div className="mt-3">
+            <Switch
+              activo={cfg.impuestoIncluido}
+              label="Los precios ya incluyen los impuestos"
+              onChange={(v) => void actualizarCfg({ impuestoIncluido: v })}
+            />
+          </div>
+          <p className="text-xs text-tinta-suave">
+            Activado: el ticket solo desglosa los impuestos (el total no cambia). Desactivado: se
+            suman al total y el cliente paga más.
+          </p>
+        </>
+      )}
     </Seccion>
   )
 }

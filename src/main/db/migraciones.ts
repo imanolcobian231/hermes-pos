@@ -84,10 +84,22 @@ export function migrar(db: Database.Database): void {
     // Migración aditiva: solo faltaba la columna de descuento.
     db.exec('ALTER TABLE ordenes ADD COLUMN descuento REAL NOT NULL DEFAULT 0')
   }
+  // Propina por orden (aditiva).
+  if (!columnas(db, 'ordenes').includes('propina')) {
+    db.exec('ALTER TABLE ordenes ADD COLUMN propina REAL NOT NULL DEFAULT 0')
+  }
+  // Costo del producto (para reportes de utilidad) (aditiva).
+  if (!columnas(db, 'productos').includes('costo')) {
+    db.exec('ALTER TABLE productos ADD COLUMN costo REAL NOT NULL DEFAULT 0')
+  }
 
   // Columna de gastos en cortes (aditiva).
   if (!columnas(db, 'cortes').includes('total_gastos')) {
     db.exec('ALTER TABLE cortes ADD COLUMN total_gastos REAL NOT NULL DEFAULT 0')
+  }
+  // Total de propinas del turno en cortes (aditiva).
+  if (!columnas(db, 'cortes').includes('total_propinas')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN total_propinas REAL NOT NULL DEFAULT 0')
   }
 
   // Cuadre de caja en cortes: fondo inicial, conteo físico y diferencia (aditivas).

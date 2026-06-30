@@ -178,7 +178,8 @@ function PanelProductos(): React.JSX.Element {
                   descripcion: editando.descripcion,
                   controlarStock: editando.controlarStock ?? false,
                   stock: Number(editando.stock) || 0,
-                  stockMinimo: Number(editando.stockMinimo) || 0
+                  stockMinimo: Number(editando.stockMinimo) || 0,
+                  costo: Number(editando.costo) || 0
                 })
                 setEditando(null)
                 toast(esNuevo ? 'Producto creado' : 'Producto actualizado')
@@ -199,12 +200,20 @@ function PanelProductos(): React.JSX.Element {
                 className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <Campo label="Precio">
                 <input
                   type="number"
                   value={editando.precio ?? 0}
                   onChange={(e) => setEditando({ ...editando, precio: Number(e.target.value) })}
+                  className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+                />
+              </Campo>
+              <Campo label="Costo">
+                <input
+                  type="number"
+                  value={editando.costo ?? 0}
+                  onChange={(e) => setEditando({ ...editando, costo: Number(e.target.value) })}
                   className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                 />
               </Campo>

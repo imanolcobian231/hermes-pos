@@ -69,6 +69,19 @@ export function listarProductos(): Producto[] {
   return filas.map((f) => ({ ...aProducto(f), grupos: gruposDeProducto(f.id as number) }))
 }
 
+/** Cantidad total vendida por producto (órdenes cobradas), para ordenar por popularidad. */
+export function masVendidos(): { productoId: number; vendido: number }[] {
+  return obtenerDb()
+    .prepare(
+      `SELECT d.producto_id AS productoId, COALESCE(SUM(d.cantidad), 0) AS vendido
+         FROM detalle_ordenes d
+         JOIN ordenes o ON o.id = d.orden_id
+        WHERE o.estado = 'cobrada'
+        GROUP BY d.producto_id`
+    )
+    .all() as { productoId: number; vendido: number }[]
+}
+
 // --- Modificadores (grupos reutilizables) ----------------------------------
 
 function modsDeGrupo(grupoId: number): Modificador[] {
@@ -177,11 +190,12 @@ export function guardarProducto(prod: ProductoInput): Producto {
   const controla = prod.controlarStock ? 1 : 0
   const stock = prod.stock || 0
   const minimo = Math.max(0, prod.stockMinimo || 0)
+  const costo = Math.max(0, prod.costo || 0)
   if (prod.id != null) {
     db.prepare(
       `UPDATE productos
          SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ?,
-             controlar_stock = ?, stock = ?, stock_minimo = ?
+             controlar_stock = ?, stock = ?, stock_minimo = ?, costo = ?
        WHERE id = ?`
     ).run(
       prod.nombre.trim(),
@@ -192,16 +206,17 @@ export function guardarProducto(prod: ProductoInput): Producto {
       controla,
       stock,
       minimo,
+      costo,
       prod.id
     )
     return obtenerProducto(prod.id)
   }
   const r = db
     .prepare(
-      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo, costo)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo)
+    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo, costo)
   return obtenerProducto(Number(r.lastInsertRowid))
 }
 

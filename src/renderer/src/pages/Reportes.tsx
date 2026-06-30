@@ -91,7 +91,12 @@ export function Reportes(): React.JSX.Element {
             <Tarjeta label="Órdenes" valor={String(rep.resumen.numOrdenes)} icono="recibo" />
             <Tarjeta label="Ticket promedio" valor={pesos(rep.resumen.ticketPromedio)} icono="finanzas" />
             <Tarjeta label="Descuentos" valor={pesos(rep.resumen.descuentos)} icono="gasto" />
+            <Tarjeta label="Costo vendido" valor={pesos(rep.resumen.costoVendido)} icono="gasto" />
+            <Tarjeta label="Utilidad estimada" valor={pesos(rep.resumen.utilidad)} icono="finanzas" destacar />
           </div>
+          <p className="-mt-2 text-xs text-tinta-suave">
+            La utilidad usa el costo actual de cada producto (captúralo en Catálogo para que sea exacta).
+          </p>
 
           {/* Ventas por día */}
           <section className="rounded-xl border border-black/[0.06] bg-white p-5">

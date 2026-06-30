@@ -58,6 +58,13 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   } | null>(null)
   // Hubo un quitado/resta de algo ya enviado: la próxima reimpresión es CORRECCION.
   const [huboQuitado, setHuboQuitado] = useState(false)
+  // Cola de comandas pendientes por imprimir una por una con confirmación
+  // (impresoras sin corte). `anteriorArea` = la que se acaba de imprimir.
+  const [colaImpresion, setColaImpresion] = useState<{
+    grupos: GrupoComanda[]
+    opciones: { adicional?: boolean; reimpresion?: boolean; cancelacion?: boolean }
+    anteriorArea: 'cocina' | 'barra'
+  } | null>(null)
   const [notaLinea, setNotaLinea] = useState<DetalleOrden | null>(null)
   const [notaTexto, setNotaTexto] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
@@ -68,6 +75,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const [comensalActivo, setComensalActivo] = useState(1)
   const [numComensales, setNumComensales] = useState(1)
   const notaRef = useRef<HTMLInputElement>(null)
+  // Candado para no imprimir de más por doble clic en "Imprimir siguiente".
+  const colaBusy = useRef(false)
 
   // Al cambiar de orden, reinicia el comensal activo.
   useEffect(() => {
@@ -168,14 +177,47 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     grupos: GrupoComanda[],
     opciones: { adicional?: boolean; reimpresion?: boolean; cancelacion?: boolean }
   ): Promise<void> => {
-    await imprimirComandas(
-      grupos.map((g) => ({
-        impresoraId: g.impresoraId,
-        titulo,
-        lineas: g.lineas,
-        opciones: { ...opciones, area: g.area }
-      }))
+    const unaComanda = (
+      g: GrupoComanda
+    ): { impresoraId: string; titulo: string; lineas: DetalleOrden[]; opciones: typeof opciones & { area: 'cocina' | 'barra' } } => ({
+      impresoraId: g.impresoraId,
+      titulo,
+      lineas: g.lineas,
+      opciones: { ...opciones, area: g.area }
+    })
+    // Si hay 2+ comandas y se pidió confirmar entre tickets: imprime la primera y
+    // las demás esperan tu confirmación (para cortar a mano). Si no, todas juntas.
+    if (cfg?.confirmarEntreTickets && grupos.length > 1) {
+      try {
+        await imprimirComandas([unaComanda(grupos[0])])
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'No se pudo imprimir la comanda', 'error')
+      }
+      setColaImpresion({ grupos: grupos.slice(1), opciones, anteriorArea: grupos[0].area })
+      return
+    }
+    await imprimirComandas(grupos.map(unaComanda))
+  }
+
+  // Imprime la siguiente comanda de la cola (tras pulsar Listo) y avanza. El
+  // candado evita que un doble clic imprima varias veces.
+  const imprimirSiguienteEnCola = async (): Promise<void> => {
+    if (!colaImpresion || colaBusy.current) return
+    colaBusy.current = true
+    const [g, ...resto] = colaImpresion.grupos
+    // Avanza/cierra el modal de inmediato para que no se pueda re-disparar.
+    setColaImpresion(
+      resto.length > 0 ? { grupos: resto, opciones: colaImpresion.opciones, anteriorArea: g.area } : null
     )
+    try {
+      await imprimirComandas([
+        { impresoraId: g.impresoraId, titulo, lineas: g.lineas, opciones: { ...colaImpresion.opciones, area: g.area } }
+      ])
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo imprimir la comanda', 'error')
+    } finally {
+      colaBusy.current = false
+    }
   }
 
   // Para la vista previa: los grupos como { area, lineas }.
@@ -530,6 +572,39 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               />
             ))}
           </div>
+        )}
+      </Modal>
+
+      {/* Impresión secuencial con confirmación (impresoras sin corte) */}
+      <Modal
+        abierto={colaImpresion !== null}
+        titulo="Imprimir comandas"
+        onCerrar={() => setColaImpresion(null)}
+        pie={
+          <>
+            <button
+              onClick={() => setColaImpresion(null)}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            >
+              Terminar
+            </button>
+            <button
+              onClick={() => void imprimirSiguienteEnCola()}
+              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            >
+              Imprimir{' '}
+              {colaImpresion?.grupos[0]?.area === 'barra' ? 'Barra' : 'Cocina'}
+            </button>
+          </>
+        }
+      >
+        {colaImpresion && (
+          <p className="text-sm text-tinta-suave">
+            Se imprimió la comanda de{' '}
+            <strong>{colaImpresion.anteriorArea === 'barra' ? 'Barra' : 'Cocina'}</strong>. Córtala y
+            pulsa <strong>Imprimir {colaImpresion.grupos[0].area === 'barra' ? 'Barra' : 'Cocina'}</strong>{' '}
+            para la siguiente.
+          </p>
         )}
       </Modal>
 

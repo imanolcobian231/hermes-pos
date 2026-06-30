@@ -64,7 +64,11 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
       {cfg?.rfc && (
         <div className="text-center text-[10px] text-tinta-suave">RFC: {cfg.rfc}</div>
       )}
-      <div className="text-center text-[10px] text-tinta-suave">Gracias por su visita</div>
+      {(cfg?.mensajeTicket ?? 'Gracias por su visita').trim() && (
+        <div className="text-center text-[10px] text-tinta-suave">
+          {(cfg?.mensajeTicket ?? 'Gracias por su visita').trim()}
+        </div>
+      )}
       {copia && <div className="mt-1 text-center font-bold">*** COPIA ***</div>}
       <div className="my-2 border-t border-dashed border-black/10" />
       <div className="flex justify-between">
@@ -103,23 +107,41 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
           </div>
         </>
       )}
-      {imp.tasa > 0 && (
+      {imp.lineas.length > 0 && (
         <>
           <div className="flex justify-between">
             <span>Subtotal</span>
             <span>{pesos(imp.base)}</span>
           </div>
+          {imp.lineas.map((t, i) => (
+            <div key={i} className="flex justify-between">
+              <span>
+                {t.nombre} {t.tasa}%
+              </span>
+              <span>{pesos(t.monto)}</span>
+            </div>
+          ))}
+        </>
+      )}
+      {orden.propina > 0 && (
+        <>
           <div className="flex justify-between">
-            <span>IVA {imp.tasa}%</span>
-            <span>{pesos(imp.iva)}</span>
+            <span>Venta</span>
+            <span>{pesos(imp.total)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Propina</span>
+            <span>{pesos(orden.propina)}</span>
           </div>
         </>
       )}
       <div className="mt-2 flex items-center justify-between text-lg font-extrabold">
         <span>TOTAL</span>
-        <span>{pesos(imp.total)}</span>
+        <span>{pesos(imp.total + orden.propina)}</span>
       </div>
-      <div className="mt-1 text-[10px] text-tinta-suave">Son {totalEnLetra(imp.total)}</div>
+      <div className="mt-1 text-[10px] text-tinta-suave">
+        Son {totalEnLetra(imp.total + orden.propina)}
+      </div>
 
       {orden.pagos && orden.pagos.length > 0 ? (
         <>

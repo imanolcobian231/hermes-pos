@@ -73,5 +73,9 @@ export function comandasPorArea(
     }
     g.lineas.push(linea)
   }
-  return { grupos: [...acc.values()], sinImpresora }
+  // Cocina siempre antes que Barra (orden de impresión y de vista previa).
+  const grupos = [...acc.values()].sort((a, b) =>
+    a.area === b.area ? 0 : a.area === 'cocina' ? -1 : 1
+  )
+  return { grupos, sinImpresora }
 }

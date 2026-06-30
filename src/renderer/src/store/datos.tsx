@@ -95,6 +95,7 @@ const RESUMEN_VACIO: ResumenTurno = {
   totalTarjeta: 0,
   totalTransferencia: 0,
   totalGastos: 0,
+  totalPropinas: 0,
   numOrdenes: 0
 }
 
@@ -122,7 +123,7 @@ interface DatosContextValue {
   ordenDeMesa: (mesaId: number) => OrdenConDetalle | undefined
   ordenPorId: (ordenId: number) => OrdenConDetalle | undefined
   abrirOrden: (mesaId: number) => Promise<OrdenConDetalle>
-  abrirOrdenLlevar: () => Promise<OrdenConDetalle>
+  abrirOrdenLlevar: (nombre?: string) => Promise<OrdenConDetalle>
   descartarOrden: (ordenId: number) => Promise<void>
   agregarProducto: (
     ordenId: number,
@@ -140,6 +141,7 @@ interface DatosContextValue {
     pagos: Pago[],
     efectivoRecibido?: number,
     descuento?: number,
+    propina?: number,
     pin?: string
   ) => Promise<void>
   cancelarOrden: (ordenId: number, motivo: string, usuario?: string, pin?: string) => Promise<void>
@@ -370,11 +372,14 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [aplicarOrden, refrescarMesas]
   )
 
-  const abrirOrdenLlevar = useCallback(async (): Promise<OrdenConDetalle> => {
-    const orden = await api.ordenes.abrirLlevar()
-    aplicarOrden(orden)
-    return orden
-  }, [aplicarOrden])
+  const abrirOrdenLlevar = useCallback(
+    async (nombre?: string): Promise<OrdenConDetalle> => {
+      const orden = await api.ordenes.abrirLlevar(nombre)
+      aplicarOrden(orden)
+      return orden
+    },
+    [aplicarOrden]
+  )
 
   const descartarOrden = useCallback(
     async (ordenId: number) => {
@@ -433,8 +438,15 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   )
 
   const cobrarOrden = useCallback(
-    async (ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number, pin?: string) => {
-      await api.ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento, pin)
+    async (
+      ordenId: number,
+      pagos: Pago[],
+      efectivoRecibido?: number,
+      descuento?: number,
+      propina?: number,
+      pin?: string
+    ) => {
+      await api.ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento, propina, pin)
       await Promise.all([
         refrescarOrdenes(),
         refrescarMesas(),

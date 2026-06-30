@@ -21,7 +21,8 @@ export const CANALES = {
     guardarModificador: 'catalogo:guardarModificador',
     eliminarModificador: 'catalogo:eliminarModificador',
     asignarGrupo: 'catalogo:asignarGrupo',
-    desasignarGrupo: 'catalogo:desasignarGrupo'
+    desasignarGrupo: 'catalogo:desasignarGrupo',
+    masVendidos: 'catalogo:masVendidos'
   },
   ordenes: {
     activas: 'ordenes:activas',

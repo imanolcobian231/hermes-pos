@@ -4,13 +4,14 @@ import { ProveedorDatos, useDatos } from '@renderer/store/datos'
 import { ProveedorToast } from '@renderer/components/Toast'
 import { ProveedorAuth, useAuth } from '@renderer/store/auth'
 import { ProveedorAutorizacion } from '@renderer/store/autorizacion'
-import { ProveedorImpresion } from '@renderer/store/impresion'
+import { ProveedorImpresion, useImpresion } from '@renderer/store/impresion'
 import { SelectorBluetooth } from '@renderer/components/SelectorBluetooth'
 import { LogoHermes } from '@renderer/components/LogoHermes'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 import { pesos } from '@renderer/lib/format'
 import { Login } from '@renderer/pages/Login'
 import { Mesas } from '@renderer/pages/Mesas'
+import { Tienda } from '@renderer/pages/Tienda'
 import { Pedidos } from '@renderer/pages/Pedidos'
 import { Cobro } from '@renderer/pages/Cobro'
 import { Corte } from '@renderer/pages/Corte'
@@ -26,6 +27,7 @@ import type { Rol } from '@shared/types'
 
 type Vista =
   | 'mesas'
+  | 'tienda'
   | 'pedidos'
   | 'cobro'
   | 'corte'
@@ -41,6 +43,7 @@ type Vista =
 // `roles` indica qué roles ven cada sección.
 const NAV: { id: Vista; label: string; icono: NombreIcono; roles: Rol[] }[] = [
   { id: 'mesas', label: 'Mesas', icono: 'mesas', roles: ['admin', 'cajero', 'mesero'] },
+  { id: 'tienda', label: 'Venta', icono: 'cobro', roles: ['admin', 'cajero', 'mesero'] },
   { id: 'cobro', label: 'Cobro', icono: 'cobro', roles: ['admin', 'cajero', 'mesero'] },
   { id: 'gastos', label: 'Gastos', icono: 'gasto', roles: ['mesero'] },
   { id: 'finanzas', label: 'Finanzas', icono: 'finanzas', roles: ['admin'] },
@@ -55,6 +58,7 @@ const NAV: { id: Vista; label: string; icono: NombreIcono; roles: Rol[] }[] = [
 
 const TITULOS: Record<Vista, string> = {
   mesas: 'Mesas',
+  tienda: 'Venta',
   pedidos: 'Toma de pedido',
   cobro: 'Cobro',
   finanzas: 'Finanzas',
@@ -93,9 +97,23 @@ function Reloj(): React.JSX.Element {
 function Contenido(): React.JSX.Element {
   const { cargando, ordenes, resumen, abrirOrden, abrirOrdenLlevar, descartarOrden } = useDatos()
   const { usuarioActual, esAdmin, logout } = useAuth()
+  const { cfg } = useImpresion()
   const rol = usuarioActual?.rol
-  const navVisible = NAV.filter((item) => rol != null && item.roles.includes(rol))
+  // En modo tiendita la pantalla principal es "Venta" (productos) en vez de Mesas.
+  const tiendita = cfg?.modoTiendita === true
+  const navVisible = NAV.filter(
+    (item) =>
+      rol != null &&
+      item.roles.includes(rol) &&
+      (tiendita ? item.id !== 'mesas' : item.id !== 'tienda')
+  )
   const [vista, setVista] = useState<Vista>('mesas')
+
+  // Ajusta la pantalla inicial al activar/desactivar el modo tiendita.
+  useEffect(() => {
+    if (tiendita && vista === 'mesas') setVista('tienda')
+    else if (!tiendita && vista === 'tienda') setVista('mesas')
+  }, [tiendita, vista])
   const [pedido, setPedido] = useState<PedidoActivo | null>(null)
   const [ordenCobro, setOrdenCobro] = useState<number | null>(null)
 
@@ -121,8 +139,8 @@ function Contenido(): React.JSX.Element {
     setVista('pedidos')
   }
 
-  const irAPedidosLlevar = async (): Promise<void> => {
-    const o = await abrirOrdenLlevar()
+  const irAPedidosLlevar = async (nombre?: string): Promise<void> => {
+    const o = await abrirOrdenLlevar(nombre)
     setPedido({ ordenId: o.id, titulo: o.nombre ?? 'Para llevar', subtitulo: 'Pedido para llevar' })
     setVista('pedidos')
   }
@@ -243,6 +261,7 @@ function Contenido(): React.JSX.Element {
               onCobrar={irACobro}
             />
           )}
+          {vista === 'tienda' && <Tienda onCobrar={irACobro} />}
           {vista === 'cobro' && <Cobro ordenIdInicial={ordenCobro} />}
           {vista === 'finanzas' && <Finanzas />}
           {vista === 'reportes' && <Reportes />}

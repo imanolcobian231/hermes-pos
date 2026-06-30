@@ -69,6 +69,8 @@ export interface Producto {
   controlarStock: boolean
   stock: number
   stockMinimo: number
+  /** Costo del producto (para reportes de utilidad: precio − costo). */
+  costo: number
   /** Grupos de modificadores del producto (incluidos al listar el catálogo). */
   grupos?: GrupoModificador[]
 }
@@ -106,6 +108,8 @@ export interface Orden {
   total: number
   /** Descuento aplicado al cobrar (monto en pesos). El neto a pagar es total - descuento. */
   descuento: number
+  /** Propina capturada al cobrar (monto en pesos). Se suma al efectivo del cajón. */
+  propina: number
   /** La orden está lista para cobrar (a nivel orden, sirve para mesa y para llevar). */
   porCobrar: boolean
   metodoPago?: MetodoPagoOrden
@@ -151,6 +155,8 @@ export interface Corte {
   totalTarjeta: number
   totalTransferencia: number
   totalGastos: number
+  /** Total de propinas del turno (dinero extra que entró al cajón). */
+  totalPropinas: number
   numOrdenes: number
   /** Efectivo con el que se abrió la caja (fondo de cambio). */
   fondoInicial: number
@@ -291,6 +297,8 @@ export interface ConfigImpresoras {
   telefono: string
   /** RFC del negocio (se imprime en el encabezado). Opcional. */
   rfc?: string
+  /** Mensaje al pie del encabezado del ticket (por defecto "Gracias por su visita"). */
+  mensajeTicket?: string
   /**
    * 'una' = una sola impresora imprime cobro y comandas; 'multiple' = varias
    * impresoras por rol y la comanda se rutea por categoría.
@@ -319,12 +327,28 @@ export interface ConfigImpresoras {
   /** Separa las comandas de Barra y Cocina en tickets distintos. Si está apagado,
    *  todo se imprime junto como cocina (para negocios sin barra). */
   separarBarra?: boolean
-  /** Aplica impuesto (IVA) al ticket. */
+  /** Modo tiendita: la pantalla principal es venta rápida de productos (carrito),
+   *  en vez de mesas. Para tiendas/abarrotes. */
+  modoTiendita?: boolean
+  /** Pide confirmación entre la comanda de Cocina y la de Barra (imprime una,
+   *  esperas a cortarla a mano, y confirmas la siguiente). Para impresoras sin
+   *  corte automático. */
+  confirmarEntreTickets?: boolean
+  /** Aplica impuesto(s) al ticket. */
   impuestoActivo: boolean
-  /** Tasa del impuesto en porcentaje (ej. 16). */
+  /** Tasa del impuesto en porcentaje (ej. 16). Compatibilidad: si no hay lista. */
   impuestoTasa: number
-  /** true = los precios ya incluyen el IVA; false = el IVA se suma al total. */
+  /** true = los precios ya incluyen el impuesto; false = se suma al total. */
   impuestoIncluido: boolean
+  /** Impuestos personalizados del negocio (nombre + tasa). Si está vacío, se usa
+   *  el IVA único de `impuestoTasa`. */
+  impuestos?: Impuesto[]
+}
+
+/** Un impuesto con nombre y tasa (%). Ej. { nombre: 'IVA', tasa: 16 }. */
+export interface Impuesto {
+  nombre: string
+  tasa: number
 }
 
 /** Un dispositivo Bluetooth ofrecido por el selector (main → renderer). */
@@ -359,6 +383,7 @@ export interface ResumenTurno {
   totalTarjeta: number
   totalTransferencia: number
   totalGastos: number
+  totalPropinas: number
   numOrdenes: number
 }
 
@@ -449,6 +474,10 @@ export interface ReporteResumen {
   ticketPromedio: number
   /** Total de descuentos otorgados en el rango. */
   descuentos: number
+  /** Costo de lo vendido (suma de costo × cantidad). */
+  costoVendido: number
+  /** Utilidad estimada = ingreso de productos − costo de lo vendido. */
+  utilidad: number
 }
 
 /** Ventas de un día (clave YYYY-MM-DD en hora local). */

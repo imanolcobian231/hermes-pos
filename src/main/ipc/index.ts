@@ -90,12 +90,13 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.catalogo.desasignarGrupo, (_e, productoId: number, grupoId: number) =>
     catalogo.desasignarGrupo(productoId, grupoId)
   )
+  ipcMain.handle(CANALES.catalogo.masVendidos, () => catalogo.masVendidos())
 
   // --- Órdenes -------------------------------------------------------------
   ipcMain.handle(CANALES.ordenes.activas, () => ordenes.listarActivas())
   ipcMain.handle(CANALES.ordenes.deMesa, (_e, mesaId: number) => ordenes.ordenDeMesa(mesaId))
   ipcMain.handle(CANALES.ordenes.abrir, (_e, mesaId: number) => ordenes.abrir(mesaId))
-  ipcMain.handle(CANALES.ordenes.abrirLlevar, () => ordenes.abrirLlevar())
+  ipcMain.handle(CANALES.ordenes.abrirLlevar, (_e, nombre?: string) => ordenes.abrirLlevar(nombre))
   ipcMain.handle(CANALES.ordenes.descartar, (_e, ordenId: number) => ordenes.descartar(ordenId))
   ipcMain.handle(
     CANALES.ordenes.agregarProducto,
@@ -119,10 +120,18 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(
     CANALES.ordenes.cobrar,
-    (_e, ordenId: number, pagos: Pago[], efectivoRecibido?: number, descuento?: number, pin?: string) => {
+    (
+      _e,
+      ordenId: number,
+      pagos: Pago[],
+      efectivoRecibido?: number,
+      descuento?: number,
+      propina?: number,
+      pin?: string
+    ) => {
       // Aplicar descuento es una acción sensible: requiere autorización.
       if (descuento && descuento > 0) exigirAdmin(pin)
-      return ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento)
+      return ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento, propina)
     }
   )
   ipcMain.handle(CANALES.ordenes.fiar, (_e, ordenId: number, clienteId: number, descuento?: number) =>

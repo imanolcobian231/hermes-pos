@@ -23,8 +23,8 @@ const COLORES_MESA = [
 interface Props {
   /** Abre la pantalla de pedidos para la mesa seleccionada. */
   onAbrirMesa: (mesa: Mesa) => void
-  /** Crea un nuevo pedido para llevar y abre la pantalla de pedidos. */
-  onAbrirLlevar: () => void
+  /** Crea un nuevo pedido para llevar (con nombre opcional) y abre Pedidos. */
+  onAbrirLlevar: (nombre?: string) => void
   /** Reabre una orden existente (ej. un pedido para llevar en curso). */
   onAbrirOrden: (orden: OrdenConDetalle) => void
 }
@@ -38,6 +38,8 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
   const [capacidad, setCapacidad] = useState(4)
   const [color, setColor] = useState<string | undefined>(undefined)
   const [aEliminar, setAEliminar] = useState<Mesa | null>(null)
+  const [llevarAbierto, setLlevarAbierto] = useState(false)
+  const [nombreLlevar, setNombreLlevar] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -87,7 +89,13 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
             <Leyenda color="bg-acento" label="Ocupada" />
             <Leyenda color="bg-amber-500" label="Por cobrar" />
           </div>
-          <button onClick={onAbrirLlevar} className="btn-primario">
+          <button
+            onClick={() => {
+              setNombreLlevar('')
+              setLlevarAbierto(true)
+            }}
+            className="btn-primario"
+          >
             <Icono nombre="mas" size={16} />
             Pedido para llevar
           </button>
@@ -224,6 +232,48 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
           ))}
         </div>
         <p className="mt-2 text-xs text-tinta-suave/80">Útil para distinguir zonas (terraza, barra…).</p>
+      </Modal>
+
+      <Modal
+        abierto={llevarAbierto}
+        titulo="Pedido para llevar"
+        onCerrar={() => setLlevarAbierto(false)}
+        pie={
+          <>
+            <button onClick={() => setLlevarAbierto(false)} className="btn-texto">
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                setLlevarAbierto(false)
+                onAbrirLlevar(nombreLlevar.trim() || undefined)
+              }}
+              className="btn-primario"
+            >
+              Crear pedido
+            </button>
+          </>
+        }
+      >
+        <label className="mb-1 block text-sm font-medium text-tinta-suave">
+          Nombre del pedido (opcional)
+        </label>
+        <input
+          autoFocus
+          value={nombreLlevar}
+          onChange={(e) => setNombreLlevar(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              setLlevarAbierto(false)
+              onAbrirLlevar(nombreLlevar.trim() || undefined)
+            }
+          }}
+          placeholder="Ej. Juan, mostrador, teléfono…"
+          className="campo"
+        />
+        <p className="mt-2 text-xs text-tinta-suave">
+          Déjalo vacío para numerarlo automáticamente (“Para llevar #N”).
+        </p>
       </Modal>
 
       <ConfirmDialog

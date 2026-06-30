@@ -40,7 +40,9 @@ CREATE TABLE IF NOT EXISTS productos (
   -- Control de inventario del producto (descuento automático al vender).
   controlar_stock INTEGER NOT NULL DEFAULT 0,
   stock           REAL    NOT NULL DEFAULT 0,
-  stock_minimo    REAL    NOT NULL DEFAULT 0
+  stock_minimo    REAL    NOT NULL DEFAULT 0,
+  -- Costo del producto, para reportes de utilidad (precio − costo).
+  costo           REAL    NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS ordenes (
@@ -51,6 +53,7 @@ CREATE TABLE IF NOT EXISTS ordenes (
   estado         TEXT    NOT NULL DEFAULT 'abierta',
   total          REAL    NOT NULL DEFAULT 0,
   descuento      REAL    NOT NULL DEFAULT 0,
+  propina        REAL    NOT NULL DEFAULT 0,
   por_cobrar     INTEGER NOT NULL DEFAULT 0,
   metodo_pago    TEXT,
   monto_recibido REAL,
@@ -120,6 +123,7 @@ CREATE TABLE IF NOT EXISTS cortes (
   total_tarjeta       REAL NOT NULL DEFAULT 0,
   total_transferencia REAL NOT NULL DEFAULT 0,
   total_gastos        REAL NOT NULL DEFAULT 0,
+  total_propinas      REAL NOT NULL DEFAULT 0,
   num_ordenes         INTEGER NOT NULL DEFAULT 0,
   fondo_inicial       REAL NOT NULL DEFAULT 0,
   efectivo_contado    REAL,

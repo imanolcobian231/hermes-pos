@@ -3,35 +3,50 @@
 
 export interface ConfigImpuesto {
   impuestoActivo: boolean
-  /** Tasa en porcentaje, ej. 16 para IVA 16%. */
+  /** Tasa en porcentaje, ej. 16 para IVA 16% (respaldo si no hay lista). */
   impuestoTasa: number
   /** true = los precios YA incluyen el impuesto; false = se agrega al total. */
   impuestoIncluido: boolean
+  /** Impuestos personalizados (nombre + tasa). Si está vacío, se usa impuestoTasa. */
+  impuestos?: { nombre: string; tasa: number }[]
 }
 
 export interface DesgloseImpuesto {
   /** Importe sin impuesto. */
   base: number
-  /** Monto del impuesto. */
+  /** Monto total del impuesto (suma de todos). */
   iva: number
-  /** Total a pagar (base + iva, o el mismo neto si el IVA va incluido). */
+  /** Total a pagar (base + impuestos, o el mismo neto si van incluidos). */
   total: number
-  /** Tasa aplicada (%). 0 si no hay impuesto. */
+  /** Tasa total aplicada (%). 0 si no hay impuesto. */
   tasa: number
+  /** Desglose por impuesto (nombre, tasa, monto). */
+  lineas: { nombre: string; tasa: number; monto: number }[]
 }
 
-/** Desglosa el impuesto a partir del neto (total de líneas menos descuento). */
+/** Desglosa los impuestos a partir del neto (total de líneas menos descuento). */
 export function calcularImpuesto(neto: number, cfg: ConfigImpuesto): DesgloseImpuesto {
-  if (!cfg.impuestoActivo || cfg.impuestoTasa <= 0) {
-    return { base: neto, iva: 0, total: neto, tasa: 0 }
-  }
-  const r = cfg.impuestoTasa / 100
-  if (cfg.impuestoIncluido) {
-    const base = neto / (1 + r)
-    return { base, iva: neto - base, total: neto, tasa: cfg.impuestoTasa }
-  }
-  const iva = neto * r
-  return { base: neto, iva, total: neto + iva, tasa: cfg.impuestoTasa }
+  const vacio: DesgloseImpuesto = { base: neto, iva: 0, total: neto, tasa: 0, lineas: [] }
+  if (!cfg.impuestoActivo) return vacio
+  // Lista efectiva: los personalizados, o el IVA único como respaldo.
+  const lista = (
+    cfg.impuestos && cfg.impuestos.length > 0
+      ? cfg.impuestos
+      : cfg.impuestoTasa > 0
+        ? [{ nombre: 'IVA', tasa: cfg.impuestoTasa }]
+        : []
+  ).filter((i) => i.tasa > 0)
+  if (lista.length === 0) return vacio
+
+  const tasaTotal = lista.reduce((s, i) => s + i.tasa, 0)
+  const r = tasaTotal / 100
+  // Precios con impuesto incluido: la base se extrae del neto; si no, se suma.
+  const base = cfg.impuestoIncluido ? neto / (1 + r) : neto
+  const total = cfg.impuestoIncluido ? neto : neto + neto * r
+  const iva = total - base
+  // Reparte el impuesto por tasa (base × tasa). La suma da el iva total.
+  const lineas = lista.map((i) => ({ nombre: i.nombre, tasa: i.tasa, monto: base * (i.tasa / 100) }))
+  return { base, iva, total, tasa: tasaTotal, lineas }
 }
 
 // --- Importe a letra (pesos mexicanos) --------------------------------------

@@ -253,6 +253,8 @@ export function bytesFinal(
   const fmtMitad = formato(Math.max(8, Math.floor(w / 2)))
   const neto = orden.total - orden.descuento
   const imp = calcularImpuesto(neto, cfg)
+  const propina = orden.propina ?? 0
+  const totalConPropina = imp.total + propina
 
   // --- Cuerpo (tamaño normal): encabezado, productos y desglose. ---
   // Con logo arriba no hace falta margen superior (el logo ya separa); sin logo,
@@ -268,7 +270,8 @@ export function bytesFinal(
   if (cfg.telefono) centrarEnvuelto(`Tel: ${cfg.telefono}`)
   if (cfg.rfc) centrarEnvuelto(`RFC: ${cfg.rfc}`)
   cabeza.push('')
-  cabeza.push(centrar('Gracias por su visita'))
+  const mensaje = (cfg.mensajeTicket ?? 'Gracias por su visita').trim()
+  if (mensaje) for (const ln of envolver(mensaje, w)) cabeza.push(centrar(ln))
   if (opciones.copia) cabeza.push(centrar('*** COPIA ***'))
   cabeza.push('')
   cabeza.push(linea())
@@ -287,15 +290,19 @@ export function bytesFinal(
     cabeza.push(fila('Importe', pesos(orden.total)))
     cabeza.push(fila('Descuento', `-${pesos(orden.descuento)}`))
   }
-  if (imp.tasa > 0) {
+  if (imp.lineas.length > 0) {
     cabeza.push(fila('Subtotal', pesos(imp.base)))
-    cabeza.push(fila(`IVA ${imp.tasa}%`, pesos(imp.iva)))
+    for (const t of imp.lineas) cabeza.push(fila(`${t.nombre} ${t.tasa}%`, pesos(t.monto)))
+  }
+  if (propina > 0) {
+    cabeza.push(fila('Venta', pesos(imp.total)))
+    cabeza.push(fila('Propina', pesos(propina)))
   }
   cabeza.push('') // margen antes del TOTAL
 
   // --- Pie (tamaño normal): total en letra (alineado a la izquierda) y pago. ---
   const cola: string[] = ['']
-  for (const ln of envolver(`Son ${totalEnLetra(imp.total)}`, cfg.ancho)) cola.push(ln)
+  for (const ln of envolver(`Son ${totalEnLetra(totalConPropina)}`, w)) cola.push(ln)
   cola.push('')
   const pagos = orden.pagos ?? []
   if (pagos.length > 0) {
@@ -307,7 +314,7 @@ export function bytesFinal(
   } else if (orden.metodoPago && orden.metodoPago !== 'mixto') {
     // Compatibilidad con órdenes antiguas sin desglose de pagos.
     const metodoCap = orden.metodoPago.charAt(0).toUpperCase() + orden.metodoPago.slice(1)
-    cola.push(fila(metodoCap, pesos(orden.montoRecibido ?? imp.total)))
+    cola.push(fila(metodoCap, pesos(orden.montoRecibido ?? totalConPropina)))
     if (orden.metodoPago === 'efectivo') cola.push(fila('Cambio', pesos(orden.cambio ?? 0)))
   }
   cola.push('')
@@ -319,7 +326,7 @@ export function bytesFinal(
     [
       ...(logo ? [logo] : []),
       { texto: cabeza.join('\n') },
-      { texto: fmtMitad.fila('TOTAL', pesos(imp.total)), grande: true },
+      { texto: fmtMitad.fila('TOTAL', pesos(totalConPropina)), grande: true },
       { texto: cola.join('\n') },
       { texto: '\n' },
       // Pie de marca Hermes: logo si se proporcionó, si no el texto.
@@ -360,6 +367,7 @@ export function bytesCorte(corte: Corte, ancho?: number): number[] {
   l.push(linea())
   l.push(fila('Ventas', pesos(ventas)))
   if (corte.totalGastos > 0) l.push(fila('Gastos', `-${pesos(corte.totalGastos)}`))
+  if (corte.totalPropinas > 0) l.push(fila('Propinas', pesos(corte.totalPropinas)))
   l.push('')
 
   // Cuadre de efectivo en el cajón.
@@ -422,6 +430,7 @@ export function bytesPrueba(destino: DestinoImpresion, ancho?: number, logoPie?:
     estado: 'cobrada',
     total,
     descuento: 0,
+    propina: 0,
     porCobrar: false,
     metodoPago: 'efectivo',
     montoRecibido,

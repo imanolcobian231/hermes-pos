@@ -35,8 +35,10 @@ export function resumenTurno(): ResumenTurno {
     )
     .get() as { efectivo: number; tarjeta: number; transferencia: number }
   const c = db
-    .prepare("SELECT COUNT(*) AS num FROM ordenes WHERE estado = 'cobrada' AND corte_id IS NULL")
-    .get() as { num: number }
+    .prepare(
+      "SELECT COUNT(*) AS num, COALESCE(SUM(propina), 0) AS propinas FROM ordenes WHERE estado = 'cobrada' AND corte_id IS NULL"
+    )
+    .get() as { num: number; propinas: number }
 
   // Los abonos de crédito cobrados en el turno también son dinero que entró.
   const ab = creditos.abonosTurnoPorMetodo()
@@ -46,6 +48,7 @@ export function resumenTurno(): ResumenTurno {
     totalTarjeta: m.tarjeta + ab.tarjeta,
     totalTransferencia: m.transferencia + ab.transferencia,
     totalGastos: gastos.totalTurno(),
+    totalPropinas: c.propinas,
     numOrdenes: c.num
   }
 }
@@ -72,9 +75,9 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
     const r = db
       .prepare(
         `INSERT INTO cortes
-           (fecha, total_efectivo, total_tarjeta, total_transferencia, total_gastos, num_ordenes,
-            fondo_inicial, efectivo_contado, diferencia, cerrado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (fecha, total_efectivo, total_tarjeta, total_transferencia, total_gastos, total_propinas,
+            num_ordenes, fondo_inicial, efectivo_contado, diferencia, cerrado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         t,
@@ -82,6 +85,7 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
         resumen.totalTarjeta,
         resumen.totalTransferencia,
         resumen.totalGastos,
+        resumen.totalPropinas,
         resumen.numOrdenes,
         fondoInicial,
         contado ?? null,

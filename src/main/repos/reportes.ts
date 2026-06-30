@@ -54,6 +54,18 @@ export function generar(desde: string, hasta: string): ReporteVentas {
     )
     .all(...rango, TOP) as ProductoVendido[]
 
+  // Utilidad: ingreso de productos − costo (costo actual del producto).
+  const util = db
+    .prepare(
+      `SELECT COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingreso,
+              COALESCE(SUM(d.cantidad * COALESCE(pr.costo, 0)), 0) AS costo
+       FROM detalle_ordenes d
+       JOIN ordenes o ON o.id = d.orden_id
+       LEFT JOIN productos pr ON pr.id = d.producto_id
+       WHERE ${filtro}`
+    )
+    .get(...rango) as { ingreso: number; costo: number }
+
   const met = db
     .prepare(
       `SELECT
@@ -72,7 +84,9 @@ export function generar(desde: string, hasta: string): ReporteVentas {
       ventas: tot.ventas,
       numOrdenes: tot.num,
       ticketPromedio: tot.num > 0 ? tot.ventas / tot.num : 0,
-      descuentos: desc.d
+      descuentos: desc.d,
+      costoVendido: util.costo,
+      utilidad: util.ingreso - util.costo
     },
     porDia,
     topProductos,

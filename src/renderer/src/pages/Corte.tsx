@@ -35,6 +35,7 @@ export function Corte(): React.JSX.Element {
   const transferencia = resumen.totalTransferencia
   const total = efectivo + tarjeta + transferencia
   const gastos = resumen.totalGastos
+  const propinas = resumen.totalPropinas
   const balance = total - gastos
   const numOrdenes = resumen.numOrdenes
 
@@ -172,6 +173,11 @@ export function Corte(): React.JSX.Element {
         </div>
         <p className="mt-3 text-sm text-tinta-suave">
           {numOrdenes} {numOrdenes === 1 ? 'orden cobrada' : 'órdenes cobradas'} en el turno
+          {propinas > 0 && (
+            <>
+              {' · '}propinas <strong className="text-tinta">{pesos(propinas)}</strong>
+            </>
+          )}
         </p>
       </section>
 

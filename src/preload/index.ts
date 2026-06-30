@@ -73,14 +73,17 @@ const api = {
     asignarGrupo: (productoId: number, grupoId: number): Promise<void> =>
       invoke(CANALES.catalogo.asignarGrupo, productoId, grupoId),
     desasignarGrupo: (productoId: number, grupoId: number): Promise<void> =>
-      invoke(CANALES.catalogo.desasignarGrupo, productoId, grupoId)
+      invoke(CANALES.catalogo.desasignarGrupo, productoId, grupoId),
+    masVendidos: (): Promise<{ productoId: number; vendido: number }[]> =>
+      invoke(CANALES.catalogo.masVendidos)
   },
   ordenes: {
     activas: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.activas),
     deMesa: (mesaId: number): Promise<OrdenConDetalle | undefined> =>
       invoke(CANALES.ordenes.deMesa, mesaId),
     abrir: (mesaId: number): Promise<OrdenConDetalle> => invoke(CANALES.ordenes.abrir, mesaId),
-    abrirLlevar: (): Promise<OrdenConDetalle> => invoke(CANALES.ordenes.abrirLlevar),
+    abrirLlevar: (nombre?: string): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.abrirLlevar, nombre),
     descartar: (ordenId: number): Promise<void> => invoke(CANALES.ordenes.descartar, ordenId),
     agregarProducto: (
       ordenId: number,
@@ -104,9 +107,10 @@ const api = {
       pagos: Pago[],
       efectivoRecibido?: number,
       descuento?: number,
+      propina?: number,
       pin?: string
     ): Promise<OrdenConDetalle> =>
-      invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento, pin),
+      invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento, propina, pin),
     fiar: (ordenId: number, clienteId: number, descuento?: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.fiar, ordenId, clienteId, descuento),
     cancelar: (ordenId: number, motivo: string, usuario?: string, pin?: string): Promise<void> =>
