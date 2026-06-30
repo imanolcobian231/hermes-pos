@@ -1,6 +1,8 @@
+import { useEffect, useMemo, useState } from 'react'
 import type { MetodoPago, OrdenConDetalle } from '@shared/types'
 import { fechaHora, pesos } from '@renderer/lib/format'
 import { useImpresion } from '@renderer/store/impresion'
+import { logoAVistaPrevia, logoHermes } from '@renderer/lib/logo'
 import { calcularImpuesto, totalEnLetra } from '@shared/impuestos'
 import { agruparLineas } from '@shared/ticket'
 
@@ -24,16 +26,43 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
     orden.total - orden.descuento,
     cfg ?? { impuestoActivo: false, impuestoTasa: 0, impuestoIncluido: true }
   )
+  const logo = useMemo(
+    () => (cfg?.logoTicket ? logoAVistaPrevia(cfg.logoTicket) : null),
+    [cfg?.logoTicket]
+  )
+  // Logo de Hermes al pie, rasterizado igual que en el ticket impreso (B/N,
+  // recortado) para que la simulación coincida con lo que sale en papel.
+  const cajaAncho =
+    cfg?.impresoras.find((i) => i.id === cfg?.impresoraCajaId)?.ancho ?? cfg?.ancho ?? 32
+  const wHermes = Math.round((cajaAncho === 48 ? 576 : 384) / 2)
+  const [pieHermes, setPieHermes] = useState<string | null>(null)
+  useEffect(() => {
+    let activo = true
+    logoHermes(wHermes)
+      .then((l) => activo && setPieHermes(logoAVistaPrevia(l)))
+      .catch(() => activo && setPieHermes(null))
+    return () => {
+      activo = false
+    }
+  }, [wHermes])
+  // Dirección por renglones (cada línea aparte), igual que impreso.
+  const direccionLineas = (cfg?.direccion ?? '').split('\n').map((s) => s.trim()).filter(Boolean)
   return (
     <div className="mx-auto w-64 rounded-lg border border-dashed border-black/10 bg-black/[0.03] p-4 font-mono text-xs text-tinta">
+      {logo && <img src={logo} alt="Logo" className="mx-auto mb-2 max-w-full" />}
       {cfg?.nombreNegocio && (
         <div className="text-center font-bold">{cfg.nombreNegocio}</div>
       )}
-      {cfg?.direccion && (
-        <div className="text-center text-[10px] text-tinta-suave">{cfg.direccion}</div>
-      )}
+      {direccionLineas.map((ln, i) => (
+        <div key={i} className="text-center text-[10px] text-tinta-suave">
+          {ln}
+        </div>
+      ))}
       {cfg?.telefono && (
         <div className="text-center text-[10px] text-tinta-suave">Tel: {cfg.telefono}</div>
+      )}
+      {cfg?.rfc && (
+        <div className="text-center text-[10px] text-tinta-suave">RFC: {cfg.rfc}</div>
       )}
       <div className="text-center text-[10px] text-tinta-suave">Gracias por su visita</div>
       {copia && <div className="mt-1 text-center font-bold">*** COPIA ***</div>}
@@ -133,7 +162,11 @@ export function TicketFinal({ titulo, orden, copia }: Props): React.JSX.Element 
       ) : null}
 
       <div className="my-2 border-t border-dashed border-black/10" />
-      <div className="text-center text-base font-extrabold tracking-wide">Hermes</div>
+      {pieHermes ? (
+        <img src={pieHermes} alt="Hermes" className="mx-auto mb-1 w-auto max-w-full" />
+      ) : (
+        <div className="text-center text-base font-extrabold tracking-wide">Hermes</div>
+      )}
       <div className="text-center text-[10px] text-tinta-suave">Powered by Olyssea</div>
     </div>
   )

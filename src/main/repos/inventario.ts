@@ -97,6 +97,49 @@ export function movimientosDe(insumoId: number): MovimientoInventario[] {
   return filas.map(aMovimientoInventario)
 }
 
+// --- Stock de PRODUCTOS del catálogo (los marcados con "controlar inventario") ---
+
+/** Registra un movimiento de stock de un producto y actualiza su stock. */
+export function registrarMovimientoProducto(
+  productoId: number,
+  tipo: TipoMovInventario,
+  cantidad: number,
+  nota: string | undefined,
+  usuario = 'caja'
+): void {
+  const db = obtenerDb()
+  const prod = db.prepare('SELECT stock FROM productos WHERE id = ?').get(productoId) as
+    | { stock: number }
+    | undefined
+  if (!prod) throw new Error(`Producto ${productoId} no encontrado`)
+  const cant = Math.max(0, cantidad || 0)
+  if (cant === 0 && tipo !== 'ajuste') throw new Error('La cantidad debe ser mayor a cero')
+
+  let nuevoStock: number
+  if (tipo === 'entrada') nuevoStock = (prod.stock || 0) + cant
+  else if (tipo === 'salida' || tipo === 'merma') nuevoStock = (prod.stock || 0) - cant
+  else nuevoStock = cant // ajuste
+  nuevoStock = Math.round(nuevoStock * 1000) / 1000
+
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE productos SET stock = ? WHERE id = ?').run(nuevoStock, productoId)
+    db.prepare(
+      `INSERT INTO movimientos_producto (producto_id, tipo, cantidad, nota, usuario, creado_en)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run(productoId, tipo, cant, nota?.trim() || null, usuario, ahora())
+  })
+  tx()
+}
+
+export function movimientosProductoDe(productoId: number): MovimientoInventario[] {
+  const filas = obtenerDb()
+    .prepare(
+      'SELECT *, producto_id AS insumo_id FROM movimientos_producto WHERE producto_id = ? ORDER BY creado_en DESC, id DESC'
+    )
+    .all(productoId) as Record<string, unknown>[]
+  return filas.map(aMovimientoInventario)
+}
+
 export function resumen(): ResumenInventario {
   const r = obtenerDb()
     .prepare(

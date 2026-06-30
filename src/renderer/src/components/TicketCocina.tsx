@@ -1,5 +1,6 @@
 import type { DetalleOrden } from '@shared/types'
 import { hora } from '@renderer/lib/format'
+import { useImpresion } from '@renderer/store/impresion'
 
 interface Props {
   titulo: string
@@ -8,6 +9,10 @@ interface Props {
   adicional?: boolean
   /** true para reimpresiones (marca *** REIMPRESION ***). */
   reimpresion?: boolean
+  /** true para correcciones tras quitar/restar algo ya enviado (*** CORRECCION ***). */
+  correccion?: boolean
+  /** Área de la comanda: cambia el encabezado y, en barra, no separa por comensal. */
+  area?: 'cocina' | 'barra'
 }
 
 // Agrupa las líneas por comensal, ordenadas por número de comensal.
@@ -23,12 +28,24 @@ export function agruparPorComensal(lineas: DetalleOrden[]): [number, DetalleOrde
 
 // Previsualización de lo que se imprimiría en la térmica (modo simulación).
 // Solo incluye las líneas del envío diferencial.
-export function TicketCocina({ titulo, lineas, adicional, reimpresion }: Props): React.JSX.Element {
-  // Muestra encabezados de comensal solo si hay más de uno.
-  const mostrarComensal = new Set(lineas.map((l) => l.comensal ?? 1)).size > 1
+export function TicketCocina({
+  titulo,
+  lineas,
+  adicional,
+  reimpresion,
+  correccion,
+  area
+}: Props): React.JSX.Element {
+  const { cfg } = useImpresion()
+  // Comensal: solo en cocina (la barra nunca separa), si el ajuste lo permite y hay más de uno.
+  const mostrarComensal =
+    area !== 'barra' &&
+    cfg?.separarComensales !== false &&
+    new Set(lineas.map((l) => l.comensal ?? 1)).size > 1
+  const encabezado = correccion ? '*** CORRECCION ***' : area === 'barra' ? '*** BARRA ***' : '*** COCINA ***'
   return (
     <div className="mx-auto w-64 rounded-lg border border-dashed border-black/10 bg-black/[0.03] p-4 font-mono text-xs text-tinta">
-      <div className="text-center font-bold">*** COCINA ***</div>
+      <div className="text-center font-bold">{encabezado}</div>
       {adicional && <div className="text-center font-bold">*** ADICIONAL ***</div>}
       {reimpresion && <div className="text-center font-bold">*** REIMPRESION ***</div>}
       <div className="my-2 border-t border-dashed border-black/10" />

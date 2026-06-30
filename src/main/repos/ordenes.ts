@@ -107,6 +107,18 @@ function ajustarStockProductos(db: ReturnType<typeof obtenerDb>, ordenId: number
      WHERE controlar_stock = 1
        AND id IN (SELECT producto_id FROM detalle_ordenes WHERE orden_id = ?)`
   ).run(factor, ordenId, ordenId)
+
+  // Registra el movimiento por producto: 'salida' al vender, 'entrada' al devolver.
+  const tipo = factor < 0 ? 'salida' : 'entrada'
+  const nota = factor < 0 ? `Venta orden #${ordenId}` : `Devolución orden #${ordenId}`
+  db.prepare(
+    `INSERT INTO movimientos_producto (producto_id, tipo, cantidad, nota, usuario, creado_en)
+     SELECT d.producto_id, ?, SUM(d.cantidad), ?, 'caja', ?
+       FROM detalle_ordenes d
+       JOIN productos p ON p.id = d.producto_id
+      WHERE d.orden_id = ? AND p.controlar_stock = 1
+      GROUP BY d.producto_id`
+  ).run(tipo, nota, ahora(), ordenId)
 }
 
 export function abrir(mesaId: number): OrdenConDetalle {

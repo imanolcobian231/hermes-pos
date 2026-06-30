@@ -19,6 +19,7 @@ import type {
   GrupoModificador,
   Insumo,
   InsumoInput,
+  LogoTicket,
   Mesa,
   MesaInput,
   MetodoPago,
@@ -152,7 +153,17 @@ const api = {
     ): Promise<Insumo> =>
       invoke(CANALES.inventario.movimiento, insumoId, tipo, cantidad, nota, usuario),
     movimientos: (insumoId: number): Promise<MovimientoInventario[]> =>
-      invoke(CANALES.inventario.movimientos, insumoId)
+      invoke(CANALES.inventario.movimientos, insumoId),
+    movimientoProducto: (
+      productoId: number,
+      tipo: TipoMovInventario,
+      cantidad: number,
+      nota?: string,
+      usuario?: string
+    ): Promise<void> =>
+      invoke(CANALES.inventario.movimientoProducto, productoId, tipo, cantidad, nota, usuario),
+    movimientosProducto: (productoId: number): Promise<MovimientoInventario[]> =>
+      invoke(CANALES.inventario.movimientosProducto, productoId)
   },
   gastos: {
     listar: (): Promise<Gasto[]> => invoke(CANALES.gastos.listar),
@@ -185,12 +196,24 @@ const api = {
     bytesCocina: (
       titulo: string,
       lineas: DetalleOrden[],
-      opciones?: { adicional?: boolean; reimpresion?: boolean }
-    ): Promise<number[]> => invoke(CANALES.printer.bytesCocina, titulo, lineas, opciones),
-    bytesFinal: (ordenId: number, opciones?: { copia?: boolean }): Promise<number[]> =>
-      invoke(CANALES.printer.bytesFinal, ordenId, opciones),
-    bytesPrueba: (destino: DestinoImpresion): Promise<number[]> =>
-      invoke(CANALES.printer.bytesPrueba, destino),
+      opciones?: {
+        adicional?: boolean
+        reimpresion?: boolean
+        cancelacion?: boolean
+        area?: 'cocina' | 'barra'
+      },
+      ancho?: number
+    ): Promise<number[]> => invoke(CANALES.printer.bytesCocina, titulo, lineas, opciones, ancho),
+    bytesFinal: (
+      ordenId: number,
+      opciones?: { copia?: boolean },
+      ancho?: number,
+      logoPie?: LogoTicket | null
+    ): Promise<number[]> => invoke(CANALES.printer.bytesFinal, ordenId, opciones, ancho, logoPie),
+    bytesCorte: (corte: Corte, ancho?: number): Promise<number[]> =>
+      invoke(CANALES.printer.bytesCorte, corte, ancho),
+    bytesPrueba: (destino: DestinoImpresion, ancho?: number, logoPie?: LogoTicket | null): Promise<number[]> =>
+      invoke(CANALES.printer.bytesPrueba, destino, ancho, logoPie),
     listarPuertos: (): Promise<string[]> => invoke(CANALES.printer.listarPuertos),
     enviarCom: (puerto: string, baudRate: number, bytes: number[]): Promise<void> =>
       invoke(CANALES.printer.enviarCom, puerto, baudRate, bytes)

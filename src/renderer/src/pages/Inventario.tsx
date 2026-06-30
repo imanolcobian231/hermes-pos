@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Insumo, InsumoInput, MovimientoInventario, TipoMovInventario } from '@shared/types'
+import type {
+  Insumo,
+  InsumoInput,
+  MovimientoInventario,
+  Producto,
+  TipoMovInventario
+} from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { useAuth } from '@renderer/store/auth'
 import { pesos, fechaHora } from '@renderer/lib/format'
@@ -24,12 +30,20 @@ const etiquetaMov: Record<TipoMovInventario, string> = {
 }
 
 export function Inventario(): React.JSX.Element {
-  const { insumos, guardarInsumo, eliminarInsumo, movimientoInventario } = useDatos()
+  const { insumos, productos, guardarInsumo, eliminarInsumo, movimientoInventario, movimientoProducto } =
+    useDatos()
   const toast = useToast()
   const [form, setForm] = useState<InsumoInput | null>(null)
   const [detalleId, setDetalleId] = useState<number | null>(null)
+  const [prodDetalleId, setProdDetalleId] = useState<number | null>(null)
 
   const detalle = insumos.find((i) => i.id === detalleId) ?? null
+  // Productos del catálogo marcados con "controlar inventario".
+  const productosStock = useMemo(
+    () => productos.filter((p) => p.controlarStock).sort((a, b) => a.nombre.localeCompare(b.nombre)),
+    [productos]
+  )
+  const prodDetalle = productosStock.find((p) => p.id === prodDetalleId) ?? null
 
   const resumen = useMemo(() => {
     const bajo = insumos.filter((i) => i.stock <= i.stockMinimo).length
@@ -74,59 +88,121 @@ export function Inventario(): React.JSX.Element {
         </button>
       </header>
 
-      {insumos.length === 0 ? (
+      {insumos.length === 0 && productosStock.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
           <Icono nombre="inventario" size={40} className="text-tinta-suave/40" />
-          <p className="mt-3 font-semibold">Sin insumos registrados</p>
+          <p className="mt-3 font-semibold">Sin insumos ni productos con inventario</p>
+          <p className="mt-1 text-sm">
+            Crea un insumo, o marca un producto con “controlar inventario” en Catálogo.
+          </p>
         </div>
       ) : (
-        <div className="tarjeta overflow-hidden shadow-sm">
-          <table className="w-full text-sm">
-            <thead className="border-b border-black/[0.06] bg-black/[0.02] text-left text-xs uppercase tracking-wider text-tinta-suave">
-              <tr>
-                <th className="px-4 py-3 font-semibold">Insumo</th>
-                <th className="px-4 py-3 text-right font-semibold">Stock</th>
-                <th className="px-4 py-3 text-right font-semibold">Mínimo</th>
-                <th className="px-4 py-3 text-right font-semibold">Costo</th>
-                <th className="px-4 py-3 text-right font-semibold">Valor</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody>
-              {insumos.map((i) => {
-                const bajo = i.stock <= i.stockMinimo
-                return (
-                  <tr
-                    key={i.id}
-                    onClick={() => setDetalleId(i.id)}
-                    className="cursor-pointer border-b border-black/[0.04] transition last:border-0 hover:bg-black/[0.02]"
-                  >
-                    <td className="px-4 py-3 font-medium text-tinta">{i.nombre}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className={`font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
-                        {i.stock} {i.unidad}
-                      </span>
-                      {bajo && (
-                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
-                          bajo
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-right text-tinta-suave">
-                      {i.stockMinimo} {i.unidad}
-                    </td>
-                    <td className="px-4 py-3 text-right text-tinta-suave">{pesos(i.costo)}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-tinta">
-                      {pesos(i.stock * i.costo)}
-                    </td>
-                    <td className="px-4 py-3 text-right text-tinta-suave">
-                      <Icono nombre="volver" size={14} className="inline rotate-180" />
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <div className="flex flex-col gap-6 overflow-auto">
+          {insumos.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-tinta-suave">
+                Insumos
+              </h2>
+              <div className="tarjeta overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-black/[0.06] bg-black/[0.02] text-left text-xs uppercase tracking-wider text-tinta-suave">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Insumo</th>
+                      <th className="px-4 py-3 text-right font-semibold">Stock</th>
+                      <th className="px-4 py-3 text-right font-semibold">Mínimo</th>
+                      <th className="px-4 py-3 text-right font-semibold">Costo</th>
+                      <th className="px-4 py-3 text-right font-semibold">Valor</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {insumos.map((i) => {
+                      const bajo = i.stock <= i.stockMinimo
+                      return (
+                        <tr
+                          key={i.id}
+                          onClick={() => setDetalleId(i.id)}
+                          className="cursor-pointer border-b border-black/[0.04] transition last:border-0 hover:bg-black/[0.02]"
+                        >
+                          <td className="px-4 py-3 font-medium text-tinta">{i.nombre}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+                              {i.stock} {i.unidad}
+                            </span>
+                            {bajo && (
+                              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                                bajo
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">
+                            {i.stockMinimo} {i.unidad}
+                          </td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">{pesos(i.costo)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-tinta">
+                            {pesos(i.stock * i.costo)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">
+                            <Icono nombre="volver" size={14} className="inline rotate-180" />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
+
+          {productosStock.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-bold uppercase tracking-wider text-tinta-suave">
+                Productos con inventario
+              </h2>
+              <div className="tarjeta overflow-hidden shadow-sm">
+                <table className="w-full text-sm">
+                  <thead className="border-b border-black/[0.06] bg-black/[0.02] text-left text-xs uppercase tracking-wider text-tinta-suave">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Producto</th>
+                      <th className="px-4 py-3 text-right font-semibold">Stock</th>
+                      <th className="px-4 py-3 text-right font-semibold">Mínimo</th>
+                      <th className="px-4 py-3 text-right font-semibold">Precio</th>
+                      <th className="px-4 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {productosStock.map((p) => {
+                      const bajo = p.stock <= p.stockMinimo
+                      return (
+                        <tr
+                          key={p.id}
+                          onClick={() => setProdDetalleId(p.id)}
+                          className="cursor-pointer border-b border-black/[0.04] transition last:border-0 hover:bg-black/[0.02]"
+                        >
+                          <td className="px-4 py-3 font-medium text-tinta">{p.nombre}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={`font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+                              {p.stock}
+                            </span>
+                            {bajo && (
+                              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                                bajo
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">{p.stockMinimo}</td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">{pesos(p.precio)}</td>
+                          <td className="px-4 py-3 text-right text-tinta-suave">
+                            <Icono nombre="volver" size={14} className="inline rotate-180" />
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          )}
         </div>
       )}
 
@@ -206,7 +282,157 @@ export function Inventario(): React.JSX.Element {
         }}
         onMover={movimientoInventario}
       />
+
+      {/* Detalle de un producto con inventario */}
+      <DetalleProducto
+        producto={prodDetalle}
+        onCerrar={() => setProdDetalleId(null)}
+        onMover={movimientoProducto}
+      />
     </div>
+  )
+}
+
+// Panel de un PRODUCTO con control de inventario: muestra su stock, permite
+// registrar movimientos (entrada/salida/merma/ajuste) y ve el historial. La
+// edición del producto en sí se hace en Catálogo.
+function DetalleProducto({
+  producto,
+  onCerrar,
+  onMover
+}: {
+  producto: Producto | null
+  onCerrar: () => void
+  onMover: (
+    productoId: number,
+    tipo: TipoMovInventario,
+    cantidad: number,
+    nota?: string,
+    usuario?: string
+  ) => Promise<void>
+}): React.JSX.Element | null {
+  const { usuarioActual } = useAuth()
+  const toast = useToast()
+  const [movs, setMovs] = useState<MovimientoInventario[]>([])
+  const [tipo, setTipo] = useState<TipoMovInventario>('entrada')
+  const [cantidad, setCantidad] = useState('')
+  const [nota, setNota] = useState('')
+
+  useEffect(() => {
+    if (!producto) return
+    void window.api.inventario.movimientosProducto(producto.id).then(setMovs)
+    setTipo('entrada')
+    setCantidad('')
+    setNota('')
+  }, [producto?.id, producto?.stock])
+
+  if (!producto) return null
+
+  const cant = parseFloat(cantidad) || 0
+  const ayuda = MOVS.find((m) => m.id === tipo)!.ayuda
+  const bajo = producto.stock <= producto.stockMinimo
+
+  const registrar = async (): Promise<void> => {
+    if (cant <= 0 && tipo !== 'ajuste') {
+      toast('Captura una cantidad', 'error')
+      return
+    }
+    try {
+      await onMover(producto.id, tipo, cant, nota, usuarioActual?.nombre)
+      setCantidad('')
+      setNota('')
+      toast('Movimiento registrado', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo registrar', 'error')
+    }
+  }
+
+  return (
+    <Modal
+      abierto={producto !== null}
+      titulo={producto.nombre}
+      onCerrar={onCerrar}
+      pie={
+        <button onClick={onCerrar} className="btn-primario">
+          Listo
+        </button>
+      }
+    >
+      <div className="mb-4 flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
+        <span className="text-sm font-medium text-tinta-suave">Stock actual</span>
+        <span className={`text-xl font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+          {producto.stock}
+        </span>
+      </div>
+
+      <div className="mb-4 rounded-2xl border border-black/[0.06] p-3">
+        <div className="mb-2 grid grid-cols-4 gap-2">
+          {MOVS.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => setTipo(m.id)}
+              className={`flex flex-col items-center gap-1 rounded-xl border py-2 text-xs font-semibold transition ${
+                tipo === m.id
+                  ? 'border-acento bg-acento text-white'
+                  : 'border-black/[0.08] text-tinta-suave hover:bg-black/[0.04]'
+              }`}
+            >
+              <Icono nombre={m.icono} size={15} />
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <input
+          type="number"
+          value={cantidad}
+          onChange={(e) => setCantidad(e.target.value)}
+          placeholder={ayuda}
+          className="campo"
+        />
+        <input
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          placeholder="Nota (opcional)"
+          className="campo mt-2"
+        />
+        <button onClick={() => void registrar()} className="btn-primario mt-3 w-full">
+          Registrar {etiquetaMov[tipo].toLowerCase()}
+        </button>
+      </div>
+
+      <div className="text-sm font-semibold text-tinta">Movimientos</div>
+      {movs.length === 0 ? (
+        <p className="py-2 text-sm text-tinta-suave">Sin movimientos.</p>
+      ) : (
+        <div className="mt-1 max-h-48 overflow-auto">
+          {movs.map((m) => {
+            const signo = m.tipo === 'entrada' ? '+' : m.tipo === 'ajuste' ? '=' : '−'
+            const color =
+              m.tipo === 'entrada'
+                ? 'text-emerald-600'
+                : m.tipo === 'ajuste'
+                  ? 'text-tinta'
+                  : 'text-red-600'
+            return (
+              <div
+                key={m.id}
+                className="flex items-center justify-between border-b border-black/[0.04] py-1.5 text-sm last:border-0"
+              >
+                <div>
+                  <span className={`font-semibold ${color}`}>{etiquetaMov[m.tipo]}</span>
+                  <span className="ml-2 text-xs text-tinta-suave">{fechaHora(m.creadoEn)}</span>
+                  {m.nota && <span className="ml-2 text-xs text-tinta-suave">· {m.nota}</span>}
+                </div>
+                <span className={`font-semibold ${color}`}>
+                  {signo}
+                  {m.cantidad}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </Modal>
   )
 }
 

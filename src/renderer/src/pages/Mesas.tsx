@@ -74,14 +74,14 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
 
   return (
     <div className="flex h-full flex-col">
-      <header className="mb-6 flex items-center justify-between">
+      <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-tinta">Mesas</h1>
           <p className="mt-1 text-sm text-tinta-suave">
             Selecciona una mesa para abrir o ver su orden · usa el botón de editar para renombrarla
           </p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="flex gap-4 text-xs">
             <Leyenda color="bg-black/25" label="Libre" />
             <Leyenda color="bg-acento" label="Ocupada" />
@@ -134,7 +134,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
       )}
 
       {/* Resumen del turno */}
-      <div className="mb-5 flex gap-3 text-sm">
+      <div className="mb-5 flex flex-wrap gap-3 text-sm">
         <Stat label="Mesas activas" valor={`${resumen.ocupadas}/${mesas.length}`} />
         <Stat label="Por cobrar" valor={String(resumen.porCobrar)} />
         <Stat label="Consumo en curso" valor={pesos(resumen.enCurso)} />

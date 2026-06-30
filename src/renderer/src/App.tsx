@@ -157,11 +157,11 @@ function Contenido(): React.JSX.Element {
     <div className="flex h-screen bg-fondo text-tinta">
       {/* Barra lateral — clara y translúcida, estilo Apple */}
       <aside className="flex w-64 flex-col border-r border-black/[0.07] bg-white/70 backdrop-blur-xl">
-        <div className="flex items-center justify-center px-5 py-5">
+        <div className="flex items-center justify-center px-5 pb-5 pt-10">
           <LogoHermes className="w-3/4 object-contain" />
         </div>
 
-        <nav className="flex-1 px-3 py-1">
+        <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-1">
           <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-tinta-suave/70">
             Operación
           </div>

@@ -4,12 +4,14 @@ import type {
   CategoriaInput,
   CierreCorteInput,
   ClienteInput,
+  Corte,
   ConfigImpresoras,
   ConfigRespaldo,
   DestinoImpresion,
   DetalleOrden,
   GrupoInput,
   InsumoInput,
+  LogoTicket,
   MesaInput,
   MetodoPago,
   ModificadorInput,
@@ -32,7 +34,7 @@ import * as usuarios from '../repos/usuarios'
 import * as reimpresiones from '../repos/reimpresiones'
 import * as config from '../repos/config'
 import * as sesion from '../sesion'
-import { bytesCocina, bytesFinal, bytesPrueba } from '../printer/tickets'
+import { bytesCocina, bytesCorte, bytesFinal, bytesPrueba } from '../printer/tickets'
 import { listarPuertos, enviarAPuerto } from '../printer/serial'
 import { respaldar, listarRespaldos, carpetaRespaldos, restaurar } from '../db/respaldo'
 
@@ -183,6 +185,14 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.inventario.movimientos, (_e, insumoId: number) =>
     inventario.movimientosDe(insumoId)
   )
+  ipcMain.handle(
+    CANALES.inventario.movimientoProducto,
+    (_e, productoId: number, tipo: TipoMovInventario, cantidad: number, nota?: string, usuario?: string) =>
+      inventario.registrarMovimientoProducto(productoId, tipo, cantidad, nota, usuario)
+  )
+  ipcMain.handle(CANALES.inventario.movimientosProducto, (_e, productoId: number) =>
+    inventario.movimientosProductoDe(productoId)
+  )
 
   // --- Gastos --------------------------------------------------------------
   ipcMain.handle(CANALES.gastos.listar, () => gastos.listarTurno())
@@ -222,15 +232,33 @@ export function registrarIpc(): void {
   // --- Impresión: el main arma los bytes ESC/POS; el renderer los envía por BLE.
   ipcMain.handle(
     CANALES.printer.bytesCocina,
-    (_e, titulo: string, lineas: DetalleOrden[], opciones?: { adicional?: boolean; reimpresion?: boolean }) =>
-      bytesCocina(titulo, lineas, opciones)
+    (
+      _e,
+      titulo: string,
+      lineas: DetalleOrden[],
+      opciones?: {
+        adicional?: boolean
+        reimpresion?: boolean
+        cancelacion?: boolean
+        area?: 'cocina' | 'barra'
+      },
+      ancho?: number
+    ) => bytesCocina(titulo, lineas, opciones, ancho)
   )
-  ipcMain.handle(CANALES.printer.bytesFinal, (_e, ordenId: number, opciones?: { copia?: boolean }) => {
-    const orden = ordenes.obtenerConDetalle(ordenId)
-    const titulo = orden.mesaId != null ? mesas.obtener(orden.mesaId).nombre : orden.nombre ?? 'Pedido'
-    return bytesFinal(titulo, orden, opciones)
-  })
-  ipcMain.handle(CANALES.printer.bytesPrueba, (_e, destino: DestinoImpresion) => bytesPrueba(destino))
+  ipcMain.handle(
+    CANALES.printer.bytesFinal,
+    (_e, ordenId: number, opciones?: { copia?: boolean }, ancho?: number, logoPie?: LogoTicket | null) => {
+      const orden = ordenes.obtenerConDetalle(ordenId)
+      const titulo = orden.mesaId != null ? mesas.obtener(orden.mesaId).nombre : orden.nombre ?? 'Pedido'
+      return bytesFinal(titulo, orden, opciones, ancho, logoPie)
+    }
+  )
+  ipcMain.handle(CANALES.printer.bytesCorte, (_e, corte: Corte, ancho?: number) => bytesCorte(corte, ancho))
+  ipcMain.handle(
+    CANALES.printer.bytesPrueba,
+    (_e, destino: DestinoImpresion, ancho?: number, logoPie?: LogoTicket | null) =>
+      bytesPrueba(destino, ancho, logoPie)
+  )
   ipcMain.handle(CANALES.printer.listarPuertos, () => listarPuertos())
   ipcMain.handle(CANALES.printer.enviarCom, (_e, puerto: string, baudRate: number, bytes: number[]) =>
     enviarAPuerto(puerto, baudRate, bytes)

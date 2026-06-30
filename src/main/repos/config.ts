@@ -17,8 +17,10 @@ export const ROLES_PREDEFINIDOS: { id: string; nombre: string }[] = [
 
 export const IMPRESORAS_PREDETERMINADO: ConfigImpresoras = {
   nombreNegocio: '',
+  logoTicket: null,
   direccion: '',
   telefono: '',
+  rfc: '',
   modo: 'una',
   impresoras: ROLES_PREDEFINIDOS.map((r) => ({ id: r.id, nombre: r.nombre })),
   impresoraCajaId: 'caja',
@@ -29,6 +31,8 @@ export const IMPRESORAS_PREDETERMINADO: ConfigImpresoras = {
   avanceFinal: 4,
   ancho: 32,
   cocinaGrande: true,
+  separarComensales: true,
+  separarBarra: true,
   impuestoActivo: false,
   impuestoTasa: 16,
   impuestoIncluido: true

@@ -9,7 +9,7 @@ import { useToast } from '@renderer/components/Toast'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { useImpresion } from '@renderer/store/impresion'
-import { agruparPorImpresora, rolesConfigurados } from '@renderer/lib/comandas'
+import { comandasPorArea, rolesConfigurados } from '@renderer/lib/comandas'
 import { calcularImpuesto } from '@shared/impuestos'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
@@ -40,7 +40,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     useDatos()
   const { usuarioActual } = useAuth()
   const { pedir } = useAutorizacion()
-  const { imprimirFinal, imprimirComanda, cfg, impresoras } = useImpresion()
+  const { imprimirFinal, imprimirComandas, cfg, impresoras } = useImpresion()
   const toast = useToast()
 
   // Etiqueta de la orden: nombre de la mesa o el rótulo del pedido para llevar.
@@ -235,21 +235,23 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     registrarReimpresion('cocina', orden.id, usuarioActual?.nombre)
     setTicketCocina({ titulo: etiqueta(orden), lineas: enviadas })
     try {
-      if (cfg?.modo === 'una') {
-        if (cfg.impresoraCajaId) {
-          await imprimirComanda(cfg.impresoraCajaId, etiqueta(orden), enviadas, { reimpresion: true })
-        }
-      } else {
-        const { porImpresora } = agruparPorImpresora(
-          enviadas,
-          productos,
-          categorias,
-          rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null)
-        )
-        for (const [impId, lineas] of porImpresora) {
-          await imprimirComanda(impId, etiqueta(orden), lineas, { reimpresion: true })
-        }
-      }
+      const unica = cfg?.modo === 'una' ? cfg.impresoraCajaId ?? null : null
+      const { grupos } = comandasPorArea(
+        enviadas,
+        productos,
+        categorias,
+        rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null),
+        unica,
+        cfg?.separarBarra !== false
+      )
+      await imprimirComandas(
+        grupos.map((g) => ({
+          impresoraId: g.impresoraId,
+          titulo: etiqueta(orden),
+          lineas: g.lineas,
+          opciones: { reimpresion: true, area: g.area }
+        }))
+      )
       toast('Comanda de cocina reimpresa', 'info')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo reimprimir la comanda', 'error')

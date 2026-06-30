@@ -21,37 +21,57 @@ export function rolesConfigurados(
   return { cocina: conf(cocinaId), barra: conf(barraId) }
 }
 
+export type AreaComanda = 'cocina' | 'barra'
+
+/** Un ticket de comanda: su área (para el encabezado) y la impresora destino. */
+export interface GrupoComanda {
+  area: AreaComanda
+  impresoraId: string
+  lineas: DetalleOrden[]
+}
+
 /**
- * Agrupa las líneas de una comanda por impresora: producto → categoría → rol
- * (cocina/barra) → impresora del rol. Si el rol de la categoría no tiene
- * impresora configurada, cae a la otra impresora de comanda que sí lo esté (así
- * un negocio de solo bebidas opera con Barra sin tocar las categorías). Las
- * líneas sin rol, o cuando ninguna impresora de comanda está lista, se devuelven
- * aparte (no se imprimen).
+ * Reparte las líneas en comandas POR ÁREA (cocina/barra). El área sale de la
+ * categoría (sin marcar → cocina). Cada área se imprime como su propio ticket.
+ *
+ * - `impresoraUnica` (modo "una impresora"): todas las comandas van a esa
+ *   impresora, pero SEPARADAS por área (un ticket COCINA y otro BARRA).
+ * - Si no, cada área va a la impresora de su rol; si esa no está configurada,
+ *   cae a la otra de comanda (así "solo barra" o "solo cocina" funcionan).
+ *
+ * Las líneas sin ninguna impresora de comanda disponible se devuelven aparte.
  */
-export function agruparPorImpresora(
+export function comandasPorArea(
   lineas: DetalleOrden[],
   productos: Producto[],
   categorias: Categoria[],
-  roles: RolesImpresion
-): { porImpresora: Map<string, DetalleOrden[]>; sinImpresora: DetalleOrden[] } {
+  roles: RolesImpresion,
+  impresoraUnica?: string | null,
+  separarBarra = true
+): { grupos: GrupoComanda[]; sinImpresora: DetalleOrden[] } {
   const catDeProducto = new Map(productos.map((p) => [p.id, p.categoriaId]))
   const rolDeCat = new Map(categorias.map((c) => [c.id, c.rol]))
-  const porImpresora = new Map<string, DetalleOrden[]>()
+  const acc = new Map<string, GrupoComanda>()
   const sinImpresora: DetalleOrden[] = []
   for (const linea of lineas) {
     const catId = catDeProducto.get(linea.productoId)
     const rol = catId != null ? rolDeCat.get(catId) : undefined
-    const directo = rol === 'cocina' ? roles.cocina : rol === 'barra' ? roles.barra : null
-    // Con rol: su impresora, o la otra de comanda configurada (fallback). Sin rol: no imprime.
-    const impId = rol ? (directo ?? roles.cocina ?? roles.barra ?? null) : null
-    if (!impId) {
+    // Si la separación está apagada, todo se trata como cocina (un solo ticket).
+    const area: AreaComanda = separarBarra && rol === 'barra' ? 'barra' : 'cocina'
+    const impresoraId =
+      impresoraUnica ??
+      (area === 'barra' ? roles.barra ?? roles.cocina : roles.cocina ?? roles.barra)
+    if (!impresoraId) {
       sinImpresora.push(linea)
       continue
     }
-    const arr = porImpresora.get(impId) ?? []
-    arr.push(linea)
-    porImpresora.set(impId, arr)
+    const clave = `${area}:${impresoraId}`
+    let g = acc.get(clave)
+    if (!g) {
+      g = { area, impresoraId, lineas: [] }
+      acc.set(clave, g)
+    }
+    g.lineas.push(linea)
   }
-  return { porImpresora, sinImpresora }
+  return { grupos: [...acc.values()], sinImpresora }
 }

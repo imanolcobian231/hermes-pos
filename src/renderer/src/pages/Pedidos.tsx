@@ -7,7 +7,7 @@ import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCoc
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { useToast } from '@renderer/components/Toast'
 import { useImpresion } from '@renderer/store/impresion'
-import { agruparPorImpresora, rolesConfigurados } from '@renderer/lib/comandas'
+import { comandasPorArea, rolesConfigurados, type GrupoComanda } from '@renderer/lib/comandas'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono } from '@renderer/components/Icono'
@@ -28,12 +28,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     agregarProducto,
     cambiarCantidad,
     cambiarNota,
+    quitarLinea,
     enviarACocina,
     marcarPorCobrar,
-    cancelarOrden
+    cancelarOrden,
+    registrarReimpresion
   } = useDatos()
   const toast = useToast()
-  const { imprimirComanda, cfg, impresoras } = useImpresion()
+  const { imprimirComandas, cfg, impresoras } = useImpresion()
   const { usuarioActual } = useAuth()
   const { pedir } = useAutorizacion()
 
@@ -48,7 +50,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   )
   const [busqueda, setBusqueda] = useState('')
 
-  const [ticket, setTicket] = useState<{ lineas: DetalleOrden[]; adicional: boolean } | null>(null)
+  const [ticket, setTicket] = useState<{
+    comandas: { area: 'cocina' | 'barra'; lineas: DetalleOrden[] }[]
+    adicional: boolean
+    reimpresion?: boolean
+    correccion?: boolean
+  } | null>(null)
+  // Hubo un quitado/resta de algo ya enviado: la próxima reimpresión es CORRECCION.
+  const [huboQuitado, setHuboQuitado] = useState(false)
   const [notaLinea, setNotaLinea] = useState<DetalleOrden | null>(null)
   const [notaTexto, setNotaTexto] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
@@ -64,6 +73,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   useEffect(() => {
     setComensalActivo(1)
     setNumComensales(1)
+    setHuboQuitado(false)
   }, [ordenId])
 
   useEffect(() => {
@@ -82,6 +92,38 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const guardarNota = (): void => {
     if (notaLinea) void cambiarNota(orden.id, notaLinea.id, notaTexto)
     setNotaLinea(null)
+  }
+
+  // Quita un producto. No enviado: directo. Enviado: pide PIN y lo quita (NO
+  // reimprime solo; el usuario pulsa "Reimprimir comanda" cuando quiera avisar).
+  const quitar = (d: DetalleOrden): void => {
+    if (!d.enviadoCocina) {
+      void quitarLinea(orden.id, d.id)
+      return
+    }
+    pedir(() => {
+      void quitarLinea(orden.id, d.id)
+      setHuboQuitado(true)
+      toast('Producto quitado · pulsa "Reimprimir comanda" para avisar a cocina', 'info')
+    }, 'Quitar un producto ya enviado a cocina')
+  }
+
+  // Resta una unidad. No enviado: directo. Enviado: pide PIN; si llega a 0, quita
+  // la línea completa. Tampoco reimprime solo.
+  const restar = (d: DetalleOrden): void => {
+    if (!d.enviadoCocina) {
+      void cambiarCantidad(orden.id, d.id, -1)
+      return
+    }
+    if (d.cantidad <= 1) {
+      quitar(d)
+      return
+    }
+    pedir(() => {
+      void cambiarCantidad(orden.id, d.id, -1)
+      setHuboQuitado(true)
+      toast('Cantidad corregida · pulsa "Reimprimir comanda" para avisar a cocina', 'info')
+    }, 'Quitar una unidad ya enviada a cocina')
   }
 
   // Total de comensales = el mayor entre los seleccionados y los ya usados en líneas.
@@ -108,40 +150,85 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   // Si ya se envió algo antes, el envío actual es "adicional".
   const primerEnvio = !orden.detalle.some((d) => d.enviadoCocina)
 
+  // Agrupa las líneas en comandas por área (cocina/barra). En modo "una" todo va
+  // a Caja, pero igual separado por área.
+  const repartir = (lineas: DetalleOrden[]): ReturnType<typeof comandasPorArea> =>
+    comandasPorArea(
+      lineas,
+      productos,
+      categorias,
+      rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null),
+      cfg?.modo === 'una' ? cfg.impresoraCajaId ?? null : null,
+      cfg?.separarBarra !== false
+    )
+
+  // Imprime los grupos. Los del mismo destino se concatenan y van en UNA sola
+  // sesión Bluetooth (sin demora de reconectar entre los dos tickets).
+  const enviarGrupos = async (
+    grupos: GrupoComanda[],
+    opciones: { adicional?: boolean; reimpresion?: boolean; cancelacion?: boolean }
+  ): Promise<void> => {
+    await imprimirComandas(
+      grupos.map((g) => ({
+        impresoraId: g.impresoraId,
+        titulo,
+        lineas: g.lineas,
+        opciones: { ...opciones, area: g.area }
+      }))
+    )
+  }
+
+  // Para la vista previa: los grupos como { area, lineas }.
+  const aComandasPreview = (grupos: GrupoComanda[]): { area: 'cocina' | 'barra'; lineas: DetalleOrden[] }[] =>
+    grupos.map((g) => ({ area: g.area, lineas: g.lineas }))
+
   const handleEnviar = async (): Promise<void> => {
     const adicional = !primerEnvio
     // Envía TODO lo pendiente (de todos los comensales); el ticket los agrupa.
     const nuevas = await enviarACocina(orden.id)
     if (nuevas.length > 0) {
-      setTicket({ lineas: nuevas, adicional })
+      const { grupos, sinImpresora } = repartir(nuevas)
+      setTicket({ comandas: aComandasPreview(grupos), adicional })
       const total = nuevas.reduce((acc, d) => acc + d.cantidad, 0)
       toast(`${total} ${total === 1 ? 'producto enviado' : 'productos enviados'} a cocina`)
-      // Imprime la comanda repartida por categoría: cada impresora recibe solo
-      // sus productos (cocina, barra, etc.).
+      if (sinImpresora.length > 0) {
+        toast('Hay productos sin impresora de comanda (revísalo en Ajustes)', 'error')
+      }
       try {
-        if (cfg?.modo === 'una') {
-          // Una sola impresora: toda la comanda va a la de Caja.
-          if (cfg.impresoraCajaId) {
-            await imprimirComanda(cfg.impresoraCajaId, titulo, nuevas, { adicional })
-          }
-        } else {
-          // Varias impresoras: la comanda se reparte por categoría.
-          const { porImpresora, sinImpresora } = agruparPorImpresora(
-            nuevas,
-            productos,
-            categorias,
-            rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null)
-          )
-          for (const [impId, lineas] of porImpresora) {
-            await imprimirComanda(impId, titulo, lineas, { adicional })
-          }
-          if (sinImpresora.length > 0) {
-            toast('Hay productos sin impresora asignada (revísalo en Catálogo)', 'error')
-          }
-        }
+        await enviarGrupos(grupos, { adicional })
       } catch (e) {
         toast(e instanceof Error ? e.message : 'No se pudo imprimir la comanda', 'error')
       }
+    }
+  }
+
+  // Reimprime la comanda de cocina. Si hubo un quitado/resta es una CORRECCION:
+  // primero manda los pendientes (lo recién agregado) y luego imprime la comanda
+  // corregida COMPLETA. Si no hubo cambios, es una REIMPRESION de lo ya enviado.
+  const reimprimirCocina = async (): Promise<void> => {
+    const correccion = huboQuitado
+    // En una corrección, lo nuevo (pendiente) también entra: márcalo enviado.
+    if (correccion && orden.detalle.some((d) => !d.enviadoCocina)) {
+      await enviarACocina(orden.id)
+    }
+    const lineas = correccion
+      ? orden.detalle
+      : orden.detalle.filter((d) => d.enviadoCocina)
+    if (lineas.length === 0) return
+    const { grupos } = repartir(lineas)
+    void registrarReimpresion('cocina', orden.id, usuarioActual?.nombre)
+    setTicket({
+      comandas: aComandasPreview(grupos),
+      adicional: false,
+      reimpresion: !correccion,
+      correccion
+    })
+    try {
+      await enviarGrupos(grupos, correccion ? { cancelacion: true } : { reimpresion: true })
+      setHuboQuitado(false)
+      toast(correccion ? 'Corrección enviada a cocina' : 'Comanda de cocina reimpresa', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo reimprimir la comanda', 'error')
     }
   }
 
@@ -327,9 +414,9 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
 
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => cambiarCantidad(orden.id, d.id, -1)}
-                      disabled={d.enviadoCocina}
-                      className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave enabled:hover:bg-black/[0.08] disabled:opacity-30"
+                      onClick={() => restar(d)}
+                      title={d.enviadoCocina ? 'Restar (ya enviado: pide autorización)' : 'Restar'}
+                      className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave hover:bg-black/[0.08]"
                     >
                       −
                     </button>
@@ -345,6 +432,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
                   <span className="w-16 pt-1 text-right font-semibold text-tinta">
                     {pesos(d.cantidad * d.precioUnitario)}
                   </span>
+
+                  <button
+                    onClick={() => quitar(d)}
+                    title={d.enviadoCocina ? 'Quitar (ya enviado: pide autorización)' : 'Quitar producto'}
+                    className="mt-0.5 rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Icono nombre="eliminar" size={15} />
+                  </button>
                 </div>
               ))}
             </div>
@@ -374,8 +469,17 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
             Pasar a cobro
           </button>
           <button
+            onClick={() => void reimprimirCocina()}
+            disabled={!huboQuitado && !orden.detalle.some((d) => d.enviadoCocina)}
+            className="mt-2 flex w-full items-center justify-center gap-2 rounded-md py-2 text-sm font-semibold text-tinta-suave transition enabled:hover:bg-black/[0.05] disabled:cursor-not-allowed disabled:text-tinta-suave/40"
+            title="Vuelve a imprimir en cocina lo ya enviado (por si se perdió o hubo un error)"
+          >
+            <Icono nombre="imprimir" size={15} />
+            {huboQuitado ? 'Enviar corrección a cocina' : 'Reimprimir comanda'}
+          </button>
+          <button
             onClick={() => setConfirmarCancel(true)}
-            className="mt-2 w-full rounded-lg py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50"
+            className="mt-1 w-full rounded-lg py-2 text-sm font-semibold text-red-500 transition hover:bg-red-50"
           >
             Cancelar orden
           </button>
@@ -395,7 +499,13 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
 
       <Modal
         abierto={ticket !== null}
-        titulo="Ticket de cocina"
+        titulo={
+          ticket?.correccion
+            ? 'Corrección de comanda'
+            : ticket?.reimpresion
+              ? 'Reimpresión de comanda'
+              : 'Ticket de cocina'
+        }
         onCerrar={() => setTicket(null)}
         pie={
           <button
@@ -407,7 +517,19 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
         }
       >
         {ticket && (
-          <TicketCocina titulo={titulo} lineas={ticket.lineas} adicional={ticket.adicional} />
+          <div className="flex flex-col gap-3">
+            {ticket.comandas.map((c, i) => (
+              <TicketCocina
+                key={i}
+                titulo={titulo}
+                lineas={c.lineas}
+                area={c.area}
+                adicional={ticket.adicional}
+                reimpresion={ticket.reimpresion}
+                correccion={ticket.correccion}
+              />
+            ))}
+          </div>
         )}
       </Modal>
 

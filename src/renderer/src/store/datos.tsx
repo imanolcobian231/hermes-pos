@@ -170,6 +170,13 @@ interface DatosContextValue {
     nota?: string,
     usuario?: string
   ) => Promise<void>
+  movimientoProducto: (
+    productoId: number,
+    tipo: TipoMovInventario,
+    cantidad: number,
+    nota?: string,
+    usuario?: string
+  ) => Promise<void>
 
   // Catálogo
   guardarProducto: (producto: ProductoInput) => Promise<void>
@@ -540,6 +547,20 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [refrescarInsumos]
   )
 
+  const movimientoProducto = useCallback(
+    async (
+      productoId: number,
+      tipo: TipoMovInventario,
+      cantidad: number,
+      nota?: string,
+      usuario?: string
+    ) => {
+      await api.inventario.movimientoProducto(productoId, tipo, cantidad, nota, usuario)
+      await refrescarCatalogo()
+    },
+    [refrescarCatalogo]
+  )
+
   // --- Catálogo ------------------------------------------------------------
   const guardarProducto = useCallback(
     async (producto: ProductoInput) => {
@@ -712,6 +733,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       guardarInsumo,
       eliminarInsumo,
       movimientoInventario,
+      movimientoProducto,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,
@@ -769,6 +791,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       guardarInsumo,
       eliminarInsumo,
       movimientoInventario,
+      movimientoProducto,
       guardarProducto,
       eliminarProducto,
       guardarCategoria,

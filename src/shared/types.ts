@@ -261,15 +261,36 @@ export interface Impresora {
   /** COM: puerto (ej. "COM5") y baudios. */
   puerto?: string
   baudRate?: number
+  /** Ancho del rollo de ESTA impresora: 32 (58 mm) o 48 (80 mm). Si falta, usa el global. */
+  ancho?: number
+}
+
+/**
+ * Logo del negocio para el ticket, ya rasterizado a mapa de bits monocromo
+ * (formato ESC/POS GS v 0). El renderer convierte el PNG con Canvas y guarda
+ * aquí el resultado; el main solo lo emite. `datos` son las filas empacadas a
+ * 1 bit por punto (MSB primero, 1 = punto negro) en base64.
+ */
+export interface LogoTicket {
+  /** Ancho en puntos (múltiplo de 8, ≤ ancho de impresión). */
+  ancho: number
+  /** Alto en puntos. */
+  alto: number
+  /** Filas empacadas (base64). */
+  datos: string
 }
 
 export interface ConfigImpresoras {
   /** Nombre del negocio que se imprime como encabezado del ticket. */
   nombreNegocio: string
+  /** Logo PNG del negocio (rasterizado) que se imprime arriba del ticket. */
+  logoTicket?: LogoTicket | null
   /** Dirección del negocio (se imprime bajo el nombre). Opcional. */
   direccion: string
   /** Teléfono del negocio (se imprime bajo la dirección). Opcional. */
   telefono: string
+  /** RFC del negocio (se imprime en el encabezado). Opcional. */
+  rfc?: string
   /**
    * 'una' = una sola impresora imprime cobro y comandas; 'multiple' = varias
    * impresoras por rol y la comanda se rutea por categoría.
@@ -293,6 +314,11 @@ export interface ConfigImpresoras {
   ancho: number
   /** Imprime las comandas de cocina con letra grande (doble tamaño). */
   cocinaGrande: boolean
+  /** Separa la comanda de cocina por comensal (encabezados "- COMENSAL n -"). */
+  separarComensales?: boolean
+  /** Separa las comandas de Barra y Cocina en tickets distintos. Si está apagado,
+   *  todo se imprime junto como cocina (para negocios sin barra). */
+  separarBarra?: boolean
   /** Aplica impuesto (IVA) al ticket. */
   impuestoActivo: boolean
   /** Tasa del impuesto en porcentaje (ej. 16). */

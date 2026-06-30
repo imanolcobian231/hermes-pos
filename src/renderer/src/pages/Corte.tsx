@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import type { OrdenConDetalle } from '@shared/types'
+import type { Corte as TipoCorte, OrdenConDetalle } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
+import { useImpresion } from '@renderer/store/impresion'
 import { fechaHora, hora, pesos } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { useToast } from '@renderer/components/Toast'
@@ -14,9 +15,12 @@ export function Corte(): React.JSX.Element {
   const toast = useToast()
   const { usuarioActual } = useAuth()
   const { pedir } = useAutorizacion()
+  const { imprimirCorte } = useImpresion()
   const [confirmar, setConfirmar] = useState(false)
   const [fondo, setFondo] = useState('')
   const [contado, setContado] = useState('')
+  // Imprimir el ticket del corte al cerrar (opcional, recordado entre cierres).
+  const [imprimirAlCerrar, setImprimirAlCerrar] = useState(true)
   // Apertura de caja.
   const [abriendo, setAbriendo] = useState(false)
   const [fondoApertura, setFondoApertura] = useState('')
@@ -65,6 +69,24 @@ export function Corte(): React.JSX.Element {
         ? ` · ${dif < 0 ? 'faltante' : 'sobrante'} ${pesos(Math.abs(dif))}`
         : ''
     toast(`Turno cerrado · balance ${pesos(ventas - corte.totalGastos)}${sufijo}`)
+    // Impresión opcional del ticket. Un fallo no debe tirar el cierre: el turno
+    // ya quedó cerrado, solo avisamos.
+    if (imprimirAlCerrar) {
+      try {
+        await imprimirCorte(corte)
+      } catch (e) {
+        toast(e instanceof Error ? e.message : 'No se pudo imprimir el corte', 'error')
+      }
+    }
+  }
+
+  const reimprimirCorte = async (corte: TipoCorte): Promise<void> => {
+    try {
+      await imprimirCorte(corte)
+      toast('Corte reimpreso', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo imprimir el corte', 'error')
+    }
   }
 
   const confirmarDevolucion = (): void => {
@@ -89,7 +111,7 @@ export function Corte(): React.JSX.Element {
   const netoOrden = (o: OrdenConDetalle): number => o.total - o.descuento
 
   return (
-    <div className="flex h-full flex-col">
+    <div>
       <header className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-tinta">Corte de caja</h1>
@@ -199,13 +221,13 @@ export function Corte(): React.JSX.Element {
       )}
 
       {/* Historial */}
-      <section className="flex-1 overflow-auto">
+      <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-tinta">Historial de cortes</h2>
         {cortes.length === 0 ? (
           <p className="text-sm text-tinta-suave">Aún no se ha cerrado ningún turno.</p>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-black/[0.06] bg-white">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Fecha</th>
@@ -216,6 +238,7 @@ export function Corte(): React.JSX.Element {
                   <th className="px-4 py-2.5 text-right">Gastos</th>
                   <th className="px-4 py-2.5 text-right">Balance</th>
                   <th className="px-4 py-2.5 text-right">Cuadre</th>
+                  <th className="px-4 py-2.5 text-right" />
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +271,16 @@ export function Corte(): React.JSX.Element {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <button
+                          onClick={() => void reimprimirCorte(c)}
+                          title="Reimprimir ticket del corte"
+                          className="rounded-md border border-black/10 px-2.5 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.04]"
+                        >
+                          <Icono nombre="recibo" size={13} className="mr-1 inline" />
+                          Ticket
+                        </button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -261,8 +294,8 @@ export function Corte(): React.JSX.Element {
       {reimpresiones.length > 0 && (
         <section className="mt-6">
           <h2 className="mb-3 text-lg font-bold text-tinta">Reimpresiones del turno</h2>
-          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-black/[0.06] bg-white">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Hora</th>
@@ -300,8 +333,8 @@ export function Corte(): React.JSX.Element {
       {cancelaciones.length > 0 && (
         <section className="mt-6">
           <h2 className="mb-3 text-lg font-bold text-tinta">Cancelaciones y devoluciones del turno</h2>
-          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
-            <table className="w-full text-sm">
+          <div className="overflow-x-auto rounded-xl border border-black/[0.06] bg-white">
+            <table className="w-full whitespace-nowrap text-sm">
               <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
                 <tr>
                   <th className="px-4 py-2.5">Hora</th>
@@ -403,6 +436,21 @@ export function Corte(): React.JSX.Element {
             Esperado = fondo + ventas en efectivo − gastos. Déjalos vacíos para omitir el cuadre.
           </p>
         </div>
+
+        <label className="mt-4 flex cursor-pointer items-center gap-2.5 rounded-lg border border-black/[0.06] bg-white px-3 py-2.5">
+          <input
+            type="checkbox"
+            checked={imprimirAlCerrar}
+            onChange={(e) => setImprimirAlCerrar(e.target.checked)}
+            className="h-4 w-4 rounded"
+          />
+          <span className="text-sm text-tinta">
+            Imprimir ticket del corte
+            <span className="block text-xs text-tinta-suave">
+              En la impresora de Caja. Siempre puedes reimprimirlo desde el historial.
+            </span>
+          </span>
+        </label>
 
         <p className="mt-4 text-xs text-tinta-suave">
           Se cerrará el turno e iniciará uno nuevo. Esta acción no se puede deshacer.

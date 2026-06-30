@@ -67,7 +67,9 @@ export const CANALES = {
     guardar: 'inventario:guardar',
     eliminar: 'inventario:eliminar',
     movimiento: 'inventario:movimiento',
-    movimientos: 'inventario:movimientos'
+    movimientos: 'inventario:movimientos',
+    movimientoProducto: 'inventario:movimientoProducto',
+    movimientosProducto: 'inventario:movimientosProducto'
   },
   respaldo: {
     obtener: 'respaldo:obtener',
@@ -100,6 +102,7 @@ export const CANALES = {
   printer: {
     bytesCocina: 'printer:bytesCocina',
     bytesFinal: 'printer:bytesFinal',
+    bytesCorte: 'printer:bytesCorte',
     bytesPrueba: 'printer:bytesPrueba',
     listarPuertos: 'printer:listarPuertos',
     enviarCom: 'printer:enviarCom'

@@ -200,6 +200,18 @@ CREATE TABLE IF NOT EXISTS movimientos_inventario (
   creado_en TEXT    NOT NULL
 );
 
+-- Movimientos de stock de PRODUCTOS con control de inventario (mismo concepto
+-- que insumos, pero sobre productos del catálogo).
+CREATE TABLE IF NOT EXISTS movimientos_producto (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  tipo        TEXT    NOT NULL,
+  cantidad    REAL    NOT NULL DEFAULT 0,
+  nota        TEXT,
+  usuario     TEXT    NOT NULL DEFAULT 'caja',
+  creado_en   TEXT    NOT NULL
+);
+
 -- Configuración general de la app (clave/valor con JSON). Ej. impresoras.
 CREATE TABLE IF NOT EXISTS config (
   clave TEXT PRIMARY KEY,
@@ -215,6 +227,7 @@ CREATE INDEX IF NOT EXISTS idx_detmod_detalle ON detalle_modificadores(detalle_i
 CREATE INDEX IF NOT EXISTS idx_pagos_orden ON pagos(orden_id);
 CREATE INDEX IF NOT EXISTS idx_movcred_cliente ON movimientos_credito(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_movinv_insumo ON movimientos_inventario(insumo_id);
+CREATE INDEX IF NOT EXISTS idx_movprod_producto ON movimientos_producto(producto_id);
 `
 
 export function crearEsquema(db: Database.Database): void {

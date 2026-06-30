@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConfigRespaldo, Impresora, RespaldoInfo } from '@shared/types'
 import { useImpresion } from '@renderer/store/impresion'
 import { useToast } from '@renderer/components/Toast'
 import { fechaHora } from '@renderer/lib/format'
+import { pngALogo, logoAVistaPrevia } from '@renderer/lib/logo'
 import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
 
@@ -11,7 +12,7 @@ const BAUDIOS = [9600, 19200, 38400, 57600, 115200]
 export function Ajustes(): React.JSX.Element {
   const { cfg, aviso, limpiarAviso, actualizarCfg } = useImpresion()
   const toast = useToast()
-  const [negocio, setNegocio] = useState({ nombreNegocio: '', direccion: '', telefono: '' })
+  const [negocio, setNegocio] = useState({ nombreNegocio: '', direccion: '', telefono: '', rfc: '' })
 
   // Los avisos de conexión (éxito/error) vienen del store; se muestran como toast.
   useEffect(() => {
@@ -26,16 +27,18 @@ export function Ajustes(): React.JSX.Element {
       setNegocio({
         nombreNegocio: cfg.nombreNegocio,
         direccion: cfg.direccion,
-        telefono: cfg.telefono
+        telefono: cfg.telefono,
+        rfc: cfg.rfc ?? ''
       })
     }
-  }, [cfg?.nombreNegocio, cfg?.direccion, cfg?.telefono])
+  }, [cfg?.nombreNegocio, cfg?.direccion, cfg?.telefono, cfg?.rfc])
 
   const guardarNegocio = (): void => {
     void actualizarCfg({
       nombreNegocio: negocio.nombreNegocio.trim(),
       direccion: negocio.direccion.trim(),
-      telefono: negocio.telefono.trim()
+      telefono: negocio.telefono.trim(),
+      rfc: negocio.rfc.trim()
     })
   }
 
@@ -64,7 +67,8 @@ export function Ajustes(): React.JSX.Element {
             <CampoNegocio
               label="Dirección"
               valor={negocio.direccion}
-              placeholder="Ej. Av. Juárez 123, Centro"
+              multilinea
+              placeholder={'Ej.\nAv. Juárez 123\nCol. Centro\nCiudad, CP 00000'}
               onChange={(v) => setNegocio((n) => ({ ...n, direccion: v }))}
               onGuardar={guardarNegocio}
             />
@@ -75,33 +79,24 @@ export function Ajustes(): React.JSX.Element {
               onChange={(v) => setNegocio((n) => ({ ...n, telefono: v }))}
               onGuardar={guardarNegocio}
             />
+            <CampoNegocio
+              label="RFC"
+              valor={negocio.rfc}
+              placeholder="Ej. XAXX010101000"
+              onChange={(v) => setNegocio((n) => ({ ...n, rfc: v }))}
+              onGuardar={guardarNegocio}
+            />
           </div>
           <p className="mt-2 text-xs text-tinta-suave">
             Aparecen como encabezado en los tickets. Déjalos vacíos para no imprimirlos.
           </p>
         </Seccion>
 
+        {/* Logo del ticket */}
+        <SeccionLogo />
+
         {/* Impresoras (varias, con rol) */}
         <SeccionImpresoras />
-
-        {/* Tamaño de papel */}
-        <Seccion titulo="Tamaño de papel">
-          <p className="mb-3 text-sm text-tinta-suave">Ancho del rollo de la impresora.</p>
-          <div className="grid grid-cols-2 gap-3">
-            <OpcionModo
-              activo={cfg.ancho === 32}
-              titulo="58 mm"
-              detalle="Rollo angosto (32 caracteres por línea)."
-              onClick={() => void actualizarCfg({ ancho: 32 })}
-            />
-            <OpcionModo
-              activo={cfg.ancho === 48}
-              titulo="80 mm"
-              detalle="Rollo ancho (48 caracteres por línea)."
-              onClick={() => void actualizarCfg({ ancho: 48 })}
-            />
-          </div>
-        </Seccion>
 
         {/* Impuestos */}
         <Seccion titulo="Impuestos">
@@ -154,6 +149,16 @@ export function Ajustes(): React.JSX.Element {
             label="Letra grande en comandas de cocina"
             onChange={(v) => void actualizarCfg({ cocinaGrande: v })}
           />
+          <Switch
+            activo={cfg.separarBarra !== false}
+            label="Separar comandas de Barra y Cocina"
+            onChange={(v) => void actualizarCfg({ separarBarra: v })}
+          />
+          <Switch
+            activo={cfg.separarComensales !== false}
+            label="Separar la comanda de cocina por comensal"
+            onChange={(v) => void actualizarCfg({ separarComensales: v })}
+          />
           <Stepper
             label="Avance de papel al final"
             ayuda="Sube esto si el último renglón queda atorado dentro de la impresora."
@@ -184,27 +189,132 @@ function CampoNegocio({
   label,
   valor,
   placeholder,
+  multilinea,
   onChange,
   onGuardar
 }: {
   label: string
   valor: string
   placeholder?: string
+  multilinea?: boolean
   onChange: (v: string) => void
   onGuardar: () => void
 }): React.JSX.Element {
+  const clase =
+    'w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15'
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-tinta-suave">{label}</label>
-      <input
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        onBlur={onGuardar}
-        onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        placeholder={placeholder}
-        className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
-      />
+      {multilinea ? (
+        <textarea
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onGuardar}
+          placeholder={placeholder}
+          rows={3}
+          className={`${clase} resize-y`}
+        />
+      ) : (
+        <input
+          value={valor}
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onGuardar}
+          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+          placeholder={placeholder}
+          className={clase}
+        />
+      )}
+      {multilinea && (
+        <p className="mt-1 text-xs text-tinta-suave">Cada renglón se imprime en una línea aparte.</p>
+      )}
     </div>
+  )
+}
+
+// Logo del negocio para el encabezado del ticket. El PNG se rasteriza a un mapa
+// de bits monocromo (en el renderer) y se guarda en la config; el ancho destino
+// depende del tamaño de papel (58/80 mm). La vista previa muestra exactamente
+// cómo saldrá impreso (blanco y negro).
+function SeccionLogo(): React.JSX.Element {
+  const { cfg, impresoras, actualizarCfg } = useImpresion()
+  const toast = useToast()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [procesando, setProcesando] = useState(false)
+
+  const logo = cfg?.logoTicket ?? null
+  // El logo se imprime en la de Caja: usa su ancho de papel. Ocupa ~la mitad del
+  // rollo (384/576 puntos), reducido otro 25%, y recortado al contenido.
+  const cajaAncho = impresoras.find((i) => i.id === cfg?.impresoraCajaId)?.ancho ?? cfg?.ancho ?? 32
+  const anchoPuntos = Math.round(((cajaAncho === 48 ? 576 : 384) / 2) * 0.75)
+  const vista = useMemo(() => (logo ? logoAVistaPrevia(logo) : null), [logo])
+
+  const elegir = async (file: File | undefined): Promise<void> => {
+    if (!file) return
+    setProcesando(true)
+    try {
+      const raster = await pngALogo(file, anchoPuntos)
+      await actualizarCfg({ logoTicket: raster })
+      toast('Logo guardado', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo procesar la imagen', 'error')
+    } finally {
+      setProcesando(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <Seccion titulo="Logo del ticket">
+      <p className="mb-3 text-sm text-tinta-suave">
+        Imagen que se imprime arriba del ticket de cobro. Se convierte a blanco y negro a{' '}
+        {anchoPuntos} puntos de ancho (según tu tamaño de papel).
+      </p>
+
+      {vista && (
+        <div className="mb-3 flex items-center gap-4 rounded-lg border border-black/[0.06] bg-black/[0.02] p-3">
+          <img
+            src={vista}
+            alt="Vista previa del logo"
+            className="max-h-28 w-auto border border-black/10 bg-white"
+          />
+          <div className="text-xs text-tinta-suave">
+            <div className="font-semibold text-tinta">Así se imprimirá</div>
+            <div>
+              {logo?.ancho} × {logo?.alto} puntos
+            </div>
+          </div>
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/*"
+        className="hidden"
+        onChange={(e) => void elegir(e.target.files?.[0])}
+      />
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => inputRef.current?.click()}
+          disabled={procesando}
+          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
+        >
+          {procesando ? 'Procesando…' : vista ? 'Cambiar logo' : 'Elegir imagen PNG'}
+        </button>
+        {vista && (
+          <button
+            onClick={() => void actualizarCfg({ logoTicket: null })}
+            className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+          >
+            Quitar logo
+          </button>
+        )}
+      </div>
+      <p className="mt-2 text-xs text-tinta-suave">
+        Para mejor resultado usa un PNG de alto contraste (logo o texto en negro sobre fondo
+        transparente o blanco). Las fotos se difuminan en blanco y negro.
+      </p>
+    </Seccion>
   )
 }
 
@@ -307,7 +417,8 @@ function FilaImpresora({
     imprimirPrueba,
     renombrarImpresora,
     eliminarImpresora,
-    marcarRol
+    marcarRol,
+    cambiarAnchoImpresora
   } = useImpresion()
   const toast = useToast()
   const estado = estados[impresora.id] ?? { conectado: false, nombre: null }
@@ -423,6 +534,30 @@ function FilaImpresora({
       </div>
 
       <div className="mt-1 pl-4.5 text-xs text-tinta-suave">{detalle}</div>
+
+      {/* Tamaño de papel de ESTA impresora */}
+      <div className="mt-2 flex items-center gap-2 pl-4.5">
+        <span className="text-xs text-tinta-suave">Papel:</span>
+        {[
+          { v: 32, label: '58 mm' },
+          { v: 48, label: '80 mm' }
+        ].map((o) => {
+          const activo = (impresora.ancho ?? cfg?.ancho ?? 32) === o.v
+          return (
+            <button
+              key={o.v}
+              onClick={() => void cambiarAnchoImpresora(impresora.id, o.v)}
+              className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition ${
+                activo
+                  ? 'bg-acento text-white'
+                  : 'border border-black/10 text-tinta-suave hover:bg-black/[0.05]'
+              }`}
+            >
+              {o.label}
+            </button>
+          )
+        })}
+      </div>
 
       {/* Conexión */}
       {configurada && !editandoConexion ? (
