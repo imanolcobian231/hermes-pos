@@ -1,4 +1,4 @@
-import type { DetalleOrden, MetodoPagoOrden, OrdenConDetalle, Pago } from '@shared/types'
+import type { DetalleOrden, MetodoPago, MetodoPagoOrden, OrdenConDetalle, Pago } from '@shared/types'
 import { calcularImpuesto } from '@shared/impuestos'
 import { obtenerDb } from '../db'
 import { aDetalle, aDetalleModificador, aOrden } from '../db/mapeo'
@@ -55,6 +55,23 @@ export function cobradasTurno(): OrdenConDetalle[] {
       "SELECT * FROM ordenes WHERE estado = 'cobrada' AND corte_id IS NULL ORDER BY cerrado_en DESC"
     )
     .all() as Record<string, unknown>[]
+  return filas.map((f) => ({
+    ...aOrden(f),
+    detalle: detalleDe(f.id as number),
+    pagos: pagosDe(f.id as number)
+  }))
+}
+
+/**
+ * Historial de tickets (órdenes ya cobradas) de una mesa, recientes primero.
+ * Sirve para reimprimir tickets anteriores desde la pantalla de mesas.
+ */
+export function historialMesa(mesaId: number, limite = 40): OrdenConDetalle[] {
+  const filas = obtenerDb()
+    .prepare(
+      "SELECT * FROM ordenes WHERE mesa_id = ? AND estado = 'cobrada' ORDER BY cerrado_en DESC LIMIT ?"
+    )
+    .all(mesaId, limite) as Record<string, unknown>[]
   return filas.map((f) => ({
     ...aOrden(f),
     detalle: detalleDe(f.id as number),
@@ -142,7 +159,9 @@ export function abrirLlevar(nombre?: string): OrdenConDetalle {
     n: number
   }
   const limpio = nombre?.trim()
-  const nom = limpio && limpio.length > 0 ? limpio : `Para llevar #${previas.n + 1}`
+  // En modo tiendita es una venta directa (sin mesas ni "para llevar").
+  const base = obtenerImpresoras().modoTiendita === true ? 'Venta' : 'Para llevar'
+  const nom = limpio && limpio.length > 0 ? limpio : `${base} #${previas.n + 1}`
   const r = db
     .prepare(
       "INSERT INTO ordenes (mesa_id, para_llevar, nombre, estado, total, abierto_en) VALUES (NULL, 1, ?, 'abierta', 0, ?)"
@@ -329,6 +348,41 @@ export function cobrar(
     for (const p of limpios) ins.run(ordenId, p.metodo, p.monto)
     ajustarStockProductos(db, ordenId, -1) // descuenta inventario al vender
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
+  })
+  tx()
+  return obtenerConDetalle(ordenId)
+}
+
+/**
+ * Cambia el método de pago de una venta ya cobrada del turno actual. Útil en
+ * modo restaurante, donde al cobrar se asume efectivo y luego, si el cliente
+ * pagó con tarjeta/transferencia, se corrige aquí. Conserva el monto pagado
+ * (reemplaza el desglose de pagos por uno solo en el nuevo método).
+ */
+export function cambiarMetodoPago(ordenId: number, metodo: MetodoPago): OrdenConDetalle {
+  const db = obtenerDb()
+  const fila = db
+    .prepare('SELECT estado, corte_id, metodo_pago FROM ordenes WHERE id = ?')
+    .get(ordenId) as { estado: string; corte_id: number | null; metodo_pago: string | null } | undefined
+  if (!fila) throw new Error(`Orden ${ordenId} no encontrada`)
+  if (fila.estado !== 'cobrada') throw new Error('Solo se puede cambiar el método de una venta cobrada')
+  if (fila.corte_id != null) throw new Error('No se puede cambiar el método de una venta de un turno ya cerrado')
+  if (fila.metodo_pago === 'credito') throw new Error('Una venta a crédito no cambia de método aquí')
+
+  const tx = db.transaction(() => {
+    const suma = (
+      db.prepare('SELECT COALESCE(SUM(monto), 0) AS t FROM pagos WHERE orden_id = ?').get(ordenId) as {
+        t: number
+      }
+    ).t
+    db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
+    db.prepare('INSERT INTO pagos (orden_id, metodo, monto) VALUES (?, ?, ?)').run(ordenId, metodo, suma)
+    const recibido = metodo === 'efectivo' ? suma : null
+    db.prepare('UPDATE ordenes SET metodo_pago = ?, monto_recibido = ?, cambio = 0 WHERE id = ?').run(
+      metodo,
+      recibido,
+      ordenId
+    )
   })
   tx()
   return obtenerConDetalle(ordenId)

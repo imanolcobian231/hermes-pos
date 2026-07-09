@@ -1,24 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Mesa, OrdenConDetalle } from '@shared/types'
 import { TarjetaMesa } from '@renderer/components/TarjetaMesa'
+import { HistorialMesa } from '@renderer/components/HistorialMesa'
 import { Modal } from '@renderer/components/Modal'
 import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
 import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
-
-// Paleta de colores para asignar a las mesas (zonas).
-const COLORES_MESA = [
-  '#ef4444',
-  '#f97316',
-  '#f59e0b',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#8b5cf6',
-  '#ec4899'
-]
+import { COLORES } from '@renderer/lib/colores'
 
 interface Props {
   /** Abre la pantalla de pedidos para la mesa seleccionada. */
@@ -38,6 +28,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
   const [capacidad, setCapacidad] = useState(4)
   const [color, setColor] = useState<string | undefined>(undefined)
   const [aEliminar, setAEliminar] = useState<Mesa | null>(null)
+  const [historial, setHistorial] = useState<Mesa | null>(null)
   const [llevarAbierto, setLlevarAbierto] = useState(false)
   const [nombreLlevar, setNombreLlevar] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -159,6 +150,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
               total={ordenDeMesa(mesa.id)?.total}
               onClick={onAbrirMesa}
               onEditar={setEditando}
+              onHistorial={setHistorial}
             />
           ))}
       </div>
@@ -219,7 +211,7 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
           >
             ✕
           </button>
-          {COLORES_MESA.map((c) => (
+          {COLORES.map((c) => (
             <button
               type="button"
               key={c}
@@ -275,6 +267,8 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
           Déjalo vacío para numerarlo automáticamente (“Para llevar #N”).
         </p>
       </Modal>
+
+      <HistorialMesa mesa={historial} onCerrar={() => setHistorial(null)} />
 
       <ConfirmDialog
         abierto={aEliminar !== null}

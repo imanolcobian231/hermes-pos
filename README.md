@@ -1,4 +1,4 @@
-# Hermes POS
+# Ankyra POS
 
 Punto de venta de escritorio para taquerías y negocios con mesas. Hecho para la agencia **Olyssea**.
 
@@ -50,7 +50,7 @@ src/
 ## Datos
 
 La base de datos vive en la carpeta de datos de usuario del sistema
-(`%APPDATA%/hermes-pos/hermes.db` en Windows). El esquema y los datos iniciales
+(`%APPDATA%/ankyra-pos/ankyra.db` en Windows). El esquema y los datos iniciales
 se crean automáticamente al primer arranque.
 
 ## Módulos

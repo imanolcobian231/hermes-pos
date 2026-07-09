@@ -4,12 +4,7 @@ import { useDatos } from '@renderer/store/datos'
 import { hora, pesos } from '@renderer/lib/format'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
-
-const etiquetaMetodo: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  transferencia: 'Transferencia'
-}
+import { ETIQUETA_METODO } from '@shared/pagos'
 
 export function Finanzas(): React.JSX.Element {
   const { mesas, gastos, cobradas, resumen, agregarGasto, eliminarGasto } = useDatos()
@@ -155,7 +150,7 @@ export function Finanzas(): React.JSX.Element {
                       <td className="px-5 py-2.5 font-medium text-tinta">{etiquetaOrden(o)}</td>
                       <td className="px-5 py-2.5 text-tinta-suave">{hora(o.cerradoEn)}</td>
                       <td className="px-5 py-2.5 text-tinta-suave">
-                        {o.metodoPago ? etiquetaMetodo[o.metodoPago] : '—'}
+                        {o.metodoPago ? ETIQUETA_METODO[o.metodoPago] : '—'}
                       </td>
                       <td className="px-5 py-2.5 text-right font-semibold text-tinta">
                         {pesos(o.total - o.descuento)}

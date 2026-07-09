@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DetalleOrden, Producto } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
-import { pesos } from '@renderer/lib/format'
+import { pesos, capitalizar } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCocina'
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
+import { CuadriculaVirtual } from '@renderer/components/CuadriculaVirtual'
+import { CantidadEditable } from '@renderer/components/CantidadEditable'
+import { HistorialMesa } from '@renderer/components/HistorialMesa'
 import { useToast } from '@renderer/components/Toast'
 import { useImpresion } from '@renderer/store/impresion'
 import { comandasPorArea, rolesConfigurados, type GrupoComanda } from '@renderer/lib/comandas'
@@ -24,6 +27,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const {
     categorias,
     productos,
+    mesas,
     ordenPorId,
     agregarProducto,
     cambiarCantidad,
@@ -69,6 +73,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const [notaTexto, setNotaTexto] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
   const [motivoCancel, setMotivoCancel] = useState('')
+  // Historial de tickets de esta mesa (reimprimir ventas pasadas).
+  const [verHistorial, setVerHistorial] = useState(false)
   // Producto cuyo selector de modificadores está abierto.
   const [modProducto, setModProducto] = useState<Producto | null>(null)
   // Comensal activo y cuántos comensales hay en la orden.
@@ -115,6 +121,24 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
       setHuboQuitado(true)
       toast('Producto quitado · pulsa "Reimprimir comanda" para avisar a cocina', 'info')
     }, 'Quitar un producto ya enviado a cocina')
+  }
+
+  // Fija la cantidad exacta (escribir un número, ej. 100, en vez de picar +).
+  // Reducir una línea ya enviada a cocina pide autorización, como restar/quitar.
+  const fijarCantidad = (d: DetalleOrden, nueva: number): void => {
+    const n = Math.max(1, Math.floor(nueva || 0))
+    if (n === d.cantidad) return
+    const delta = n - d.cantidad
+    const aplicar = (): void => void cambiarCantidad(orden.id, d.id, delta)
+    if (d.enviadoCocina && delta < 0) {
+      pedir(() => {
+        aplicar()
+        setHuboQuitado(true)
+        toast('Cantidad corregida · pulsa "Reimprimir comanda" para avisar a cocina', 'info')
+      }, 'Cambiar la cantidad de un producto ya enviado a cocina')
+    } else {
+      aplicar()
+    }
   }
 
   // Resta una unidad. No enviado: directo. Enviado: pide PIN; si llega a 0, quita
@@ -297,6 +321,16 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               {subtitulo} · orden #{orden.id}
             </p>
           </div>
+          {orden.mesaId != null && (
+            <button
+              onClick={() => setVerHistorial(true)}
+              className="ml-auto flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              title="Tickets de venta anteriores de esta mesa"
+            >
+              <Icono nombre="recibo" size={16} />
+              Tickets anteriores
+            </button>
+          )}
         </header>
 
         {/* Buscador */}
@@ -327,37 +361,43 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
             <button
               key={c.id}
               onClick={() => setCategoriaActiva(c.id)}
-              className={`rounded-md border px-4 py-1.5 text-sm font-semibold transition ${
+              className={`rounded-md border px-4 py-2.5 text-base font-semibold transition ${
                 categoriaActiva === c.id
                   ? 'border-acento bg-acento text-white'
                   : 'border-black/[0.06] bg-white text-tinta-suave hover:border-black/15 hover:bg-black/[0.03]'
               }`}
             >
-              {c.nombre}
+              {capitalizar(c.nombre)}
             </button>
           ))}
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] content-start gap-3 overflow-auto pr-1">
-          {productosVisibles.map((p) => (
+        <CuadriculaVirtual
+          items={productosVisibles}
+          keyOf={(p) => p.id}
+          minColAncho={200}
+          altoFila={128}
+          renderItem={(p) => (
             <button
-              key={p.id}
               onClick={() => tocarProducto(p)}
-              className="flex flex-col justify-between gap-2 rounded-lg border border-black/[0.06] bg-white p-4 text-left transition hover:border-black/20"
+              className="relative flex h-full w-full flex-col justify-between gap-1 overflow-hidden rounded-xl border border-black/[0.06] bg-white p-4 text-left transition hover:border-black/20"
             >
-              <span className="font-semibold text-tinta">{p.nombre}</span>
-              <span className="flex items-center justify-between">
-                <span className="text-base font-bold text-tinta">{pesos(p.precio)}</span>
+              {p.color && (
+                <span className="absolute inset-x-0 top-0 h-2" style={{ backgroundColor: p.color }} />
+              )}
+              <span className="line-clamp-2 text-lg font-semibold leading-tight text-tinta">
+                {p.nombre}
+              </span>
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-lg font-bold tabular-nums text-tinta">{pesos(p.precio)}</span>
                 {p.grupos && p.grupos.length > 0 && (
                   <span className="text-[10px] font-semibold uppercase text-tinta-suave">opciones</span>
                 )}
               </span>
             </button>
-          ))}
-          {productosVisibles.length === 0 && (
-            <p className="text-sm text-tinta-suave">No hay productos en esta categoría.</p>
           )}
-        </div>
+          vacio={<p className="text-sm text-tinta-suave">No hay productos en esta categoría.</p>}
+        />
       </section>
 
       {/* Comanda */}
@@ -458,14 +498,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
                     <button
                       onClick={() => restar(d)}
                       title={d.enviadoCocina ? 'Restar (ya enviado: pide autorización)' : 'Restar'}
-                      className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave hover:bg-black/[0.08]"
+                      className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
                     >
                       −
                     </button>
-                    <span className="w-6 text-center font-semibold">{d.cantidad}</span>
+                    <CantidadEditable valor={d.cantidad} onFijar={(n) => fijarCantidad(d, n)} />
                     <button
                       onClick={() => cambiarCantidad(orden.id, d.id, +1)}
-                      className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave hover:bg-black/[0.08]"
+                      className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
                     >
                       +
                     </button>
@@ -498,14 +538,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           <button
             onClick={handleEnviar}
             disabled={!hayPendientes}
-            className="mb-2 w-full rounded-md bg-acento py-2.5 font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
+            className="mb-2 w-full rounded-md bg-acento py-3.5 text-base font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
           >
             {primerEnvio ? 'Enviar a cocina' : 'Enviar pendientes a cocina'}
           </button>
           <button
             onClick={handleCobrar}
             disabled={orden.detalle.length === 0 || hayPendientes}
-            className="w-full rounded-md border border-black/10 bg-white py-2.5 font-semibold text-tinta transition enabled:hover:bg-black/[0.05] disabled:cursor-not-allowed disabled:border-black/[0.06] disabled:text-tinta-suave/40"
+            className="w-full rounded-md border border-black/10 bg-white py-3.5 text-base font-semibold text-tinta transition enabled:hover:bg-black/[0.05] disabled:cursor-not-allowed disabled:border-black/[0.06] disabled:text-tinta-suave/40"
             title={hayPendientes ? 'Envía todo a cocina antes de cobrar' : ''}
           >
             Pasar a cobro
@@ -714,6 +754,11 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           El motivo queda registrado en el corte para auditoría.
         </p>
       </Modal>
+
+      <HistorialMesa
+        mesa={verHistorial ? (mesas.find((m) => m.id === orden.mesaId) ?? null) : null}
+        onCerrar={() => setVerHistorial(false)}
+      />
     </div>
   )
 }

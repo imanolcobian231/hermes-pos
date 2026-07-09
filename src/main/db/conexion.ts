@@ -9,7 +9,7 @@ export function obtenerDb(): Database.Database {
   if (db) return db
 
   // En desarrollo guarda la DB junto a userData para no perder datos entre recargas.
-  const ruta = join(app.getPath('userData'), 'hermes.db')
+  const ruta = join(app.getPath('userData'), 'ankyra.db')
   db = new Database(ruta)
   db.pragma('journal_mode = WAL')
   db.pragma('foreign_keys = ON')

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { Usuario } from '@shared/types'
 import { useAuth } from '@renderer/store/auth'
 import { Icono } from '@renderer/components/Icono'
-import { LogoHermes } from '@renderer/components/LogoHermes'
+import { LogoAnkyra } from '@renderer/components/LogoAnkyra'
 
 export function Login(): React.JSX.Element {
   const [cargando, setCargando] = useState(true)
@@ -19,7 +19,7 @@ export function Login(): React.JSX.Element {
     <div className="flex h-screen items-center justify-center bg-fondo text-tinta">
       <div className="w-[22rem] rounded-3xl border border-black/[0.06] bg-superficie p-8 shadow-xl shadow-black/5">
         <div className="mb-8 flex flex-col items-center gap-3">
-          <LogoHermes className="w-3/4 object-contain" />
+          <LogoAnkyra className="w-3/4 object-contain" />
           <div className="text-sm text-tinta-suave">
             {hayUsuarios ? 'Inicia sesión para continuar' : 'Configura tu negocio'}
           </div>

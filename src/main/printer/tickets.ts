@@ -1,7 +1,15 @@
 import iconv from 'iconv-lite'
-import type { Corte, DestinoImpresion, DetalleOrden, LogoTicket, OrdenConDetalle } from '@shared/types'
+import type {
+  Corte,
+  DestinoImpresion,
+  DetalleOrden,
+  LogoTicket,
+  OpcionesTicketFinal,
+  OrdenConDetalle
+} from '@shared/types'
 import { calcularImpuesto, totalEnLetra } from '@shared/impuestos'
 import { agruparLineas } from '@shared/ticket'
+import { ETIQUETA_METODO } from '@shared/pagos'
 import { obtenerImpresoras } from '../repos/config'
 
 // Armado de tickets térmicos (ESC/POS). El texto se compone al ancho configurado
@@ -31,12 +39,6 @@ function formato(ancho: number): Formato {
 
 function pesos(n: number): string {
   return `$${(n || 0).toFixed(2)}`
-}
-
-const ETIQUETA_METODO: Record<string, string> = {
-  efectivo: 'Efectivo',
-  tarjeta: 'Tarjeta',
-  transferencia: 'Transferencia'
 }
 
 // Divide un texto en líneas que no excedan `ancho` columnas (corta por palabras;
@@ -242,9 +244,10 @@ export function bytesCocina(
 export function bytesFinal(
   titulo: string,
   orden: OrdenConDetalle,
-  opciones: { copia?: boolean } = {},
+  opciones: OpcionesTicketFinal = {},
   ancho?: number,
-  logoPie?: LogoTicket | null
+  logoPie?: LogoTicket | null,
+  pieSociales?: LogoTicket[]
 ): number[] {
   const cfg = obtenerImpresoras()
   const w = ancho ?? cfg.ancho
@@ -260,7 +263,7 @@ export function bytesFinal(
   // Con logo arriba no hace falta margen superior (el logo ya separa); sin logo,
   // se dejan dos líneas en blanco de respiro.
   const logo = segmentoLogo()
-  const cabeza: string[] = logo ? [] : ['', '']
+  const cabeza: string[] = logo ? [] : ['']
   const centrarEnvuelto = (txt: string): void => {
     for (const ln of envolver(txt, w)) cabeza.push(centrar(ln))
   }
@@ -272,17 +275,37 @@ export function bytesFinal(
   cabeza.push('')
   const mensaje = (cfg.mensajeTicket ?? 'Gracias por su visita').trim()
   if (mensaje) for (const ln of envolver(mensaje, w)) cabeza.push(centrar(ln))
+  // Leyenda no fiscal, bajo la frase del negocio.
+  for (const ln of envolver('ESTE NO ES UN COMPROBANTE FISCAL', w)) cabeza.push(centrar(ln))
   if (opciones.copia) cabeza.push(centrar('*** COPIA ***'))
+  // Comprobante / nota de venta (no fiscal): rótulo + datos del cliente.
+  if (opciones.notaVenta) {
+    cabeza.push('')
+    cabeza.push(centrar('NOTA DE VENTA'))
+    const { razonSocial, rfc } = opciones.notaVenta
+    if (razonSocial) for (const ln of envolver(`Cliente: ${razonSocial}`, w)) cabeza.push(ln)
+    if (rfc) cabeza.push(`RFC: ${rfc}`)
+  }
   cabeza.push('')
   cabeza.push(linea())
   cabeza.push(fila(titulo, `Ticket #${orden.id}`))
   cabeza.push(fechaHora(orden.cerradoEn))
   cabeza.push(linea())
   cabeza.push('')
+  // Encabezado de columnas en negritas (ESC E 1 … ESC E 0), pegado a los productos.
+  cabeza.push('\x1bE\x01' + fila('Cant. Descripcion', 'Importe') + '\x1bE\x00')
   // Productos agrupados (sin separar por comensal) para el ticket del cliente.
+  // El precio del modificador se saca del producto y se muestra aparte: el
+  // producto va a su precio base y cada modificador con precio lleva su importe.
   for (const d of agruparLineas(orden.detalle)) {
-    cabeza.push(fila(`${d.cantidad} x ${d.nombreProducto}`, pesos(d.cantidad * d.precioUnitario)))
-    for (const m of d.modificadores) cabeza.push(`   + ${m.nombre}`)
+    const sumaMods = d.modificadores.reduce((s, m) => s + m.precio, 0)
+    cabeza.push(
+      fila(`${d.cantidad} ${d.nombreProducto}`, pesos(d.cantidad * (d.precioUnitario - sumaMods)))
+    )
+    for (const m of d.modificadores) {
+      if (m.precio > 0) cabeza.push(fila(`   + ${m.nombre}`, pesos(d.cantidad * m.precio)))
+      else cabeza.push(`   + ${m.nombre}`)
+    }
   }
   cabeza.push('')
   cabeza.push(linea())
@@ -300,9 +323,9 @@ export function bytesFinal(
   }
   cabeza.push('') // margen antes del TOTAL
 
-  // --- Pie (tamaño normal): total en letra (alineado a la izquierda) y pago. ---
+  // --- Pie (tamaño normal): total en letra (centrado) y pago. ---
   const cola: string[] = ['']
-  for (const ln of envolver(`Son ${totalEnLetra(totalConPropina)}`, w)) cola.push(ln)
+  for (const ln of envolver(`Son ${totalEnLetra(totalConPropina)}`, w)) cola.push(centrar(ln))
   cola.push('')
   const pagos = orden.pagos ?? []
   if (pagos.length > 0) {
@@ -321,7 +344,7 @@ export function bytesFinal(
   cola.push(linea())
 
   // El ticket de caja abre el cajón (si está habilitado), salvo en copias.
-  // El TOTAL y "Hermes" van en letra doble. Al final, margen inferior.
+  // El TOTAL y "ANKYRA" van en letra doble. Al final, margen inferior.
   return aBytes(
     [
       ...(logo ? [logo] : []),
@@ -329,9 +352,11 @@ export function bytesFinal(
       { texto: fmtMitad.fila('TOTAL', pesos(totalConPropina)), grande: true },
       { texto: cola.join('\n') },
       { texto: '\n' },
-      // Pie de marca Hermes: logo si se proporcionó, si no el texto.
-      logoPie ? segmentoImagen(logoPie) : { texto: fmtMitad.centrar('Hermes'), grande: true },
-      { texto: centrar('Powered by Olyssea') },
+      // Pie de marca: logo de Ankyra (ya incluye "Powered by Olyssea"). Fallback a
+      // texto solo si no se pudo rasterizar el logo.
+      logoPie
+        ? segmentoImagen(logoPie)
+        : { texto: fmtMitad.centrar('ANKYRA'), grande: true },
       { texto: '\n' }
     ],
     { cajon: !opciones.copia }
@@ -350,7 +375,7 @@ export function bytesCorte(corte: Corte, ancho?: number): number[] {
   const fmtMitad = formato(Math.max(8, Math.floor(w / 2)))
   const ventas = corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
   const balance = ventas - corte.totalGastos
-  const esperado = corte.fondoInicial + corte.totalEfectivo - corte.totalGastos
+  const esperado = corte.fondoInicial + corte.totalEfectivo - corte.totalGastos - corte.totalRetiros
 
   const l: string[] = ['', '']
   if (cfg.nombreNegocio) for (const ln of envolver(cfg.nombreNegocio, w)) l.push(centrar(ln))
@@ -375,6 +400,7 @@ export function bytesCorte(corte: Corte, ancho?: number): number[] {
   l.push(fila('Fondo inicial', pesos(corte.fondoInicial)))
   l.push(fila('Ventas efectivo', pesos(corte.totalEfectivo)))
   if (corte.totalGastos > 0) l.push(fila('Gastos', `-${pesos(corte.totalGastos)}`))
+  if (corte.totalRetiros > 0) l.push(fila('Retiros', `-${pesos(corte.totalRetiros)}`))
   l.push(fila('Esperado en cajon', pesos(esperado)))
   if (corte.efectivoContado != null) {
     l.push(fila('Efectivo contado', pesos(corte.efectivoContado)))
@@ -398,7 +424,12 @@ export function bytesCorte(corte: Corte, ancho?: number): number[] {
  * Ticket de prueba para Ajustes: genera una VENTA de ejemplo para ver cómo se
  * vería el ticket real (en cocina imprime una comanda de ejemplo).
  */
-export function bytesPrueba(destino: DestinoImpresion, ancho?: number, logoPie?: LogoTicket | null): number[] {
+export function bytesPrueba(
+  destino: DestinoImpresion,
+  ancho?: number,
+  logoPie?: LogoTicket | null,
+  pieSociales?: LogoTicket[]
+): number[] {
   const ahora = new Date().toISOString()
   const detalle: DetalleOrden[] = [
     {
@@ -407,8 +438,12 @@ export function bytesPrueba(destino: DestinoImpresion, ancho?: number, logoPie?:
     },
     {
       id: 2, ordenId: 0, productoId: 0, nombreProducto: 'Quesadilla', cantidad: 1,
-      precioUnitario: 45, comensal: 1, enviadoCocina: true,
-      modificadores: [{ id: 1, detalleId: 2, modificadorId: null, nombre: 'Sin cebolla', precio: 0 }]
+      // precioUnitario incluye el extra con precio (45 base + 10 extra queso).
+      precioUnitario: 55, comensal: 1, enviadoCocina: true,
+      modificadores: [
+        { id: 1, detalleId: 2, modificadorId: null, nombre: 'Sin cebolla', precio: 0 },
+        { id: 2, detalleId: 2, modificadorId: null, nombre: 'Extra queso', precio: 10 }
+      ]
     },
     {
       id: 3, ordenId: 0, productoId: 0, nombreProducto: 'Refresco', cantidad: 2,
@@ -440,5 +475,5 @@ export function bytesPrueba(destino: DestinoImpresion, ancho?: number, logoPie?:
     cerradoEn: ahora,
     detalle
   }
-  return bytesFinal('Mesa 5 (PRUEBA)', orden, {}, ancho, logoPie)
+  return bytesFinal('Mesa 5 (PRUEBA)', orden, {}, ancho, logoPie, pieSociales)
 }

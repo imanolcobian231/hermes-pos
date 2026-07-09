@@ -3,21 +3,32 @@ import type { ConfigRespaldo, Impresora, RespaldoInfo } from '@shared/types'
 import { useImpresion } from '@renderer/store/impresion'
 import { useToast } from '@renderer/components/Toast'
 import { fechaHora } from '@renderer/lib/format'
-import { pngALogo, logoAVistaPrevia } from '@renderer/lib/logo'
+import { pngALogo, logoAVistaPrevia, iconoSocialDataUrl } from '@renderer/lib/logo'
 import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
 
 const BAUDIOS = [9600, 19200, 38400, 57600, 115200]
 
+const PESTANAS_AJ = [
+  { id: 'negocio', label: 'Negocio' },
+  { id: 'ticket', label: 'Ticket' },
+  { id: 'impresoras', label: 'Impresoras' },
+  { id: 'respaldos', label: 'Respaldos' }
+] as const
+type PestanaAj = (typeof PESTANAS_AJ)[number]['id']
+
 export function Ajustes(): React.JSX.Element {
   const { cfg, aviso, limpiarAviso, actualizarCfg } = useImpresion()
   const toast = useToast()
+  const [pestana, setPestana] = useState<PestanaAj>('negocio')
   const [negocio, setNegocio] = useState({
     nombreNegocio: '',
     direccion: '',
     telefono: '',
     rfc: '',
-    mensajeTicket: ''
+    mensajeTicket: '',
+    facebook: '',
+    instagram: ''
   })
 
   // Los avisos de conexión (éxito/error) vienen del store; se muestran como toast.
@@ -35,10 +46,20 @@ export function Ajustes(): React.JSX.Element {
         direccion: cfg.direccion,
         telefono: cfg.telefono,
         rfc: cfg.rfc ?? '',
-        mensajeTicket: cfg.mensajeTicket ?? 'Gracias por su visita'
+        mensajeTicket: cfg.mensajeTicket ?? 'Gracias por su visita',
+        facebook: cfg.redesSociales?.facebook ?? '',
+        instagram: cfg.redesSociales?.instagram ?? ''
       })
     }
-  }, [cfg?.nombreNegocio, cfg?.direccion, cfg?.telefono, cfg?.rfc, cfg?.mensajeTicket])
+  }, [
+    cfg?.nombreNegocio,
+    cfg?.direccion,
+    cfg?.telefono,
+    cfg?.rfc,
+    cfg?.mensajeTicket,
+    cfg?.redesSociales?.facebook,
+    cfg?.redesSociales?.instagram
+  ])
 
   const guardarNegocio = (): void => {
     void actualizarCfg({
@@ -46,7 +67,11 @@ export function Ajustes(): React.JSX.Element {
       direccion: negocio.direccion.trim(),
       telefono: negocio.telefono.trim(),
       rfc: negocio.rfc.trim(),
-      mensajeTicket: negocio.mensajeTicket.trim()
+      mensajeTicket: negocio.mensajeTicket.trim(),
+      redesSociales: {
+        facebook: negocio.facebook.trim(),
+        instagram: negocio.instagram.trim()
+      }
     })
   }
 
@@ -56,12 +81,31 @@ export function Ajustes(): React.JSX.Element {
 
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col">
-      <header className="mb-6">
+      <header className="mb-5">
         <h1 className="text-2xl font-bold text-tinta">Ajustes</h1>
-        <p className="text-sm text-tinta-suave">Impresoras térmicas (Bluetooth o puerto COM)</p>
+        <p className="text-sm text-tinta-suave">Configura tu negocio, ticket, impresoras y respaldos</p>
       </header>
 
+      {/* Pestañas de secciones */}
+      <div className="mb-5 flex flex-wrap gap-2">
+        {PESTANAS_AJ.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPestana(p.id)}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              pestana === p.id
+                ? 'bg-acento text-white'
+                : 'bg-white text-tinta-suave hover:bg-black/[0.08]'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
       <div className="flex flex-col gap-5 overflow-auto pb-4">
+        {pestana === 'negocio' && (
+          <>
         {/* Negocio */}
         <Seccion titulo="Negocio">
           <div className="flex flex-col gap-3">
@@ -101,9 +145,26 @@ export function Ajustes(): React.JSX.Element {
               onChange={(v) => setNegocio((n) => ({ ...n, mensajeTicket: v }))}
               onGuardar={guardarNegocio}
             />
+            <CampoNegocio
+              label="Facebook"
+              valor={negocio.facebook}
+              icono={<img src={iconoSocialDataUrl('facebook')} alt="" className="h-5 w-5" />}
+              placeholder="Ej. /TaqueriaLaEsquina"
+              onChange={(v) => setNegocio((n) => ({ ...n, facebook: v }))}
+              onGuardar={guardarNegocio}
+            />
+            <CampoNegocio
+              label="Instagram"
+              valor={negocio.instagram}
+              icono={<img src={iconoSocialDataUrl('instagram')} alt="" className="h-5 w-5" />}
+              placeholder="Ej. @taqueria_la_esquina"
+              onChange={(v) => setNegocio((n) => ({ ...n, instagram: v }))}
+              onGuardar={guardarNegocio}
+            />
           </div>
           <p className="mt-2 text-xs text-tinta-suave">
-            Aparecen como encabezado en los tickets. Déjalos vacíos para no imprimirlos.
+            El nombre y datos aparecen en el encabezado; Facebook e Instagram, con su ícono, al pie
+            del ticket. Déjalos vacíos para no imprimirlos.
           </p>
         </Seccion>
 
@@ -120,11 +181,26 @@ export function Ajustes(): React.JSX.Element {
           </p>
         </Seccion>
 
+        {/* Equipo / entrada */}
+        <Seccion titulo="Equipo">
+          <Switch
+            activo={cfg.tecladoVirtual !== false}
+            label="Teclado en pantalla"
+            onChange={(v) => void actualizarCfg({ tecladoVirtual: v })}
+          />
+          <p className="text-xs text-tinta-suave">
+            Muestra un teclado táctil al escribir en los campos. Actívalo en equipos sin teclado
+            físico; apágalo si usas teclado de computadora.
+          </p>
+        </Seccion>
+
+          </>
+        )}
+
+        {pestana === 'ticket' && (
+          <>
         {/* Logo del ticket */}
         <SeccionLogo />
-
-        {/* Impresoras (varias, con rol) */}
-        <SeccionImpresoras />
 
         {/* Impuestos */}
         <SeccionImpuestos />
@@ -171,9 +247,12 @@ export function Ajustes(): React.JSX.Element {
           />
         </Seccion>
 
-        {/* Respaldo de la base de datos */}
-        <SeccionRespaldos />
+          </>
+        )}
 
+        {pestana === 'impresoras' && (
+          <>
+        <SeccionImpresoras />
         <p className="text-xs text-tinta-suave">
           La impresora debe estar encendida. <strong>Bluetooth:</strong> al pulsar “Conectar por
           Bluetooth” aparece la lista de dispositivos cercanos; elige la impresora y queda enlazada.{' '}
@@ -182,6 +261,10 @@ export function Ajustes(): React.JSX.Element {
           app se conecta solo al momento de imprimir, por eso pueden convivir dos impresoras sin
           estorbarse.
         </p>
+          </>
+        )}
+
+        {pestana === 'respaldos' && <SeccionRespaldos />}
       </div>
     </div>
   )
@@ -192,6 +275,7 @@ function CampoNegocio({
   valor,
   placeholder,
   multilinea,
+  icono,
   onChange,
   onGuardar
 }: {
@@ -199,6 +283,7 @@ function CampoNegocio({
   valor: string
   placeholder?: string
   multilinea?: boolean
+  icono?: React.ReactNode
   onChange: (v: string) => void
   onGuardar: () => void
 }): React.JSX.Element {
@@ -217,14 +302,21 @@ function CampoNegocio({
           className={`${clase} resize-y`}
         />
       ) : (
-        <input
-          value={valor}
-          onChange={(e) => onChange(e.target.value)}
-          onBlur={onGuardar}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          placeholder={placeholder}
-          className={clase}
-        />
+        <div className="relative">
+          {icono && (
+            <span className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-tinta-suave">
+              {icono}
+            </span>
+          )}
+          <input
+            value={valor}
+            onChange={(e) => onChange(e.target.value)}
+            onBlur={onGuardar}
+            onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+            placeholder={placeholder}
+            className={`${clase} ${icono ? 'pl-10' : ''}`}
+          />
+        </div>
       )}
       {multilinea && (
         <p className="mt-1 text-xs text-tinta-suave">Cada renglón se imprime en una línea aparte.</p>
@@ -244,17 +336,19 @@ function SeccionLogo(): React.JSX.Element {
   const [procesando, setProcesando] = useState(false)
 
   const logo = cfg?.logoTicket ?? null
-  // El logo se imprime en la de Caja: usa su ancho de papel. Ocupa ~la mitad del
-  // rollo (384/576 puntos), reducido otro 25%, y recortado al contenido.
+  // El logo se imprime en la de Caja: usa su ancho de papel. Ocupa ~35% del rollo
+  // (384/576 puntos), recortado al contenido (25% menos que antes).
   const cajaAncho = impresoras.find((i) => i.id === cfg?.impresoraCajaId)?.ancho ?? cfg?.ancho ?? 32
-  const anchoPuntos = Math.round(((cajaAncho === 48 ? 576 : 384) / 2) * 0.75)
+  const anchoPuntos = Math.round(((cajaAncho === 48 ? 576 : 384) / 2) * 0.703)
   const vista = useMemo(() => (logo ? logoAVistaPrevia(logo) : null), [logo])
 
   const elegir = async (file: File | undefined): Promise<void> => {
     if (!file) return
     setProcesando(true)
     try {
-      const raster = await pngALogo(file, anchoPuntos)
+      // Tope de alto generoso (antes 320) para que el +25% de ancho no se anule
+      // cuando el logo es alto/cuadrado.
+      const raster = await pngALogo(file, anchoPuntos, 400)
       await actualizarCfg({ logoTicket: raster })
       toast('Logo guardado', 'info')
     } catch (e) {
@@ -489,7 +583,9 @@ function FilaImpresora({
     conectar,
     desconectar,
     configurarCom,
+    configurarWindows,
     listarPuertos,
+    listarImpresorasWindows,
     imprimirPrueba,
     renombrarImpresora,
     eliminarImpresora,
@@ -511,11 +607,16 @@ function FilaImpresora({
   const [nombre, setNombre] = useState(impresora.nombre)
   const [probando, setProbando] = useState(false)
   const [editandoConexion, setEditandoConexion] = useState(false)
-  const [modoCom, setModoCom] = useState(impresora.tipo === 'com')
+  const modoInicial: 'bluetooth' | 'com' | 'windows' =
+    impresora.tipo === 'com' ? 'com' : impresora.tipo === 'windows' ? 'windows' : 'bluetooth'
+  const [modo, setModo] = useState<'bluetooth' | 'com' | 'windows'>(modoInicial)
   const [puertos, setPuertos] = useState<string[]>([])
   const [cargandoPuertos, setCargandoPuertos] = useState(false)
   const [puerto, setPuerto] = useState(impresora.puerto ?? '')
   const [baud, setBaud] = useState(impresora.baudRate ?? 9600)
+  const [impresorasWin, setImpresorasWin] = useState<string[]>([])
+  const [cargandoWin, setCargandoWin] = useState(false)
+  const [impWin, setImpWin] = useState(impresora.impresoraWindows ?? '')
 
   const conectandoBle = conectando === impresora.id
 
@@ -533,8 +634,36 @@ function FilaImpresora({
   }
 
   const abrirCom = (): void => {
-    setModoCom(true)
+    setModo('com')
     void refrescarPuertos()
+  }
+
+  const refrescarWin = async (): Promise<void> => {
+    setCargandoWin(true)
+    try {
+      const lista = await listarImpresorasWindows()
+      setImpresorasWin(lista)
+      if (!lista.includes(impWin)) setImpWin(lista[0] ?? '')
+    } catch {
+      toast('No se pudieron leer las impresoras de Windows', 'error')
+    } finally {
+      setCargandoWin(false)
+    }
+  }
+
+  const abrirWin = (): void => {
+    setModo('windows')
+    void refrescarWin()
+  }
+
+  const guardarWin = async (): Promise<void> => {
+    if (!impWin) {
+      toast('Elige una impresora de Windows', 'error')
+      return
+    }
+    await configurarWindows(impresora.id, impWin)
+    setEditandoConexion(false)
+    toast('Impresora de Windows guardada', 'info')
   }
 
   const conectarBle = async (): Promise<void> => {
@@ -567,7 +696,9 @@ function FilaImpresora({
   const detalle = configurada
     ? impresora.tipo === 'com'
       ? `COM ${impresora.puerto ?? ''}${estado.conectado ? '' : ' · no disponible'}`
-      : `Bluetooth${estado.conectado ? '' : ' · no disponible'}`
+      : impresora.tipo === 'windows'
+        ? `USB/Windows · ${impresora.impresoraWindows ?? ''}`
+        : `Bluetooth${estado.conectado ? '' : ' · no disponible'}`
     : 'Sin conexión'
 
   return (
@@ -575,7 +706,7 @@ function FilaImpresora({
       {/* Encabezado: nombre + rol + estado */}
       <div className="flex items-center gap-2">
         <span
-          className={`h-2.5 w-2.5 shrink-0 rounded-full ${estado.conectado ? 'bg-emerald-500' : configurada ? 'bg-amber-500' : 'bg-black/15'}`}
+          className={`h-2.5 w-2.5 shrink-0 rounded-full ${estado.conectado ? 'bg-acento' : configurada ? 'bg-amber-500' : 'bg-black/15'}`}
         />
         <input
           value={nombre}
@@ -648,7 +779,7 @@ function FilaImpresora({
           </button>
           <button
             onClick={() => {
-              setModoCom(impresora.tipo === 'com')
+              setModo(modoInicial)
               setEditandoConexion(true)
             }}
             className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
@@ -663,16 +794,19 @@ function FilaImpresora({
           </button>
         </div>
       ) : (
-        <div className="mt-3 rounded-lg border border-black/[0.06] p-3">
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <TabTransporte activo={!modoCom} onClick={() => setModoCom(false)}>
+        <div className="animar-entrada mt-3 rounded-lg border border-black/[0.06] p-3">
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            <TabTransporte activo={modo === 'bluetooth'} onClick={() => setModo('bluetooth')}>
               Bluetooth
             </TabTransporte>
-            <TabTransporte activo={modoCom} onClick={abrirCom}>
+            <TabTransporte activo={modo === 'com'} onClick={abrirCom}>
               Puerto COM
             </TabTransporte>
+            <TabTransporte activo={modo === 'windows'} onClick={abrirWin}>
+              USB / Windows
+            </TabTransporte>
           </div>
-          {!modoCom ? (
+          {modo === 'bluetooth' ? (
             <button
               onClick={() => void conectarBle()}
               disabled={conectandoBle}
@@ -680,6 +814,47 @@ function FilaImpresora({
             >
               {conectandoBle ? 'Buscando…' : 'Conectar por Bluetooth'}
             </button>
+          ) : modo === 'windows' ? (
+            <div className="flex flex-col gap-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-tinta-suave">
+                  Impresora de Windows (USB o red)
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={impWin}
+                    onChange={(e) => setImpWin(e.target.value)}
+                    className="flex-1 rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
+                  >
+                    {impresorasWin.length === 0 && <option value="">Sin impresoras detectadas</option>}
+                    {impresorasWin.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => void refrescarWin()}
+                    disabled={cargandoWin}
+                    title="Actualizar lista de impresoras"
+                    className="rounded-md border border-black/10 px-3 py-1.5 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05] disabled:opacity-50"
+                  >
+                    {cargandoWin ? '…' : '↻'}
+                  </button>
+                </div>
+                <p className="mt-1 text-[11px] text-tinta-suave">
+                  Usa la impresora ya instalada en Windows. Ideal para USB: queda conectada al
+                  abrir el POS, sin reconectar.
+                </p>
+              </div>
+              <button
+                onClick={() => void guardarWin()}
+                className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              >
+                Guardar impresora de Windows
+              </button>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
               <div>

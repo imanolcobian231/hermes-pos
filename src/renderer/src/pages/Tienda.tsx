@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Producto } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
-import { pesos } from '@renderer/lib/format'
+import { pesos, capitalizar } from '@renderer/lib/format'
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
+import { CuadriculaVirtual } from '@renderer/components/CuadriculaVirtual'
+import { CantidadEditable } from '@renderer/components/CantidadEditable'
+import { TicketsRecientes } from '@renderer/components/TicketsRecientes'
 import { Icono } from '@renderer/components/Icono'
 
 interface Props {
@@ -17,6 +20,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
   const {
     categorias,
     productos,
+    cobradas,
     ordenPorId,
     abrirOrdenLlevar,
     agregarProducto,
@@ -34,6 +38,8 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
   const [busqueda, setBusqueda] = useState('')
   const [ordenId, setOrdenId] = useState<number | null>(null)
   const [modProducto, setModProducto] = useState<Producto | null>(null)
+  // Últimos tickets del turno (reimprimir / nota de venta).
+  const [verTickets, setVerTickets] = useState(false)
   // Cantidad vendida por producto, para ordenar por popularidad.
   const [ventas, setVentas] = useState<Record<number, number>>({})
 
@@ -109,7 +115,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
         <div className={`mb-4 flex flex-wrap gap-2 ${termino ? 'opacity-40' : ''}`}>
           <button
             onClick={() => setCategoriaActiva(null)}
-            className={`rounded-md border px-4 py-1.5 text-sm font-semibold transition ${
+            className={`rounded-md border px-4 py-2.5 text-base font-semibold transition ${
               categoriaActiva === null
                 ? 'border-acento bg-acento text-white'
                 : 'border-black/[0.06] bg-white text-tinta-suave hover:border-black/15 hover:bg-black/[0.03]'
@@ -117,48 +123,68 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
           >
             Todos
           </button>
-          {categoriasOrdenadas.map((c) => (
+          {/* Se omite una categoría llamada "Todos": el filtro virtual de arriba ya
+              muestra todo, así no aparece duplicada. */}
+          {categoriasOrdenadas
+            .filter((c) => c.nombre.trim().toLowerCase() !== 'todos')
+            .map((c) => (
             <button
               key={c.id}
               onClick={() => setCategoriaActiva(c.id)}
-              className={`rounded-md border px-4 py-1.5 text-sm font-semibold transition ${
+              className={`rounded-md border px-4 py-2.5 text-base font-semibold transition ${
                 categoriaActiva === c.id
                   ? 'border-acento bg-acento text-white'
                   : 'border-black/[0.06] bg-white text-tinta-suave hover:border-black/15 hover:bg-black/[0.03]'
               }`}
             >
-              {c.nombre}
+              {capitalizar(c.nombre)}
             </button>
           ))}
         </div>
 
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] content-start gap-3 overflow-auto pr-1">
-          {productosVisibles.map((p) => (
+        <CuadriculaVirtual
+          items={productosVisibles}
+          keyOf={(p) => p.id}
+          minColAncho={200}
+          altoFila={128}
+          renderItem={(p) => (
             <button
-              key={p.id}
               onClick={() => tocarProducto(p)}
-              className="flex flex-col justify-between gap-2 rounded-lg border border-black/[0.06] bg-white p-4 text-left transition hover:border-black/20"
+              className="relative flex h-full w-full flex-col justify-between gap-1 overflow-hidden rounded-xl border border-black/[0.06] bg-white p-4 text-left transition hover:border-black/20"
             >
-              <span className="font-semibold text-tinta">{p.nombre}</span>
-              <span className="flex items-center justify-between">
-                <span className="text-base font-bold text-tinta">{pesos(p.precio)}</span>
+              {p.color && (
+                <span className="absolute inset-x-0 top-0 h-2" style={{ backgroundColor: p.color }} />
+              )}
+              <span className="line-clamp-2 text-lg font-semibold leading-tight text-tinta">
+                {p.nombre}
+              </span>
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="text-lg font-bold tabular-nums text-tinta">{pesos(p.precio)}</span>
                 {p.grupos && p.grupos.length > 0 && (
                   <span className="text-[10px] font-semibold uppercase text-tinta-suave">opciones</span>
                 )}
               </span>
             </button>
-          ))}
-          {productosVisibles.length === 0 && (
-            <p className="text-sm text-tinta-suave">No hay productos en esta categoría.</p>
           )}
-        </div>
+          vacio={<p className="text-sm text-tinta-suave">No hay productos en esta categoría.</p>}
+        />
       </section>
 
       {/* Carrito */}
       <aside className="flex w-96 flex-col rounded-lg border border-black/[0.06] bg-white">
-        <header className="border-b border-black/[0.04] px-5 py-3">
-          <h2 className="text-lg font-bold text-tinta">Venta</h2>
-          <p className="text-xs text-tinta-suave">Toca productos para agregarlos al ticket</p>
+        <header className="flex items-center justify-between gap-2 border-b border-black/[0.04] px-5 py-3">
+          <div>
+            <h2 className="text-lg font-bold text-tinta">Venta</h2>
+            <p className="text-xs text-tinta-suave">Toca productos para agregarlos al ticket</p>
+          </div>
+          <button
+            onClick={() => setVerTickets(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            title="Reimprimir tickets de venta del turno"
+          >
+            <Icono nombre="recibo" size={15} />
+            Últimos tickets
+          </button>
         </header>
 
         <div className="flex-1 overflow-auto px-3 py-2">
@@ -170,7 +196,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
                 key={d.id}
                 className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-black/[0.03]"
               >
-                <div className="flex-1">
+                <div className="min-w-0 flex-1">
                   <span className="font-medium text-tinta">{d.nombreProducto}</span>
                   {d.modificadores.map((m) => (
                     <div key={m.id} className="text-xs text-tinta-suave">
@@ -182,19 +208,25 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => cambiarCantidad(orden.id, d.id, -1)}
-                    className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave hover:bg-black/[0.08]"
+                    className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
                   >
                     −
                   </button>
-                  <span className="w-6 text-center font-semibold">{d.cantidad}</span>
+                  <CantidadEditable
+                    valor={d.cantidad}
+                    onFijar={(n) => {
+                      const delta = n - d.cantidad
+                      if (delta !== 0) void cambiarCantidad(orden.id, d.id, delta)
+                    }}
+                  />
                   <button
                     onClick={() => cambiarCantidad(orden.id, d.id, +1)}
-                    className="h-7 w-7 rounded-md bg-black/[0.05] font-bold text-tinta-suave hover:bg-black/[0.08]"
+                    className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
                   >
                     +
                   </button>
                 </div>
-                <span className="w-16 pt-1 text-right font-semibold text-tinta">
+                <span className="w-20 shrink-0 whitespace-nowrap pt-1 text-right font-semibold tabular-nums text-tinta">
                   {pesos(d.cantidad * d.precioUnitario)}
                 </span>
                 <button
@@ -217,7 +249,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
           <button
             onClick={() => void cobrar()}
             disabled={!orden || orden.detalle.length === 0}
-            className="w-full rounded-md bg-acento py-2.5 font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
+            className="w-full rounded-md bg-acento py-3.5 text-base font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
           >
             Cobrar
           </button>
@@ -234,6 +266,14 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
           }}
         />
       )}
+
+      <TicketsRecientes
+        abierto={verTickets}
+        titulo="Últimos tickets del turno"
+        tickets={cobradas}
+        vacio="Aún no hay ventas en el turno."
+        onCerrar={() => setVerTickets(false)}
+      />
     </div>
   )
 }

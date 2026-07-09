@@ -6,6 +6,7 @@ import type {
   ClienteInput,
   Corte,
   ConfigImpresoras,
+  FilaImportProducto,
   ConfigRespaldo,
   DestinoImpresion,
   DetalleOrden,
@@ -14,6 +15,8 @@ import type {
   LogoTicket,
   MesaInput,
   MetodoPago,
+  OpcionesTicketFinal,
+  TipoSalida,
   ModificadorInput,
   Pago,
   ProductoInput,
@@ -35,7 +38,12 @@ import * as reimpresiones from '../repos/reimpresiones'
 import * as config from '../repos/config'
 import * as sesion from '../sesion'
 import { bytesCocina, bytesCorte, bytesFinal, bytesPrueba } from '../printer/tickets'
-import { listarPuertos, enviarAPuerto } from '../printer/serial'
+import {
+  listarPuertos,
+  enviarAPuerto,
+  listarImpresorasWindows,
+  enviarAImpresoraWindows
+} from '../printer/serial'
 import { respaldar, listarRespaldos, carpetaRespaldos, restaurar } from '../db/respaldo'
 
 /**
@@ -55,9 +63,6 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.mesas.listar, () => mesas.listar())
   ipcMain.handle(CANALES.mesas.crear, (_e, capacidad?: number) => mesas.crear(capacidad))
   ipcMain.handle(CANALES.mesas.editar, (_e, id: number, datos: MesaInput) => mesas.editar(id, datos))
-  ipcMain.handle(CANALES.mesas.renombrar, (_e, id: number, nombre: string) =>
-    mesas.renombrar(id, nombre)
-  )
   ipcMain.handle(CANALES.mesas.eliminar, (_e, id: number) => mesas.eliminar(id))
 
   // --- Catálogo ------------------------------------------------------------
@@ -91,10 +96,16 @@ export function registrarIpc(): void {
     catalogo.desasignarGrupo(productoId, grupoId)
   )
   ipcMain.handle(CANALES.catalogo.masVendidos, () => catalogo.masVendidos())
+  ipcMain.handle(CANALES.catalogo.importarProductos, (_e, filas: FilaImportProducto[]) =>
+    catalogo.importarProductos(filas)
+  )
 
   // --- Órdenes -------------------------------------------------------------
   ipcMain.handle(CANALES.ordenes.activas, () => ordenes.listarActivas())
   ipcMain.handle(CANALES.ordenes.deMesa, (_e, mesaId: number) => ordenes.ordenDeMesa(mesaId))
+  ipcMain.handle(CANALES.ordenes.historialMesa, (_e, mesaId: number, limite?: number) =>
+    ordenes.historialMesa(mesaId, limite)
+  )
   ipcMain.handle(CANALES.ordenes.abrir, (_e, mesaId: number) => ordenes.abrir(mesaId))
   ipcMain.handle(CANALES.ordenes.abrirLlevar, (_e, nombre?: string) => ordenes.abrirLlevar(nombre))
   ipcMain.handle(CANALES.ordenes.descartar, (_e, ordenId: number) => ordenes.descartar(ordenId))
@@ -133,6 +144,9 @@ export function registrarIpc(): void {
       if (descuento && descuento > 0) exigirAdmin(pin)
       return ordenes.cobrar(ordenId, pagos, efectivoRecibido, descuento, propina)
     }
+  )
+  ipcMain.handle(CANALES.ordenes.cambiarMetodoPago, (_e, ordenId: number, metodo: MetodoPago) =>
+    ordenes.cambiarMetodoPago(ordenId, metodo)
   )
   ipcMain.handle(CANALES.ordenes.fiar, (_e, ordenId: number, clienteId: number, descuento?: number) =>
     ordenes.fiar(ordenId, clienteId, descuento)
@@ -205,8 +219,8 @@ export function registrarIpc(): void {
 
   // --- Gastos --------------------------------------------------------------
   ipcMain.handle(CANALES.gastos.listar, () => gastos.listarTurno())
-  ipcMain.handle(CANALES.gastos.crear, (_e, concepto: string, monto: number) =>
-    gastos.crear(concepto, monto)
+  ipcMain.handle(CANALES.gastos.crear, (_e, concepto: string, monto: number, tipo?: TipoSalida) =>
+    gastos.crear(concepto, monto, tipo)
   )
   ipcMain.handle(CANALES.gastos.eliminar, (_e, id: number) => gastos.eliminar(id))
 
@@ -256,21 +270,37 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(
     CANALES.printer.bytesFinal,
-    (_e, ordenId: number, opciones?: { copia?: boolean }, ancho?: number, logoPie?: LogoTicket | null) => {
+    (
+      _e,
+      ordenId: number,
+      opciones?: OpcionesTicketFinal,
+      ancho?: number,
+      logoPie?: LogoTicket | null,
+      pieSociales?: LogoTicket[]
+    ) => {
       const orden = ordenes.obtenerConDetalle(ordenId)
       const titulo = orden.mesaId != null ? mesas.obtener(orden.mesaId).nombre : orden.nombre ?? 'Pedido'
-      return bytesFinal(titulo, orden, opciones, ancho, logoPie)
+      return bytesFinal(titulo, orden, opciones, ancho, logoPie, pieSociales)
     }
   )
   ipcMain.handle(CANALES.printer.bytesCorte, (_e, corte: Corte, ancho?: number) => bytesCorte(corte, ancho))
   ipcMain.handle(
     CANALES.printer.bytesPrueba,
-    (_e, destino: DestinoImpresion, ancho?: number, logoPie?: LogoTicket | null) =>
-      bytesPrueba(destino, ancho, logoPie)
+    (
+      _e,
+      destino: DestinoImpresion,
+      ancho?: number,
+      logoPie?: LogoTicket | null,
+      pieSociales?: LogoTicket[]
+    ) => bytesPrueba(destino, ancho, logoPie, pieSociales)
   )
   ipcMain.handle(CANALES.printer.listarPuertos, () => listarPuertos())
   ipcMain.handle(CANALES.printer.enviarCom, (_e, puerto: string, baudRate: number, bytes: number[]) =>
     enviarAPuerto(puerto, baudRate, bytes)
+  )
+  ipcMain.handle(CANALES.printer.listarWindows, () => listarImpresorasWindows())
+  ipcMain.handle(CANALES.printer.enviarWindows, (_e, nombre: string, bytes: number[]) =>
+    enviarAImpresoraWindows(nombre, bytes)
   )
 
   // --- Configuración -------------------------------------------------------

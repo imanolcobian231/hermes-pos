@@ -15,12 +15,14 @@ function createWindow(): void {
     minHeight: 700,
     show: false,
     autoHideMenuBar: true,
-    title: 'Hermes',
+    title: 'Ankyra',
     icon: join(__dirname, '../../resources/icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
       contextIsolation: true,
+      // Necesario para navigator.bluetooth.getDevices() (reconexión automática).
+      experimentalFeatures: true,
       // Sin DevTools en producción: evita que se salten los controles desde la
       // consola del renderer. En desarrollo siguen disponibles.
       devTools: isDev

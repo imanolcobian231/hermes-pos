@@ -5,7 +5,6 @@ export const CANALES = {
     listar: 'mesas:listar',
     crear: 'mesas:crear',
     editar: 'mesas:editar',
-    renombrar: 'mesas:renombrar',
     eliminar: 'mesas:eliminar'
   },
   catalogo: {
@@ -22,11 +21,13 @@ export const CANALES = {
     eliminarModificador: 'catalogo:eliminarModificador',
     asignarGrupo: 'catalogo:asignarGrupo',
     desasignarGrupo: 'catalogo:desasignarGrupo',
-    masVendidos: 'catalogo:masVendidos'
+    masVendidos: 'catalogo:masVendidos',
+    importarProductos: 'catalogo:importarProductos'
   },
   ordenes: {
     activas: 'ordenes:activas',
     deMesa: 'ordenes:deMesa',
+    historialMesa: 'ordenes:historialMesa',
     abrir: 'ordenes:abrir',
     abrirLlevar: 'ordenes:abrirLlevar',
     descartar: 'ordenes:descartar',
@@ -37,6 +38,7 @@ export const CANALES = {
     enviarCocina: 'ordenes:enviarCocina',
     marcarPorCobrar: 'ordenes:marcarPorCobrar',
     cobrar: 'ordenes:cobrar',
+    cambiarMetodoPago: 'ordenes:cambiarMetodoPago',
     fiar: 'ordenes:fiar',
     cancelar: 'ordenes:cancelar',
     devolver: 'ordenes:devolver',
@@ -106,13 +108,18 @@ export const CANALES = {
     bytesCorte: 'printer:bytesCorte',
     bytesPrueba: 'printer:bytesPrueba',
     listarPuertos: 'printer:listarPuertos',
-    enviarCom: 'printer:enviarCom'
+    enviarCom: 'printer:enviarCom',
+    listarWindows: 'printer:listarWindows',
+    enviarWindows: 'printer:enviarWindows'
   },
   ble: {
     // Evento main → renderer con la lista de dispositivos detectados.
     dispositivos: 'ble:dispositivos',
     // Renderer → main: el usuario eligió un dispositivo (o canceló con '').
-    seleccionar: 'ble:seleccionar'
+    seleccionar: 'ble:seleccionar',
+    // Renderer → main: fija (o limpia) el dispositivo a auto-seleccionar al
+    // reconectar (por id o nombre), sin mostrar el selector manual.
+    auto: 'ble:auto'
   },
   config: {
     obtenerImpresoras: 'config:obtenerImpresoras',

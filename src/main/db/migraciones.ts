@@ -101,6 +101,13 @@ export function migrar(db: Database.Database): void {
   if (!columnas(db, 'cortes').includes('total_propinas')) {
     db.exec('ALTER TABLE cortes ADD COLUMN total_propinas REAL NOT NULL DEFAULT 0')
   }
+  // Retiros de efectivo: tipo en gastos + total en cortes (aditivas).
+  if (!columnas(db, 'gastos').includes('tipo')) {
+    db.exec("ALTER TABLE gastos ADD COLUMN tipo TEXT NOT NULL DEFAULT 'gasto'")
+  }
+  if (!columnas(db, 'cortes').includes('total_retiros')) {
+    db.exec('ALTER TABLE cortes ADD COLUMN total_retiros REAL NOT NULL DEFAULT 0')
+  }
 
   // Cuadre de caja en cortes: fondo inicial, conteo físico y diferencia (aditivas).
   const colsCortes = columnas(db, 'cortes')
@@ -134,6 +141,10 @@ export function migrar(db: Database.Database): void {
   }
   if (!colsProd.includes('stock_minimo')) {
     db.exec('ALTER TABLE productos ADD COLUMN stock_minimo REAL NOT NULL DEFAULT 0')
+  }
+  // Color del botón de producto (aditiva).
+  if (!colsProd.includes('color')) {
+    db.exec('ALTER TABLE productos ADD COLUMN color TEXT')
   }
 
   // Grupos de modificadores reutilizables.

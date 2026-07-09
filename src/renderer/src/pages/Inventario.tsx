@@ -409,7 +409,7 @@ function DetalleProducto({
             const signo = m.tipo === 'entrada' ? '+' : m.tipo === 'ajuste' ? '=' : '−'
             const color =
               m.tipo === 'entrada'
-                ? 'text-emerald-600'
+                ? 'text-acento'
                 : m.tipo === 'ajuste'
                   ? 'text-tinta'
                   : 'text-red-600'
@@ -568,7 +568,7 @@ function DetalleInsumo({
             const signo = m.tipo === 'entrada' ? '+' : m.tipo === 'ajuste' ? '=' : '−'
             const color =
               m.tipo === 'entrada'
-                ? 'text-emerald-600'
+                ? 'text-acento'
                 : m.tipo === 'ajuste'
                   ? 'text-tinta'
                   : 'text-red-600'

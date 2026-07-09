@@ -32,11 +32,11 @@ export function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="animar-fundido fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onCerrar}
     >
       <div
-        className={`w-full ${ancho} rounded-lg border border-black/[0.06] bg-white shadow-xl`}
+        className={`animar-modal w-full ${ancho} rounded-lg border border-black/[0.06] bg-white shadow-xl`}
         onClick={(e) => e.stopPropagation()}
       >
         <header className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4">

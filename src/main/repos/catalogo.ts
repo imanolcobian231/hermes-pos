@@ -1,12 +1,14 @@
 import type {
   Categoria,
   CategoriaInput,
+  FilaImportProducto,
   GrupoInput,
   GrupoModificador,
   Modificador,
   ModificadorInput,
   Producto,
-  ProductoInput
+  ProductoInput,
+  ResultadoImport
 } from '@shared/types'
 import { obtenerDb } from '../db'
 import { aCategoria, aGrupo, aModificador, aProducto } from '../db/mapeo'
@@ -67,6 +69,66 @@ export function listarProductos(): Producto[] {
     unknown
   >[]
   return filas.map((f) => ({ ...aProducto(f), grupos: gruposDeProducto(f.id as number) }))
+}
+
+/** Importa productos en masa. La categoría se busca por nombre (se crea si no
+ *  existe). Devuelve cuántos se crearon y los errores por fila. */
+export function importarProductos(filas: FilaImportProducto[]): ResultadoImport {
+  const db = obtenerDb()
+  let creados = 0
+  let categoriasNuevas = 0
+  const errores: string[] = []
+  const catPorNombre = new Map<string, number>()
+  for (const c of db.prepare('SELECT id, nombre FROM categorias').all() as {
+    id: number
+    nombre: string
+  }[]) {
+    catPorNombre.set(c.nombre.trim().toLowerCase(), c.id)
+  }
+  const siguienteOrden = (): number =>
+    ((db.prepare('SELECT COALESCE(MAX(orden), 0) AS m FROM categorias').get() as { m: number }).m || 0) + 1
+
+  const insProd = db.prepare(
+    `INSERT INTO productos (nombre, precio, categoria_id, activo, controlar_stock, stock, stock_minimo, costo)
+     VALUES (?, ?, ?, 1, ?, ?, ?, ?)`
+  )
+
+  const tx = db.transaction(() => {
+    filas.forEach((f, i) => {
+      const fila = i + 2 // +2: encabezado + base 1
+      const nombre = (f.nombre || '').trim()
+      if (!nombre) {
+        errores.push(`Fila ${fila}: sin nombre`)
+        return
+      }
+      const catNombre = (f.categoria || '').trim()
+      if (!catNombre) {
+        errores.push(`Fila ${fila} (${nombre}): falta categoría`)
+        return
+      }
+      let catId = catPorNombre.get(catNombre.toLowerCase())
+      if (catId == null) {
+        const r = db
+          .prepare('INSERT INTO categorias (nombre, orden) VALUES (?, ?)')
+          .run(catNombre, siguienteOrden())
+        catId = Number(r.lastInsertRowid)
+        catPorNombre.set(catNombre.toLowerCase(), catId)
+        categoriasNuevas++
+      }
+      insProd.run(
+        nombre,
+        Math.max(0, f.precio || 0),
+        catId,
+        f.controlarStock ? 1 : 0,
+        Math.max(0, f.stock || 0),
+        Math.max(0, f.stockMinimo || 0),
+        Math.max(0, f.costo || 0)
+      )
+      creados++
+    })
+  })
+  tx()
+  return { creados, categoriasNuevas, errores }
 }
 
 /** Cantidad total vendida por producto (órdenes cobradas), para ordenar por popularidad. */
@@ -186,16 +248,23 @@ export function eliminarModificador(id: number): void {
 
 export function guardarProducto(prod: ProductoInput): Producto {
   const db = obtenerDb()
+  // No se puede crear un producto sin una categoría válida.
+  if (prod.categoriaId == null || Number.isNaN(prod.categoriaId)) {
+    throw new Error('Crea una categoría antes de agregar productos')
+  }
+  const existeCat = db.prepare('SELECT 1 FROM categorias WHERE id = ?').get(prod.categoriaId)
+  if (!existeCat) throw new Error('La categoría del producto no existe')
   const activo = prod.activo ? 1 : 0
   const controla = prod.controlarStock ? 1 : 0
   const stock = prod.stock || 0
   const minimo = Math.max(0, prod.stockMinimo || 0)
   const costo = Math.max(0, prod.costo || 0)
+  const color = prod.color?.trim() || null
   if (prod.id != null) {
     db.prepare(
       `UPDATE productos
          SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ?,
-             controlar_stock = ?, stock = ?, stock_minimo = ?, costo = ?
+             controlar_stock = ?, stock = ?, stock_minimo = ?, costo = ?, color = ?
        WHERE id = ?`
     ).run(
       prod.nombre.trim(),
@@ -207,16 +276,17 @@ export function guardarProducto(prod: ProductoInput): Producto {
       stock,
       minimo,
       costo,
+      color,
       prod.id
     )
     return obtenerProducto(prod.id)
   }
   const r = db
     .prepare(
-      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo, costo)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo, costo, color)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo, costo)
+    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo, costo, color)
   return obtenerProducto(Number(r.lastInsertRowid))
 }
 

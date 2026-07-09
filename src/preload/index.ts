@@ -15,11 +15,15 @@ import type {
   DetalleOrden,
   EstadoCaja,
   Gasto,
+  TipoSalida,
   GrupoInput,
   GrupoModificador,
+  FilaImportProducto,
   Insumo,
   InsumoInput,
   LogoTicket,
+  OpcionesTicketFinal,
+  ResultadoImport,
   Mesa,
   MesaInput,
   MetodoPago,
@@ -49,8 +53,6 @@ const api = {
     listar: (): Promise<Mesa[]> => invoke(CANALES.mesas.listar),
     crear: (capacidad?: number): Promise<Mesa> => invoke(CANALES.mesas.crear, capacidad),
     editar: (id: number, datos: MesaInput): Promise<Mesa> => invoke(CANALES.mesas.editar, id, datos),
-    renombrar: (id: number, nombre: string): Promise<Mesa> =>
-      invoke(CANALES.mesas.renombrar, id, nombre),
     eliminar: (id: number): Promise<void> => invoke(CANALES.mesas.eliminar, id)
   },
   catalogo: {
@@ -75,12 +77,16 @@ const api = {
     desasignarGrupo: (productoId: number, grupoId: number): Promise<void> =>
       invoke(CANALES.catalogo.desasignarGrupo, productoId, grupoId),
     masVendidos: (): Promise<{ productoId: number; vendido: number }[]> =>
-      invoke(CANALES.catalogo.masVendidos)
+      invoke(CANALES.catalogo.masVendidos),
+    importarProductos: (filas: FilaImportProducto[]): Promise<ResultadoImport> =>
+      invoke(CANALES.catalogo.importarProductos, filas)
   },
   ordenes: {
     activas: (): Promise<OrdenConDetalle[]> => invoke(CANALES.ordenes.activas),
     deMesa: (mesaId: number): Promise<OrdenConDetalle | undefined> =>
       invoke(CANALES.ordenes.deMesa, mesaId),
+    historialMesa: (mesaId: number, limite?: number): Promise<OrdenConDetalle[]> =>
+      invoke(CANALES.ordenes.historialMesa, mesaId, limite),
     abrir: (mesaId: number): Promise<OrdenConDetalle> => invoke(CANALES.ordenes.abrir, mesaId),
     abrirLlevar: (nombre?: string): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.abrirLlevar, nombre),
@@ -111,6 +117,8 @@ const api = {
       pin?: string
     ): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.cobrar, ordenId, pagos, efectivoRecibido, descuento, propina, pin),
+    cambiarMetodoPago: (ordenId: number, metodo: MetodoPago): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.cambiarMetodoPago, ordenId, metodo),
     fiar: (ordenId: number, clienteId: number, descuento?: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.fiar, ordenId, clienteId, descuento),
     cancelar: (ordenId: number, motivo: string, usuario?: string, pin?: string): Promise<void> =>
@@ -171,8 +179,8 @@ const api = {
   },
   gastos: {
     listar: (): Promise<Gasto[]> => invoke(CANALES.gastos.listar),
-    crear: (concepto: string, monto: number): Promise<Gasto> =>
-      invoke(CANALES.gastos.crear, concepto, monto),
+    crear: (concepto: string, monto: number, tipo?: TipoSalida): Promise<Gasto> =>
+      invoke(CANALES.gastos.crear, concepto, monto, tipo),
     eliminar: (id: number): Promise<void> => invoke(CANALES.gastos.eliminar, id)
   },
   usuarios: {
@@ -210,17 +218,27 @@ const api = {
     ): Promise<number[]> => invoke(CANALES.printer.bytesCocina, titulo, lineas, opciones, ancho),
     bytesFinal: (
       ordenId: number,
-      opciones?: { copia?: boolean },
+      opciones?: OpcionesTicketFinal,
       ancho?: number,
-      logoPie?: LogoTicket | null
-    ): Promise<number[]> => invoke(CANALES.printer.bytesFinal, ordenId, opciones, ancho, logoPie),
+      logoPie?: LogoTicket | null,
+      pieSociales?: LogoTicket[]
+    ): Promise<number[]> =>
+      invoke(CANALES.printer.bytesFinal, ordenId, opciones, ancho, logoPie, pieSociales),
     bytesCorte: (corte: Corte, ancho?: number): Promise<number[]> =>
       invoke(CANALES.printer.bytesCorte, corte, ancho),
-    bytesPrueba: (destino: DestinoImpresion, ancho?: number, logoPie?: LogoTicket | null): Promise<number[]> =>
-      invoke(CANALES.printer.bytesPrueba, destino, ancho, logoPie),
+    bytesPrueba: (
+      destino: DestinoImpresion,
+      ancho?: number,
+      logoPie?: LogoTicket | null,
+      pieSociales?: LogoTicket[]
+    ): Promise<number[]> =>
+      invoke(CANALES.printer.bytesPrueba, destino, ancho, logoPie, pieSociales),
     listarPuertos: (): Promise<string[]> => invoke(CANALES.printer.listarPuertos),
     enviarCom: (puerto: string, baudRate: number, bytes: number[]): Promise<void> =>
-      invoke(CANALES.printer.enviarCom, puerto, baudRate, bytes)
+      invoke(CANALES.printer.enviarCom, puerto, baudRate, bytes),
+    listarWindows: (): Promise<string[]> => invoke(CANALES.printer.listarWindows),
+    enviarWindows: (nombre: string, bytes: number[]): Promise<void> =>
+      invoke(CANALES.printer.enviarWindows, nombre, bytes)
   },
   ble: {
     /** Suscribe a la lista de dispositivos del selector. Devuelve un de-suscriptor. */
@@ -232,6 +250,10 @@ const api = {
     /** Informa al main el dispositivo elegido ('' para cancelar). */
     seleccionar: (deviceId: string): void => {
       ipcRenderer.send(CANALES.ble.seleccionar, deviceId)
+    },
+    /** Fija el dispositivo a auto-seleccionar al reconectar (null para limpiar). */
+    auto: (objetivo: { id?: string; nombre?: string } | null): void => {
+      ipcRenderer.send(CANALES.ble.auto, objetivo)
     }
   },
   config: {

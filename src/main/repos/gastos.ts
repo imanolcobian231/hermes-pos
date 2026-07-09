@@ -1,8 +1,10 @@
-import type { Gasto } from '@shared/types'
+import type { Gasto, TipoSalida } from '@shared/types'
 import { obtenerDb } from '../db'
 import { aGasto } from '../db/mapeo'
 
-// Gastos del turno actual = los que aún no pertenecen a un corte (corte_id IS NULL).
+// Gastos y retiros del turno actual = los que aún no pertenecen a un corte
+// (corte_id IS NULL). Un 'gasto' baja el balance; un 'retiro' solo baja el
+// efectivo esperado en el cajón.
 
 export function listarTurno(): Gasto[] {
   const filas = obtenerDb()
@@ -11,18 +13,19 @@ export function listarTurno(): Gasto[] {
   return filas.map(aGasto)
 }
 
-export function totalTurno(): number {
+/** Total del turno de un tipo ('gasto' por defecto, o 'retiro'). */
+export function totalTurno(tipo: TipoSalida = 'gasto'): number {
   const r = obtenerDb()
-    .prepare('SELECT COALESCE(SUM(monto), 0) AS total FROM gastos WHERE corte_id IS NULL')
-    .get() as { total: number }
+    .prepare('SELECT COALESCE(SUM(monto), 0) AS total FROM gastos WHERE corte_id IS NULL AND tipo = ?')
+    .get(tipo) as { total: number }
   return r.total
 }
 
-export function crear(concepto: string, monto: number): Gasto {
+export function crear(concepto: string, monto: number, tipo: TipoSalida = 'gasto'): Gasto {
   const db = obtenerDb()
   const r = db
-    .prepare('INSERT INTO gastos (concepto, monto, fecha) VALUES (?, ?, ?)')
-    .run(concepto.trim(), Math.max(0, monto), new Date().toISOString())
+    .prepare('INSERT INTO gastos (concepto, monto, fecha, tipo) VALUES (?, ?, ?, ?)')
+    .run(concepto.trim(), Math.max(0, monto), new Date().toISOString(), tipo)
   const fila = db.prepare('SELECT * FROM gastos WHERE id = ?').get(Number(r.lastInsertRowid)) as Record<
     string,
     unknown

@@ -30,9 +30,12 @@ import type {
   Pago,
   Producto,
   ProductoInput,
+  FilaImportProducto,
+  ResultadoImport,
   Reimpresion,
   ResumenTurno,
-  TipoMovInventario
+  TipoMovInventario,
+  TipoSalida
 } from '@shared/types'
 import { useToast } from '@renderer/components/Toast'
 
@@ -95,6 +98,7 @@ const RESUMEN_VACIO: ResumenTurno = {
   totalTarjeta: 0,
   totalTransferencia: 0,
   totalGastos: 0,
+  totalRetiros: 0,
   totalPropinas: 0,
   numOrdenes: 0
 }
@@ -114,7 +118,6 @@ interface DatosContextValue {
   cobradas: OrdenConDetalle[]
 
   // Mesas
-  renombrarMesa: (mesaId: number, nombre: string) => Promise<void>
   editarMesa: (mesaId: number, datos: MesaInput) => Promise<void>
   agregarMesa: (capacidad?: number) => Promise<void>
   eliminarMesa: (mesaId: number) => Promise<void>
@@ -149,11 +152,15 @@ interface DatosContextValue {
   devolverOrden: (ordenId: number, motivo: string, usuario?: string, pin?: string) => Promise<void>
   /** Fía la orden: la carga a la cuenta de crédito de un cliente. */
   fiarOrden: (ordenId: number, clienteId: number, descuento?: number) => Promise<void>
+  /** Cambia el método de pago de una venta cobrada del turno (ej. era efectivo, fue tarjeta). */
+  cambiarMetodoPago: (ordenId: number, metodo: MetodoPago) => Promise<void>
   registrarReimpresion: (
     tipo: Reimpresion['tipo'],
     ordenId: number,
     usuario?: string
   ) => Promise<void>
+  /** Historial de tickets cobrados de una mesa (recientes primero), para reimprimir. */
+  historialMesa: (mesaId: number, limite?: number) => Promise<OrdenConDetalle[]>
 
   // Clientes / créditos
   clientes: Cliente[]
@@ -182,6 +189,7 @@ interface DatosContextValue {
 
   // Catálogo
   guardarProducto: (producto: ProductoInput) => Promise<void>
+  importarProductos: (filas: FilaImportProducto[]) => Promise<ResultadoImport>
   eliminarProducto: (productoId: number) => Promise<void>
   guardarCategoria: (categoria: CategoriaInput) => Promise<void>
   eliminarCategoria: (categoriaId: number) => Promise<void>
@@ -198,7 +206,7 @@ interface DatosContextValue {
   cerrarCorte: (cuadre?: CierreCorteInput) => Promise<Corte>
 
   // Finanzas
-  agregarGasto: (concepto: string, monto: number) => Promise<void>
+  agregarGasto: (concepto: string, monto: number, tipo?: TipoSalida) => Promise<void>
   eliminarGasto: (gastoId: number) => Promise<void>
 }
 
@@ -318,14 +326,6 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
   }, [])
 
   // --- Mesas ---------------------------------------------------------------
-  const renombrarMesa = useCallback(
-    async (mesaId: number, nombre: string) => {
-      await api.mesas.renombrar(mesaId, nombre)
-      await refrescarMesas()
-    },
-    [refrescarMesas]
-  )
-
   const editarMesa = useCallback(
     async (mesaId: number, datos: MesaInput) => {
       await api.mesas.editar(mesaId, datos)
@@ -466,6 +466,15 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [refrescarOrdenes, refrescarMesas, refrescarCancelaciones]
   )
 
+  const cambiarMetodoPago = useCallback(
+    async (ordenId: number, metodo: MetodoPago) => {
+      await api.ordenes.cambiarMetodoPago(ordenId, metodo)
+      // El método afecta el desglose por método del corte y la lista de ventas.
+      await Promise.all([refrescarResumen(), refrescarCobradas()])
+    },
+    [refrescarResumen, refrescarCobradas]
+  )
+
   const devolverOrden = useCallback(
     async (ordenId: number, motivo: string, usuario?: string, pin?: string) => {
       await api.ordenes.devolver(ordenId, motivo, usuario, pin)
@@ -501,6 +510,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       await refrescarReimpresiones()
     },
     [refrescarReimpresiones]
+  )
+
+  const historialMesa = useCallback(
+    (mesaId: number, limite?: number) => api.ordenes.historialMesa(mesaId, limite),
+    []
   )
 
   // --- Clientes / créditos -------------------------------------------------
@@ -578,6 +592,15 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     async (producto: ProductoInput) => {
       await api.catalogo.guardarProducto(producto)
       await refrescarCatalogo()
+    },
+    [refrescarCatalogo]
+  )
+
+  const importarProductos = useCallback(
+    async (filas: FilaImportProducto[]): Promise<ResultadoImport> => {
+      const res = await api.catalogo.importarProductos(filas)
+      await refrescarCatalogo()
+      return res
     },
     [refrescarCatalogo]
   )
@@ -688,8 +711,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
 
   // --- Finanzas ------------------------------------------------------------
   const agregarGasto = useCallback(
-    async (concepto: string, monto: number) => {
-      await api.gastos.crear(concepto, monto)
+    async (concepto: string, monto: number, tipo?: TipoSalida) => {
+      await api.gastos.crear(concepto, monto, tipo)
       await Promise.all([refrescarGastos(), refrescarResumen()])
     },
     [refrescarGastos, refrescarResumen]
@@ -717,7 +740,6 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       resumen,
       gastos,
       cobradas,
-      renombrarMesa,
       editarMesa,
       agregarMesa,
       eliminarMesa,
@@ -736,7 +758,9 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       cancelarOrden,
       devolverOrden,
       fiarOrden,
+      cambiarMetodoPago,
       registrarReimpresion,
+      historialMesa,
       clientes,
       guardarCliente,
       eliminarCliente,
@@ -747,6 +771,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       movimientoInventario,
       movimientoProducto,
       guardarProducto,
+      importarProductos,
       eliminarProducto,
       guardarCategoria,
       eliminarCategoria,
@@ -775,7 +800,6 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       resumen,
       gastos,
       cobradas,
-      renombrarMesa,
       editarMesa,
       agregarMesa,
       eliminarMesa,
@@ -794,7 +818,9 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       cancelarOrden,
       devolverOrden,
       fiarOrden,
+      cambiarMetodoPago,
       registrarReimpresion,
+      historialMesa,
       clientes,
       guardarCliente,
       eliminarCliente,
@@ -805,6 +831,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       movimientoInventario,
       movimientoProducto,
       guardarProducto,
+      importarProductos,
       eliminarProducto,
       guardarCategoria,
       eliminarCategoria,

@@ -18,26 +18,32 @@ export function generar(desde: string, hasta: string): ReporteVentas {
   const rango = [desde, hasta]
   const filtro = "o.estado = 'cobrada' AND date(o.cerrado_en, 'localtime') BETWEEN ? AND ?"
 
+  // "Ventas" = dinero cobrado SIN propinas (la propina no es venta del negocio).
+  // Los pagos se pre-agregan por orden (subconsulta) para restar la propina una
+  // sola vez por venta, aunque el pago sea mixto (varias filas en `pagos`).
+  const pagosPorOrden = 'SELECT orden_id, SUM(monto) AS monto FROM pagos GROUP BY orden_id'
+
   const tot = db
     .prepare(
-      `SELECT COALESCE(SUM(p.monto), 0) AS ventas, COUNT(DISTINCT o.id) AS num
-       FROM ordenes o JOIN pagos p ON p.orden_id = o.id
+      `SELECT COALESCE(SUM(pg.monto - o.propina), 0) AS ventas, COUNT(o.id) AS num
+       FROM ordenes o JOIN (${pagosPorOrden}) pg ON pg.orden_id = o.id
        WHERE ${filtro}`
     )
     .get(...rango) as { ventas: number; num: number }
 
   const desc = db
     .prepare(
-      `SELECT COALESCE(SUM(descuento), 0) AS d FROM ordenes o WHERE ${filtro}`
+      `SELECT COALESCE(SUM(descuento), 0) AS d, COALESCE(SUM(propina), 0) AS prop
+       FROM ordenes o WHERE ${filtro}`
     )
-    .get(...rango) as { d: number }
+    .get(...rango) as { d: number; prop: number }
 
   const porDia = db
     .prepare(
       `SELECT date(o.cerrado_en, 'localtime') AS fecha,
-              COALESCE(SUM(p.monto), 0) AS ventas,
-              COUNT(DISTINCT o.id) AS numOrdenes
-       FROM ordenes o JOIN pagos p ON p.orden_id = o.id
+              COALESCE(SUM(pg.monto - o.propina), 0) AS ventas,
+              COUNT(o.id) AS numOrdenes
+       FROM ordenes o JOIN (${pagosPorOrden}) pg ON pg.orden_id = o.id
        WHERE ${filtro}
        GROUP BY fecha ORDER BY fecha`
     )
@@ -54,7 +60,9 @@ export function generar(desde: string, hasta: string): ReporteVentas {
     )
     .all(...rango, TOP) as ProductoVendido[]
 
-  // Utilidad: ingreso de productos − costo (costo actual del producto).
+  // Utilidad: ingreso de productos − descuentos − costo (costo actual del producto).
+  // El ingreso sale de las líneas a precio completo, así que hay que restar el
+  // descuento (que se aplica a nivel de orden) para no inflar la utilidad.
   const util = db
     .prepare(
       `SELECT COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingreso,
@@ -85,8 +93,9 @@ export function generar(desde: string, hasta: string): ReporteVentas {
       numOrdenes: tot.num,
       ticketPromedio: tot.num > 0 ? tot.ventas / tot.num : 0,
       descuentos: desc.d,
+      propinas: desc.prop,
       costoVendido: util.costo,
-      utilidad: util.ingreso - util.costo
+      utilidad: util.ingreso - desc.d - util.costo
     },
     porDia,
     topProductos,

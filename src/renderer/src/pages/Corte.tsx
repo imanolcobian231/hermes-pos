@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { Corte as TipoCorte, OrdenConDetalle } from '@shared/types'
+import type { Corte as TipoCorte, MetodoPago, OrdenConDetalle } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { useImpresion } from '@renderer/store/impresion'
 import { fechaHora, hora, pesos } from '@renderer/lib/format'
@@ -10,7 +10,7 @@ import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
 export function Corte(): React.JSX.Element {
-  const { cortes, reimpresiones, cancelaciones, resumen, cobradas, caja, abrirCaja, devolverOrden, cerrarCorte } =
+  const { cortes, reimpresiones, cancelaciones, gastos: gastosTurno, resumen, cobradas, caja, abrirCaja, devolverOrden, cambiarMetodoPago, cerrarCorte } =
     useDatos()
   const toast = useToast()
   const { usuarioActual } = useAuth()
@@ -33,9 +33,15 @@ export function Corte(): React.JSX.Element {
   const efectivo = resumen.totalEfectivo
   const tarjeta = resumen.totalTarjeta
   const transferencia = resumen.totalTransferencia
-  const total = efectivo + tarjeta + transferencia
   const gastos = resumen.totalGastos
+  const retiros = resumen.totalRetiros
   const propinas = resumen.totalPropinas
+  // "Ventas" = cobrado por productos, SIN propinas (la propina no es venta del
+  // negocio; se muestra aparte). El efectivo del cajón sí las incluye, por eso el
+  // cuadre usa `efectivo` completo y no este total.
+  const total = efectivo + tarjeta + transferencia - propinas
+  // El balance (utilidad del turno) resta gastos, NO retiros (el retiro es efectivo
+  // que salió del cajón, no un gasto del negocio).
   const balance = total - gastos
   const numOrdenes = resumen.numOrdenes
 
@@ -43,7 +49,8 @@ export function Corte(): React.JSX.Element {
   // conteo físico (+ sobrante, − faltante). El fondo y el conteo son opcionales.
   const fondoNum = Number(fondo) || 0
   const contadoNum = contado.trim() === '' ? undefined : Number(contado) || 0
-  const efectivoEsperado = fondoNum + efectivo - gastos
+  // El efectivo esperado sí resta gastos Y retiros (ambos salieron del cajón).
+  const efectivoEsperado = fondoNum + efectivo - gastos - retiros
   const diferencia = contadoNum != null ? contadoNum - efectivoEsperado : null
 
   const abrirCierre = (): void => {
@@ -63,7 +70,8 @@ export function Corte(): React.JSX.Element {
   const confirmarCierre = async (): Promise<void> => {
     const corte = await cerrarCorte({ fondoInicial: fondoNum, efectivoContado: contadoNum })
     setConfirmar(false)
-    const ventas = corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia
+    const ventas =
+      corte.totalEfectivo + corte.totalTarjeta + corte.totalTransferencia - corte.totalPropinas
     const dif = corte.diferencia
     const sufijo =
       dif != null && Math.abs(dif) >= 0.01
@@ -111,6 +119,17 @@ export function Corte(): React.JSX.Element {
 
   const netoOrden = (o: OrdenConDetalle): number => o.total - o.descuento
 
+  // Corrige el método de pago de una venta del turno (ej. se asumió efectivo pero
+  // el cliente pagó con tarjeta). Solo aplica a efectivo/tarjeta/transferencia.
+  const editarMetodo = async (ordenId: number, metodo: MetodoPago): Promise<void> => {
+    try {
+      await cambiarMetodoPago(ordenId, metodo)
+      toast('Método de pago actualizado', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo cambiar el método', 'error')
+    }
+  }
+
   return (
     <div>
       <header className="mb-6 flex items-center justify-between">
@@ -130,11 +149,11 @@ export function Corte(): React.JSX.Element {
       {/* Estado de la caja (apertura con fondo) */}
       <div
         className={`mb-6 flex items-center justify-between rounded-xl border px-5 py-3 ${
-          caja.abierta ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'
+          caja.abierta ? 'border-acento/30 bg-acento/[0.08]' : 'border-amber-200 bg-amber-50'
         }`}
       >
         <div className="flex items-center gap-2.5">
-          <span className={`h-2.5 w-2.5 rounded-full ${caja.abierta ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          <span className={`h-2.5 w-2.5 rounded-full ${caja.abierta ? 'bg-acento' : 'bg-amber-500'}`} />
           <div className="text-sm">
             {caja.abierta ? (
               <span className="text-tinta">
@@ -203,7 +222,30 @@ export function Corte(): React.JSX.Element {
                     <td className="px-4 py-2 text-tinta">
                       {o.paraLlevar ? o.nombre ?? 'Para llevar' : nombreOrden(o.id)}
                     </td>
-                    <td className="px-4 py-2 capitalize text-tinta-suave">{o.metodoPago ?? '—'}</td>
+                    <td className="px-4 py-2 text-tinta-suave">
+                      {o.metodoPago === 'efectivo' ||
+                      o.metodoPago === 'tarjeta' ||
+                      o.metodoPago === 'transferencia' ? (
+                        <select
+                          value={o.metodoPago}
+                          onChange={(e) => void editarMetodo(o.id, e.target.value as MetodoPago)}
+                          title="Cambia el método si el cliente pagó de otra forma"
+                          className="rounded-md border border-black/10 bg-white px-2 py-1 text-sm text-tinta outline-none focus:border-acento"
+                        >
+                          <option value="efectivo">Efectivo</option>
+                          <option value="tarjeta">Tarjeta</option>
+                          <option value="transferencia">Transferencia</option>
+                        </select>
+                      ) : (
+                        <span className="capitalize">
+                          {o.metodoPago === 'credito'
+                            ? 'Crédito'
+                            : o.metodoPago === 'mixto'
+                              ? 'Mixto'
+                              : o.metodoPago ?? '—'}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-right font-semibold text-tinta">
                       {pesos(netoOrden(o))}
                     </td>
@@ -221,6 +263,58 @@ export function Corte(): React.JSX.Element {
                   </tr>
                 ))}
               </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Gastos y retiros del turno (salidas de efectivo del cajón) */}
+      {gastosTurno.length > 0 && (
+        <section className="mb-8">
+          <h2 className="mb-3 text-lg font-bold text-tinta">Gastos y retiros del turno</h2>
+          <div className="max-h-64 overflow-auto rounded-xl border border-black/[0.06] bg-white">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
+                <tr>
+                  <th className="px-4 py-2.5">Hora</th>
+                  <th className="px-4 py-2.5">Concepto</th>
+                  <th className="px-4 py-2.5 text-right">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {gastosTurno.map((g) => (
+                  <tr key={g.id} className="border-t border-black/[0.04]">
+                    <td className="px-4 py-2 text-tinta-suave">{hora(g.fecha)}</td>
+                    <td className="px-4 py-2 text-tinta">
+                      {g.concepto}
+                      {g.tipo === 'retiro' && (
+                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                          Retiro
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-right font-semibold text-red-600">
+                      −{pesos(g.monto)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="border-t border-black/[0.08] bg-black/[0.02]">
+                <tr>
+                  <td className="px-4 py-2 font-semibold text-tinta" colSpan={2}>
+                    Total de gastos (baja del balance)
+                  </td>
+                  <td className="px-4 py-2 text-right font-bold text-red-600">−{pesos(gastos)}</td>
+                </tr>
+                {retiros > 0 && (
+                  <tr>
+                    <td className="px-4 py-2 font-semibold text-tinta" colSpan={2}>
+                      Total de retiros (solo baja el efectivo)
+                    </td>
+                    <td className="px-4 py-2 text-right font-bold text-red-600">−{pesos(retiros)}</td>
+                  </tr>
+                )}
+              </tfoot>
             </table>
           </div>
         </section>
@@ -249,7 +343,8 @@ export function Corte(): React.JSX.Element {
               </thead>
               <tbody>
                 {cortes.map((c) => {
-                  const ventas = c.totalEfectivo + c.totalTarjeta + c.totalTransferencia
+                  const ventas =
+                    c.totalEfectivo + c.totalTarjeta + c.totalTransferencia - c.totalPropinas
                   return (
                     <tr key={c.id} className="border-t border-black/[0.04]">
                       <td className="px-4 py-2.5 text-tinta-suave">{fechaHora(c.cerradoEn)}</td>
@@ -267,7 +362,7 @@ export function Corte(): React.JSX.Element {
                         {c.diferencia == null ? (
                           <span className="text-tinta-suave/60">—</span>
                         ) : Math.abs(c.diferencia) < 0.01 ? (
-                          <span className="font-semibold text-emerald-600">Cuadra</span>
+                          <span className="font-semibold text-acento">Cuadra</span>
                         ) : (
                           <span
                             className={`font-semibold ${c.diferencia < 0 ? 'text-red-600' : 'text-amber-600'}`}
@@ -418,7 +513,7 @@ export function Corte(): React.JSX.Element {
               <div
                 className={`flex justify-between font-bold ${
                   Math.abs(diferencia) < 0.01
-                    ? 'text-emerald-600'
+                    ? 'text-acento'
                     : diferencia < 0
                       ? 'text-red-600'
                       : 'text-amber-600'
@@ -439,7 +534,8 @@ export function Corte(): React.JSX.Element {
             )}
           </div>
           <p className="mt-2 text-xs text-tinta-suave">
-            Esperado = fondo + ventas en efectivo − gastos. Déjalos vacíos para omitir el cuadre.
+            Esperado = fondo + efectivo cobrado (propinas incluidas) − gastos − retiros. Déjalos
+            vacíos para omitir el cuadre.
           </p>
         </div>
 

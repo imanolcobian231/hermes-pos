@@ -6,7 +6,8 @@ import { ProveedorAuth, useAuth } from '@renderer/store/auth'
 import { ProveedorAutorizacion } from '@renderer/store/autorizacion'
 import { ProveedorImpresion, useImpresion } from '@renderer/store/impresion'
 import { SelectorBluetooth } from '@renderer/components/SelectorBluetooth'
-import { LogoHermes } from '@renderer/components/LogoHermes'
+import { TecladoVirtual } from '@renderer/components/TecladoVirtual'
+import { LogoAnkyra } from '@renderer/components/LogoAnkyra'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 import { pesos } from '@renderer/lib/format'
 import { Login } from '@renderer/pages/Login'
@@ -76,6 +77,76 @@ interface PedidoActivo {
   ordenId: number
   titulo: string
   subtitulo: string
+}
+
+// Indicador de estado de la impresora en la pantalla principal. Verde cuando está
+// conectada (y se queda ahí), ámbar con botón cuando una impresora Bluetooth
+// guardada quedó desconectada (típico al abrir el POS: Web Bluetooth olvida el
+// permiso al cerrar) para reconectar con un clic sin ir hasta Ajustes.
+function BannerReconectar(): React.JSX.Element | null {
+  const { cfg, estados, conectar, conectando } = useImpresion()
+  const configuradas = (cfg?.impresoras ?? []).filter(
+    (i) => (i.tipo === 'bluetooth' && !!i.dispositivoId) || (i.tipo === 'com' && !!i.puerto)
+  )
+  if (configuradas.length === 0) return null
+  // Bluetooth guardadas pero desconectadas → se pueden reconectar con un clic.
+  const reconectar = configuradas.find(
+    (i) => i.tipo === 'bluetooth' && !estados[i.id]?.conectado
+  )
+
+  if (reconectar) {
+    const ocupado = conectando === reconectar.id
+    const etiqueta = reconectar.dispositivoNombre || reconectar.nombre
+    return (
+      <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 shadow-sm">
+        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
+          <Icono nombre="imprimir" size={22} />
+          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black leading-none text-white ring-2 ring-amber-50">
+            !
+          </span>
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-bold text-amber-900">Impresora desconectada</div>
+          <div className="truncate text-xs font-medium text-amber-800/70">
+            «{etiqueta}» perdió la conexión Bluetooth
+          </div>
+        </div>
+        <button
+          onClick={() => void conectar(reconectar.id)}
+          disabled={ocupado}
+          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600 active:scale-95 disabled:opacity-60"
+        >
+          <Icono nombre="recargar" size={15} className={ocupado ? 'animate-spin' : ''} />
+          {ocupado ? 'Conectando…' : 'Reconectar'}
+        </button>
+      </div>
+    )
+  }
+
+  // Todas las configuradas están conectadas → indicador "en línea", persistente.
+  const conectadas = configuradas.filter((i) => estados[i.id]?.conectado)
+  const texto =
+    conectadas.length === 1
+      ? `Impresora «${estados[conectadas[0].id]?.nombre || conectadas[0].nombre}» conectada`
+      : `${conectadas.length} impresoras conectadas`
+  return (
+    <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-acento/20 bg-acento/[0.06] px-4 py-2.5">
+      <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-acento/10 text-acento">
+        <Icono nombre="imprimir" size={19} />
+        <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+        </span>
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-semibold text-tinta">{texto}</div>
+        <div className="text-xs text-tinta-suave">Lista para imprimir</div>
+      </div>
+      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+        En línea
+      </span>
+    </div>
+  )
 }
 
 function Reloj(): React.JSX.Element {
@@ -165,7 +236,7 @@ function Contenido(): React.JSX.Element {
       <div className="flex h-screen items-center justify-center bg-fondo text-tinta-suave">
         <div className="flex items-center gap-3">
           <span className="h-4 w-4 animate-spin rounded-full border-2 border-black/15 border-t-tinta" />
-          Cargando Hermes…
+          Cargando Ankyra…
         </div>
       </div>
     )
@@ -176,7 +247,7 @@ function Contenido(): React.JSX.Element {
       {/* Barra lateral — clara y translúcida, estilo Apple */}
       <aside className="flex w-64 flex-col border-r border-black/[0.07] bg-white/70 backdrop-blur-xl">
         <div className="flex items-center justify-center px-5 pb-5 pt-10">
-          <LogoHermes className="w-3/4 object-contain" />
+          <LogoAnkyra className="w-3/4 object-contain" />
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-1">
@@ -231,20 +302,26 @@ function Contenido(): React.JSX.Element {
               <Icono nombre="salir" size={16} />
             </button>
           </div>
-          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.1.0 · Olyssea</div>
+          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.5.0 · Olyssea</div>
         </div>
       </aside>
 
       {/* Columna principal */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra superior translúcida */}
-        <header className="flex items-center justify-between border-b border-black/[0.06] bg-white/60 px-8 py-3 backdrop-blur-xl">
-          <div className="text-[15px] font-semibold tracking-tight text-tinta">{TITULOS[vista]}</div>
-          <Reloj />
+        {/* Barra superior translúcida — la barra ocupa todo el ancho; su contenido
+            se centra y limita igual que el área principal. */}
+        <header className="border-b border-black/[0.06] bg-white/60 backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-8 py-3">
+            <div className="text-[15px] font-semibold tracking-tight text-tinta">{TITULOS[vista]}</div>
+            <Reloj />
+          </div>
         </header>
 
-        {/* Contenido */}
-        <main className="flex-1 overflow-auto p-8">
+        {/* Contenido — centrado y con ancho máximo para no estirarse en pantallas grandes */}
+        <main className="flex-1 overflow-auto">
+          <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col p-8">
+          {vista !== 'ajustes' && <BannerReconectar />}
+          <div key={vista} className="animar-entrada min-h-0 flex-1">
           {vista === 'mesas' && (
             <Mesas
               onAbrirMesa={irAPedidosMesa}
@@ -272,6 +349,8 @@ function Contenido(): React.JSX.Element {
           {vista === 'usuarios' && <Usuarios />}
           {vista === 'ajustes' && <Ajustes />}
           {vista === 'gastos' && <Gastos />}
+          </div>
+          </div>
         </main>
       </div>
     </div>
@@ -298,6 +377,7 @@ function App(): React.JSX.Element {
         <ProveedorImpresion>
           <Raiz />
           <SelectorBluetooth />
+          <TecladoVirtual />
         </ProveedorImpresion>
       </ProveedorAuth>
     </ProveedorToast>

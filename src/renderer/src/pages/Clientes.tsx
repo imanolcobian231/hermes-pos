@@ -71,7 +71,7 @@ export function Clientes(): React.JSX.Element {
                 <span className="font-semibold text-tinta">{c.nombre}</span>
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    c.saldo > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                    c.saldo > 0 ? 'bg-red-100 text-red-700' : 'bg-acento/10 text-acento'
                   }`}
                 >
                   {c.saldo > 0 ? `Debe ${pesos(c.saldo)}` : 'Al corriente'}
@@ -224,7 +224,7 @@ function DetalleCliente({
     >
       <div className="mb-4 flex items-center justify-between rounded-lg bg-black/[0.03] px-4 py-3">
         <span className="text-sm font-medium text-tinta-suave">Saldo</span>
-        <span className={`text-xl font-bold ${cliente.saldo > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+        <span className={`text-xl font-bold ${cliente.saldo > 0 ? 'text-red-600' : 'text-acento'}`}>
           {cliente.saldo > 0 ? pesos(cliente.saldo) : 'Al corriente'}
         </span>
       </div>
@@ -284,13 +284,13 @@ function DetalleCliente({
           {movs.map((m) => (
             <div key={m.id} className="flex items-center justify-between border-b border-black/[0.04] py-1.5 text-sm last:border-0">
               <div>
-                <span className={`font-semibold ${m.tipo === 'cargo' ? 'text-red-600' : 'text-emerald-600'}`}>
+                <span className={`font-semibold ${m.tipo === 'cargo' ? 'text-red-600' : 'text-acento'}`}>
                   {m.tipo === 'cargo' ? 'Cargo' : 'Abono'}
                 </span>
                 <span className="ml-2 text-xs text-tinta-suave">{fechaHora(m.creadoEn)}</span>
                 {m.metodo && <span className="ml-2 text-xs text-tinta-suave">· {m.metodo}</span>}
               </div>
-              <span className={m.tipo === 'cargo' ? 'text-red-600' : 'text-emerald-600'}>
+              <span className={m.tipo === 'cargo' ? 'text-red-600' : 'text-acento'}>
                 {m.tipo === 'cargo' ? '+' : '−'}
                 {pesos(m.monto)}
               </span>

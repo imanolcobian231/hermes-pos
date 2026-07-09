@@ -69,7 +69,8 @@ export function aProducto(r: Record<string, unknown>): Producto {
     controlarStock: Boolean(r.controlar_stock),
     stock: (r.stock as number | null) ?? 0,
     stockMinimo: (r.stock_minimo as number | null) ?? 0,
-    costo: (r.costo as number | null) ?? 0
+    costo: (r.costo as number | null) ?? 0,
+    color: (r.color as string | null) ?? undefined
   }
 }
 
@@ -153,6 +154,7 @@ export function aCorte(r: Record<string, unknown>): Corte {
     totalTarjeta: r.total_tarjeta as number,
     totalTransferencia: r.total_transferencia as number,
     totalGastos: (r.total_gastos as number | null) ?? 0,
+    totalRetiros: (r.total_retiros as number | null) ?? 0,
     totalPropinas: (r.total_propinas as number | null) ?? 0,
     numOrdenes: r.num_ordenes as number,
     fondoInicial: (r.fondo_inicial as number | null) ?? 0,
@@ -178,7 +180,8 @@ export function aGasto(r: Record<string, unknown>): Gasto {
     id: r.id as number,
     concepto: r.concepto as string,
     monto: r.monto as number,
-    fecha: r.fecha as string
+    fecha: r.fecha as string,
+    tipo: (r.tipo as Gasto['tipo'] | null) ?? 'gasto'
   }
 }
 

@@ -11,9 +11,9 @@
   --color-superficie: #ffffff;
   --color-tinta: #1d1d1f;
   --color-tinta-suave: #6e6e73;
-  --color-acento: #006039;
-  --color-acento-hover: #00754a;
-  --color-secundario: #006039;
+  --color-acento: #0f4c5c;
+  --color-acento-hover: #146378;
+  --color-secundario: #0f4c5c;
   --color-hairline: rgba(0, 0, 0, 0.08);
 }
 
@@ -21,11 +21,89 @@
   color-scheme: light;
 }
 
+/* Animaciones de entrada suaves (ease-in-out) para que las cosas aparezcan con
+   gracia y no de golpe. Se respetan las preferencias de movimiento reducido. */
+@keyframes ankyra-aparecer {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes ankyra-modal {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes ankyra-fundido {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animar-entrada {
+  animation: ankyra-aparecer 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animar-modal {
+  animation: ankyra-modal 0.26s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animar-fundido {
+  animation: ankyra-fundido 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animar-entrada,
+  .animar-modal,
+  .animar-fundido {
+    animation: none;
+  }
+}
+
 html,
 body,
 #root {
   height: 100%;
   margin: 0;
+}
+
+/* Tamaño base más grande para pantallas táctiles: casi todo el UI usa unidades
+   rem (texto y espaciados de Tailwind), así que escala proporcionalmente. */
+html {
+  font-size: 18px;
+}
+
+/* Monitores chicos: al ser casi todo rem, bajar el tamaño base encoge de forma
+   proporcional la barra lateral, los espaciados y el texto para que quepa sin
+   romperse. La cuadrícula de productos (medidas en px) simplemente reacomoda
+   más/menos columnas según el ancho que queda libre. */
+@media (max-width: 1536px) {
+  html {
+    font-size: 17px;
+  }
+}
+@media (max-width: 1366px) {
+  html {
+    font-size: 15.5px;
+  }
+}
+@media (max-width: 1200px) {
+  html {
+    font-size: 14.5px;
+  }
+}
+@media (max-width: 1024px) {
+  html {
+    font-size: 13.5px;
+  }
 }
 
 body {
@@ -51,19 +129,19 @@ h3 {
    como clases en los componentes para mantener todo consistente. */
 @layer components {
   .btn-primario {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-acento px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-acento px-6 py-3 text-base font-semibold text-white transition hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-neutro {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-5 py-2.5 text-sm font-semibold text-tinta transition hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-6 py-3 text-base font-semibold text-tinta transition hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-40;
   }
   .btn-texto {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta;
+    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-5 py-2.5 text-base font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta;
   }
   .tarjeta {
     @apply rounded-2xl border border-black/[0.06] bg-superficie;
   }
   .campo {
-    @apply w-full rounded-xl border border-black/10 bg-superficie px-3 py-2 text-tinta outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15;
+    @apply w-full rounded-xl border border-black/10 bg-superficie px-3 py-2.5 text-base text-tinta outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15;
   }
 }
 

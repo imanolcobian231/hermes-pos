@@ -47,7 +47,8 @@ export function resumenTurno(): ResumenTurno {
     totalEfectivo: m.efectivo + ab.efectivo,
     totalTarjeta: m.tarjeta + ab.tarjeta,
     totalTransferencia: m.transferencia + ab.transferencia,
-    totalGastos: gastos.totalTurno(),
+    totalGastos: gastos.totalTurno('gasto'),
+    totalRetiros: gastos.totalTurno('retiro'),
     totalPropinas: c.propinas,
     numOrdenes: c.num
   }
@@ -66,8 +67,8 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
   const resumen = resumenTurno()
   const t = ahora()
   const fondoInicial = Math.max(0, cuadre.fondoInicial || 0)
-  // La diferencia solo tiene sentido si se contó el efectivo físicamente.
-  const esperado = fondoInicial + resumen.totalEfectivo - resumen.totalGastos
+  // El efectivo esperado en cajón resta tanto gastos como retiros.
+  const esperado = fondoInicial + resumen.totalEfectivo - resumen.totalGastos - resumen.totalRetiros
   const contado = cuadre.efectivoContado
   const diferencia = contado != null ? contado - esperado : null
 
@@ -75,9 +76,9 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
     const r = db
       .prepare(
         `INSERT INTO cortes
-           (fecha, total_efectivo, total_tarjeta, total_transferencia, total_gastos, total_propinas,
-            num_ordenes, fondo_inicial, efectivo_contado, diferencia, cerrado_en)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (fecha, total_efectivo, total_tarjeta, total_transferencia, total_gastos, total_retiros,
+            total_propinas, num_ordenes, fondo_inicial, efectivo_contado, diferencia, cerrado_en)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         t,
@@ -85,6 +86,7 @@ export function cerrar(cuadre: CierreCorteInput = { fondoInicial: 0 }): Corte {
         resumen.totalTarjeta,
         resumen.totalTransferencia,
         resumen.totalGastos,
+        resumen.totalRetiros,
         resumen.totalPropinas,
         resumen.numOrdenes,
         fondoInicial,

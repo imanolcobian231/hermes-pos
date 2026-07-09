@@ -1,6 +1,6 @@
 import type Database from 'better-sqlite3'
 
-// Esquema de Hermes POS — 7 tablas.
+// Esquema de Ankyra POS — 7 tablas.
 // Nota: SQLite no tiene boolean real; los flags se guardan como INTEGER 0/1
 // (activo, ticket_impreso, enviado_cocina).
 
@@ -42,7 +42,9 @@ CREATE TABLE IF NOT EXISTS productos (
   stock           REAL    NOT NULL DEFAULT 0,
   stock_minimo    REAL    NOT NULL DEFAULT 0,
   -- Costo del producto, para reportes de utilidad (precio − costo).
-  costo           REAL    NOT NULL DEFAULT 0
+  costo           REAL    NOT NULL DEFAULT 0,
+  -- Color del botón del producto en pedidos (hex). NULL = sin color.
+  color           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS ordenes (
@@ -123,6 +125,7 @@ CREATE TABLE IF NOT EXISTS cortes (
   total_tarjeta       REAL NOT NULL DEFAULT 0,
   total_transferencia REAL NOT NULL DEFAULT 0,
   total_gastos        REAL NOT NULL DEFAULT 0,
+  total_retiros       REAL NOT NULL DEFAULT 0,
   total_propinas      REAL NOT NULL DEFAULT 0,
   num_ordenes         INTEGER NOT NULL DEFAULT 0,
   fondo_inicial       REAL NOT NULL DEFAULT 0,
@@ -148,6 +151,8 @@ CREATE TABLE IF NOT EXISTS gastos (
   concepto TEXT    NOT NULL,
   monto    REAL    NOT NULL DEFAULT 0,
   fecha    TEXT    NOT NULL,
+  -- 'gasto' (baja del balance) o 'retiro' (solo baja el efectivo del cajón).
+  tipo     TEXT    NOT NULL DEFAULT 'gasto',
   corte_id INTEGER REFERENCES cortes(id)
 );
 

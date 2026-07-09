@@ -77,7 +77,7 @@ export function TicketCocina({
         </div>
       ))}
       <div className="my-2 border-t border-dashed border-black/10" />
-      <div className="text-center text-[10px] text-tinta-suave">Hermes · simulación</div>
+      <div className="text-center text-[10px] text-tinta-suave">Ankyra · simulación</div>
     </div>
   )
 }

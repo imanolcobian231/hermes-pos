@@ -9,6 +9,12 @@ export function pesos(monto: number): string {
   return formateadorMXN.format(monto || 0)
 }
 
+/** Primera letra en mayúscula y el resto en minúscula, ej. "TACOS" -> "Tacos". */
+export function capitalizar(texto: string): string {
+  if (!texto) return ''
+  return texto.charAt(0).toUpperCase() + texto.slice(1).toLowerCase()
+}
+
 /** Hora corta local, ej. "14:35". */
 export function hora(iso?: string): string {
   if (!iso) return ''

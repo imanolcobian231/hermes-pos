@@ -12,7 +12,7 @@ import { obtenerRespaldo, guardarRespaldo } from '../repos/config'
 // Se conservan los últimos MAX_RESPALDOS y se purga el resto.
 
 const MAX_RESPALDOS = 14
-const PATRON = /^hermes-.*\.db$/
+const PATRON = /^ankyra-.*\.db$/
 
 /** Carpeta por defecto (dentro de los datos de la app). */
 export function carpetaPredeterminada(): string {
@@ -53,7 +53,7 @@ function purgar(carpeta: string): void {
 /** Crea un respaldo de la base de datos y devuelve la ruta del archivo creado. */
 export async function respaldar(): Promise<string> {
   const carpeta = carpetaRespaldos()
-  const destino = join(carpeta, `hermes-${sello()}.db`)
+  const destino = join(carpeta, `ankyra-${sello()}.db`)
   await obtenerDb().backup(destino)
   purgar(carpeta)
   guardarRespaldo({ ...obtenerRespaldo(), ultimo: new Date().toISOString() })
@@ -96,7 +96,7 @@ export async function restaurar(nombre: string): Promise<void> {
   if (!PATRON.test(archivo) || !existsSync(origen)) throw new Error('Respaldo no válido')
   // Copia el origen a un temporal ANTES del snapshot de seguridad: así no se
   // pierde aunque el snapshot genere un nombre que colisione con este respaldo.
-  const fuente = join(tmpdir(), `hermes-restore-${Date.now()}.db`)
+  const fuente = join(tmpdir(), `ankyra-restore-${Date.now()}.db`)
   copyFileSync(origen, fuente)
   // Snapshot de seguridad del estado actual antes de sobrescribir.
   try {
@@ -104,7 +104,7 @@ export async function restaurar(nombre: string): Promise<void> {
   } catch {
     /* si falla el snapshot, la restauración sigue siendo prioritaria */
   }
-  const destino = join(app.getPath('userData'), 'hermes.db')
+  const destino = join(app.getPath('userData'), 'ankyra.db')
   cerrarDb()
   copyFileSync(fuente, destino)
   try {

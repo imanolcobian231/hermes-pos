@@ -32,13 +32,22 @@ export function editar(id: number, datos: MesaInput): Mesa {
   return obtener(id)
 }
 
-export function renombrar(id: number, nombre: string): Mesa {
-  const actual = obtener(id)
-  return editar(id, { nombre, capacidad: actual.capacidad, color: actual.color })
-}
-
 export function eliminar(id: number): void {
-  obtenerDb().prepare('DELETE FROM mesas WHERE id = ?').run(id)
+  const db = obtenerDb()
+  // No se puede borrar una mesa con una orden abierta en curso.
+  const abierta = db
+    .prepare("SELECT 1 FROM ordenes WHERE mesa_id = ? AND estado = 'abierta' LIMIT 1")
+    .get(id)
+  if (abierta) throw new Error('La mesa tiene una orden abierta; ciérrala antes de eliminarla')
+
+  const tx = db.transaction(() => {
+    // Desvincula las órdenes históricas (cobradas/canceladas) de la mesa para no
+    // romper la referencia (FOREIGN KEY). Conservan todos sus datos; solo pierden
+    // el vínculo con la mesa que se elimina.
+    db.prepare('UPDATE ordenes SET mesa_id = NULL WHERE mesa_id = ?').run(id)
+    db.prepare('DELETE FROM mesas WHERE id = ?').run(id)
+  })
+  tx()
 }
 
 export function cambiarEstado(id: number, estado: EstadoMesa): void {

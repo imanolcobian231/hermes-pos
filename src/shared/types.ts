@@ -1,5 +1,5 @@
 // Tipos compartidos entre el proceso main (Electron) y el renderer (React).
-// Ver documentación: Hermes POS / Tipos TypeScript.
+// Ver documentación: Ankyra POS / Tipos TypeScript.
 
 export type Rol = 'admin' | 'cajero' | 'mesero'
 
@@ -71,6 +71,8 @@ export interface Producto {
   stockMinimo: number
   /** Costo del producto (para reportes de utilidad: precio − costo). */
   costo: number
+  /** Color del botón del producto en pedidos (hex, ej. "#ef4444"). Sin color = neutro. */
+  color?: string
   /** Grupos de modificadores del producto (incluidos al listar el catálogo). */
   grupos?: GrupoModificador[]
 }
@@ -155,6 +157,8 @@ export interface Corte {
   totalTarjeta: number
   totalTransferencia: number
   totalGastos: number
+  /** Total de retiros de efectivo del turno (dinero sacado del cajón). */
+  totalRetiros: number
   /** Total de propinas del turno (dinero extra que entró al cajón). */
   totalPropinas: number
   numOrdenes: number
@@ -194,16 +198,22 @@ export interface Cancelacion {
   canceladoEn: string
 }
 
+/** 'gasto' = gasto del negocio (baja del balance/utilidad); 'retiro' = efectivo
+ *  sacado del cajón (NO es gasto: no baja el balance, solo el efectivo esperado). */
+export type TipoSalida = 'gasto' | 'retiro'
+
 export interface Gasto {
   id: number
   concepto: string
   monto: number
   fecha: string
+  tipo: TipoSalida
 }
 
 export interface GastoInput {
   concepto: string
   monto: number
+  tipo?: TipoSalida
 }
 
 export interface Reimpresion {
@@ -220,7 +230,37 @@ export interface OrdenConDetalle extends Orden {
   detalle: DetalleOrden[]
 }
 
+/** Datos del cliente para un comprobante / nota de venta (NO es factura fiscal). */
+export interface NotaVenta {
+  razonSocial?: string
+  rfc?: string
+}
+
+/** Opciones al imprimir el ticket final (copia y/o comprobante de venta). */
+export interface OpcionesTicketFinal {
+  copia?: boolean
+  notaVenta?: NotaVenta
+}
+
 export type ProductoInput = Omit<Producto, 'id' | 'grupos'> & { id?: number }
+
+/** Fila de producto a importar desde Excel/CSV. La categoría se busca por nombre. */
+export interface FilaImportProducto {
+  nombre: string
+  precio: number
+  categoria: string
+  costo?: number
+  stock?: number
+  stockMinimo?: number
+  controlarStock?: boolean
+}
+
+/** Resultado de una importación masiva de productos. */
+export interface ResultadoImport {
+  creados: number
+  categoriasNuevas: number
+  errores: string[]
+}
 export type CategoriaInput = Omit<Categoria, 'id'> & { id?: number }
 
 export interface GrupoInput {
@@ -248,7 +288,7 @@ export interface MesaInput {
 export type DestinoImpresion = 'cocina' | 'caja'
 
 /** Tipo de conexión de una impresora. */
-export type TipoImpresora = 'bluetooth' | 'com'
+export type TipoImpresora = 'bluetooth' | 'com' | 'windows'
 
 /**
  * Una impresora configurada. El negocio puede tener varias (Caja, Cocina,
@@ -264,9 +304,13 @@ export interface Impresora {
   tipo?: TipoImpresora
   /** Bluetooth BLE: id del dispositivo (asignado por Web Bluetooth). */
   dispositivoId?: string
+  /** Bluetooth BLE: nombre del dispositivo, para reconectar/auto-seleccionar. */
+  dispositivoNombre?: string
   /** COM: puerto (ej. "COM5") y baudios. */
   puerto?: string
   baudRate?: number
+  /** Windows: nombre de la impresora instalada (cola de impresión: USB, red, etc.). */
+  impresoraWindows?: string
   /** Ancho del rollo de ESTA impresora: 32 (58 mm) o 48 (80 mm). Si falta, usa el global. */
   ancho?: number
 }
@@ -286,6 +330,12 @@ export interface LogoTicket {
   datos: string
 }
 
+/** Usuarios de redes sociales del negocio (se imprimen al pie del ticket). */
+export interface RedesSociales {
+  facebook?: string
+  instagram?: string
+}
+
 export interface ConfigImpresoras {
   /** Nombre del negocio que se imprime como encabezado del ticket. */
   nombreNegocio: string
@@ -299,6 +349,8 @@ export interface ConfigImpresoras {
   rfc?: string
   /** Mensaje al pie del encabezado del ticket (por defecto "Gracias por su visita"). */
   mensajeTicket?: string
+  /** Redes sociales del negocio (cada una en su línea con su ícono en el ticket). */
+  redesSociales?: RedesSociales
   /**
    * 'una' = una sola impresora imprime cobro y comandas; 'multiple' = varias
    * impresoras por rol y la comanda se rutea por categoría.
@@ -334,6 +386,9 @@ export interface ConfigImpresoras {
    *  esperas a cortarla a mano, y confirmas la siguiente). Para impresoras sin
    *  corte automático. */
   confirmarEntreTickets?: boolean
+  /** Muestra el teclado en pantalla al enfocar campos de texto. Actívalo en
+   *  equipos táctiles sin teclado físico; apágalo si escribes con teclado. */
+  tecladoVirtual?: boolean
   /** Aplica impuesto(s) al ticket. */
   impuestoActivo: boolean
   /** Tasa del impuesto en porcentaje (ej. 16). Compatibilidad: si no hay lista. */
@@ -383,6 +438,7 @@ export interface ResumenTurno {
   totalTarjeta: number
   totalTransferencia: number
   totalGastos: number
+  totalRetiros: number
   totalPropinas: number
   numOrdenes: number
 }
@@ -474,6 +530,8 @@ export interface ReporteResumen {
   ticketPromedio: number
   /** Total de descuentos otorgados en el rango. */
   descuentos: number
+  /** Total de propinas recibidas en el rango. */
+  propinas: number
   /** Costo de lo vendido (suma de costo × cantidad). */
   costoVendido: number
   /** Utilidad estimada = ingreso de productos − costo de lo vendido. */

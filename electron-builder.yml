@@ -1,0 +1,36 @@
+appId: com.olyssea.ankyra
+productName: Ankyra
+directories:
+  buildResources: build
+  # Fuera de OneDrive: su sincronización bloquea archivos y rompe el empaquetado
+  # (EPERM al renombrar win-unpacked.tmp). Ver README para dónde queda el .exe.
+  output: C:/ankyra-build/dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+asarUnpack:
+  - resources/**
+  - '**/*.node'
+win:
+  executableName: Ankyra
+  icon: resources/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+nsis:
+  # Instalación por usuario (sin admin/UAC): evita cuelgues de elevación y permite
+  # instalar en equipos sin privilegios. Instala en %LOCALAPPDATA%\Programs.
+  oneClick: true
+  perMachine: false
+  allowElevation: false
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  runAfterFinish: true
+npmRebuild: false

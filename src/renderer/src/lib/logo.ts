@@ -1,5 +1,7 @@
 import type { LogoTicket } from '@shared/types'
-import hermesUrl from '@renderer/assets/hermes-logo.png'
+// Logo del pie del ticket: incluye "Powered by Olyssea" (por eso el ticket ya no
+// imprime esa línea de texto aparte). El login usa el wordmark simple.
+import logoAnkyraUrl from '@renderer/assets/ankyra-pie.png'
 
 // Convierte un PNG (u otra imagen) a un mapa de bits monocromo en formato
 // ESC/POS (GS v 0). Todo ocurre en el renderer porque Chromium ya trae Canvas;
@@ -32,14 +34,65 @@ export async function pngALogo(
   }
 }
 
-// Logo de marca de Hermes (el del login) rasterizado para el pie del ticket.
+// Logo de marca de Ankyra (el del login) rasterizado para el pie del ticket.
 // Se cachea por ancho. Usa <img> con el asset ('self'/data:, permitido por la CSP).
-const cacheHermes: Record<number, LogoTicket> = {}
-export async function logoHermes(anchoMaxPuntos: number): Promise<LogoTicket> {
-  if (cacheHermes[anchoMaxPuntos]) return cacheHermes[anchoMaxPuntos]
-  const img = await cargarImagen(hermesUrl)
+const cacheLogoAnkyra: Record<number, LogoTicket> = {}
+export async function logoAnkyra(anchoMaxPuntos: number): Promise<LogoTicket> {
+  if (cacheLogoAnkyra[anchoMaxPuntos]) return cacheLogoAnkyra[anchoMaxPuntos]
+  const img = await cargarImagen(logoAnkyraUrl)
   const logo = rasterizar(img, img.naturalWidth, img.naturalHeight, anchoMaxPuntos, 320)
-  cacheHermes[anchoMaxPuntos] = logo
+  cacheLogoAnkyra[anchoMaxPuntos] = logo
+  return logo
+}
+
+// Íconos monocromos (negro) de cada red social, en SVG. Se usan para el ticket
+// (compuestos con el usuario) y para mostrarlos en Ajustes.
+export type RedSocial = 'facebook' | 'instagram'
+export const ICONOS_SOCIAL: Record<RedSocial, string> = {
+  facebook:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="black" d="M22 12a10 10 0 1 0-11.6 9.9v-7H7.9V12h2.5V9.8c0-2.5 1.5-3.8 3.8-3.8 1.1 0 2.2.2 2.2.2v2.4h-1.2c-1.2 0-1.6.8-1.6 1.5V12h2.7l-.4 2.9h-2.3v7A10 10 0 0 0 22 12z"/></svg>',
+  instagram:
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="black" d="M12 4c-2.2 0-2.5 0-3.3.05-.9.04-1.4.2-1.8.35-.45.17-.8.4-1.1.72-.33.32-.55.66-.72 1.1-.15.4-.3.9-.35 1.8C4.7 9.4 4.7 9.7 4.7 12s0 2.6.05 3.4c.04.9.2 1.4.35 1.8.17.45.4.8.72 1.1.32.33.66.55 1.1.72.4.15.9.3 1.8.35C9.5 19.3 9.8 19.3 12 19.3s2.5 0 3.3-.05c.9-.04 1.4-.2 1.8-.35.45-.17.8-.4 1.1-.72.33-.32.55-.66.72-1.1.15-.4.3-.9.35-1.8.05-.8.05-1.1.05-3.4s0-2.6-.05-3.4c-.04-.9-.2-1.4-.35-1.8a2.96 2.96 0 0 0-.72-1.1 2.96 2.96 0 0 0-1.1-.72c-.4-.15-.9-.3-1.8-.35C14.5 4 14.2 4 12 4zm0 1.8c2.1 0 2.4 0 3.3.05.8.03 1.2.18 1.5.3.37.14.64.32.92.6.28.28.46.55.6.92.12.3.27.7.3 1.5.05.9.05 1.2.05 3.3s0 2.4-.05 3.3c-.03.8-.18 1.2-.3 1.5-.14.37-.32.64-.6.92-.28.28-.55.46-.92.6-.3.12-.7.27-1.5.3-.9.05-1.2.05-3.3.05s-2.4 0-3.3-.05c-.8-.03-1.2-.18-1.5-.3a2.5 2.5 0 0 1-.92-.6 2.5 2.5 0 0 1-.6-.92c-.12-.3-.27-.7-.3-1.5C5.8 14.4 5.8 14.1 5.8 12s0-2.4.05-3.3c.03-.8.18-1.2.3-1.5.14-.37.32-.64.6-.92.28-.28.55-.46.92-.6.3-.12.7-.27 1.5-.3.9-.05 1.2-.05 3.3-.05zm0 3a4.2 4.2 0 1 0 0 8.4 4.2 4.2 0 0 0 0-8.4zm0 6.9a2.7 2.7 0 1 1 0-5.4 2.7 2.7 0 0 1 0 5.4zm4.3-7.1a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/></svg>'
+}
+
+/** Ícono SVG de una red como data URL, listo para <img> o para dibujar en canvas. */
+export function iconoSocialDataUrl(tipo: RedSocial): string {
+  return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ICONOS_SOCIAL[tipo])
+}
+
+// Compone "ícono + usuario" en un solo bitmap para imprimir la red en una línea.
+const cacheSocial: Record<string, LogoTicket> = {}
+export async function socialALogo(
+  tipo: RedSocial,
+  texto: string,
+  anchoMaxPuntos: number
+): Promise<LogoTicket> {
+  const clave = `${tipo}|${texto}|${anchoMaxPuntos}`
+  if (cacheSocial[clave]) return cacheSocial[clave]
+  const icono = await cargarImagen(iconoSocialDataUrl(tipo))
+  const H = 46
+  const iconoW = 42
+  const gap = 12
+  const fuente = '600 32px "Inter", system-ui, sans-serif'
+  const medidor = document.createElement('canvas').getContext('2d')
+  if (!medidor) throw new Error('No se pudo preparar el lienzo')
+  medidor.font = fuente
+  const tw = Math.ceil(medidor.measureText(texto).width)
+  const W = iconoW + gap + tw + 4
+  const canvas = document.createElement('canvas')
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('No se pudo preparar el lienzo')
+  ctx.fillStyle = '#fff'
+  ctx.fillRect(0, 0, W, H)
+  ctx.drawImage(icono, 0, 3, iconoW, H - 6)
+  ctx.fillStyle = '#000'
+  ctx.font = fuente
+  ctx.textBaseline = 'middle'
+  ctx.fillText(texto, iconoW + gap, H / 2 + 1)
+  const logo = rasterizar(canvas, W, H, anchoMaxPuntos, 90)
+  cacheSocial[clave] = logo
   return logo
 }
 
@@ -47,7 +100,7 @@ function cargarImagen(src: string): Promise<HTMLImageElement> {
   return new Promise((resolver, rechazar) => {
     const img = new Image()
     img.onload = () => resolver(img)
-    img.onerror = () => rechazar(new Error('No se pudo cargar el logo de Hermes'))
+    img.onerror = () => rechazar(new Error('No se pudo cargar el logo de Ankyra'))
     img.src = src
   })
 }

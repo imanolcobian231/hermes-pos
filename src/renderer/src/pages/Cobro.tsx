@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { DetalleOrden, MetodoPago, MetodoPagoOrden, OrdenConDetalle, Pago } from '@shared/types'
+import type {
+  DetalleOrden,
+  MetodoPago,
+  MetodoPagoOrden,
+  NotaVenta,
+  OrdenConDetalle,
+  Pago
+} from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { pesos } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { TicketCocina } from '@renderer/components/TicketCocina'
 import { TicketFinal } from '@renderer/components/TicketFinal'
+import { NotaVentaDialog } from '@renderer/components/NotaVentaDialog'
 import { useToast } from '@renderer/components/Toast'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
@@ -44,11 +52,21 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const toast = useToast()
 
   // Etiqueta de la orden: nombre de la mesa o el rótulo del pedido para llevar.
+  // En modo tiendita no hay mesas ni "para llevar": es una venta directa, así que
+  // se rotula como "Venta #N" en vez de "Para llevar".
+  const tiendita = cfg?.modoTiendita === true
+  // Modo restaurante: al cobrar no se pregunta el método (no se sabe cómo pagará
+  // hasta entregar el ticket); se asume pagado en efectivo y luego, si fue otro
+  // método, se corrige desde el corte. En tiendita sí se cobra con método.
+  const restaurante = !tiendita
   const etiqueta = useMemo(() => {
     const nombreMesa = (mesaId: number | null): string =>
       mesas.find((m) => m.id === mesaId)?.nombre ?? 'Mesa'
-    return (o: OrdenConDetalle): string => (o.paraLlevar ? o.nombre ?? 'Para llevar' : nombreMesa(o.mesaId))
-  }, [mesas])
+    return (o: OrdenConDetalle): string =>
+      o.paraLlevar
+        ? o.nombre ?? (tiendita ? `Venta #${o.id}` : 'Para llevar')
+        : nombreMesa(o.mesaId)
+  }, [mesas, tiendita])
 
   const porCobrar = useMemo(
     () => ordenes.filter((o) => o.estado === 'abierta' && o.porCobrar),
@@ -71,6 +89,9 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     null
   )
   const [esCopia, setEsCopia] = useState(false)
+  // Comprobante / nota de venta: diálogo de captura y datos para el preview.
+  const [notaAbierto, setNotaAbierto] = useState(false)
+  const [notaPreview, setNotaPreview] = useState<NotaVenta | null>(null)
   const [ticketCocina, setTicketCocina] = useState<{ titulo: string; lineas: DetalleOrden[] } | null>(
     null
   )
@@ -123,7 +144,8 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setMixto((s) => ({ ...s, [m]: String(falta) }))
   }
 
-  const efectivoInsuficiente = metodo === 'efectivo' && recibido < neto
+  // En restaurante el efectivo se asume exacto (no se captura monto recibido).
+  const efectivoInsuficiente = metodo === 'efectivo' && !restaurante && recibido < neto
   const mixtoInvalido = metodo === 'mixto' && Math.abs(restante) >= 0.01
   const faltaCliente = metodo === 'credito' && clienteSel == null
   const noPuedeCobrar = efectivoInsuficiente || mixtoInvalido || faltaCliente
@@ -140,6 +162,10 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       return { pagos, efectivoRecibido: montoMix.efectivo > 0 ? montoMix.efectivo : undefined, cambio: 0 }
     }
     if (metodo === 'efectivo') {
+      // Restaurante: pago exacto sin cambio (se asume pagado al entregar el ticket).
+      if (restaurante) {
+        return { pagos: [{ metodo: 'efectivo', monto: neto }], efectivoRecibido: neto, cambio: 0 }
+      }
       return { pagos: [{ metodo: 'efectivo', monto: neto }], efectivoRecibido: recibido, cambio: Math.max(0, cambio) }
     }
     return { pagos: [{ metodo, monto: neto }], efectivoRecibido: undefined, cambio: 0 }
@@ -176,6 +202,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
         orden: { ...baseTicket, metodoPago: 'credito', pagos: [], montoRecibido: undefined, cambio: 0 }
       })
       setEsCopia(false)
+      setNotaPreview(null)
       return
     }
     const { pagos, efectivoRecibido, cambio: cambioFinal } = construirPagos()
@@ -191,6 +218,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
       }
     })
     setEsCopia(false)
+    setNotaPreview(null)
   }
 
   // Confirma el cobro (cierra la venta) al dar "Listo".
@@ -282,6 +310,18 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     }
   }
 
+  const imprimirNotaVenta = async (nota: NotaVenta): Promise<void> => {
+    if (!ticketFinal) return
+    setNotaAbierto(false)
+    setNotaPreview(nota)
+    try {
+      await imprimirFinal(ticketFinal.orden.id, { notaVenta: nota })
+      toast('Comprobante impreso', 'info')
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'No se pudo imprimir el comprobante', 'error')
+    }
+  }
+
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6">
@@ -321,14 +361,17 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
               <div className="flex flex-1 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-bold text-tinta">{etiqueta(orden)}</h2>
-                  <button
-                    onClick={reimprimirCocina}
-                    className="flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
-                    title="Reimprimir comanda de cocina"
-                  >
-                    <Icono nombre="imprimir" size={14} />
-                    Reimprimir cocina
-                  </button>
+                  {/* En tiendita no hay cocina: se oculta la reimpresión de comanda. */}
+                  {!tiendita && (
+                    <button
+                      onClick={reimprimirCocina}
+                      className="flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+                      title="Reimprimir comanda de cocina"
+                    >
+                      <Icono nombre="imprimir" size={14} />
+                      Reimprimir cocina
+                    </button>
+                  )}
                 </div>
                 <div className="flex-1 overflow-auto">
                   {orden.detalle.map((d) => (
@@ -393,23 +436,50 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
 
               {/* Pago */}
               <div className="flex w-80 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
-                <span className="mb-2 text-sm font-medium text-tinta-suave">Método de pago</span>
-                <div className="mb-4 grid grid-cols-2 gap-2">
-                  {OPCIONES.map((m) => (
-                    <button
-                      key={m.id}
-                      onClick={() => setMetodo(m.id)}
-                      className={`flex flex-col items-center gap-1.5 rounded-md border py-3 text-xs font-semibold transition ${
-                        metodo === m.id
-                          ? 'border-acento bg-acento text-white'
-                          : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
-                      }`}
-                    >
-                      <Icono nombre={m.icono} size={20} />
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
+                {restaurante ? (
+                  /* Modo restaurante: se asume pagado (efectivo); solo se ofrece
+                     fiar a crédito. El método real se corrige luego en el corte. */
+                  <div className="mb-4">
+                    <div className="mb-2 flex items-center gap-2 rounded-md bg-black/[0.03] px-3 py-2 text-sm text-tinta-suave">
+                      <Icono nombre="info" size={15} />
+                      Se registra como pagado. Si fue tarjeta/transferencia, ajústalo en el corte.
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-black/[0.06] px-3 py-2.5">
+                      <input
+                        type="checkbox"
+                        checked={metodo === 'credito'}
+                        onChange={(e) => setMetodo(e.target.checked ? 'credito' : 'efectivo')}
+                        className="h-4 w-4 rounded"
+                      />
+                      <span className="text-sm text-tinta">
+                        Fiar a crédito
+                        <span className="block text-xs text-tinta-suave">
+                          El cliente paga después (se carga a su cuenta).
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                ) : (
+                  <>
+                    <span className="mb-2 text-sm font-medium text-tinta-suave">Método de pago</span>
+                    <div className="mb-4 grid grid-cols-2 gap-2">
+                      {OPCIONES.map((m) => (
+                        <button
+                          key={m.id}
+                          onClick={() => setMetodo(m.id)}
+                          className={`flex flex-col items-center gap-1.5 rounded-md border py-3 text-xs font-semibold transition ${
+                            metodo === m.id
+                              ? 'border-acento bg-acento text-white'
+                              : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
+                          }`}
+                        >
+                          <Icono nombre={m.icono} size={20} />
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
 
                 {/* Descuento */}
                 <span className="mb-2 text-sm font-medium text-tinta-suave">Descuento</span>
@@ -486,7 +556,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                   </>
                 )}
 
-                {metodo === 'efectivo' && (
+                {metodo === 'efectivo' && !restaurante && (
                   <>
                     <span className="mb-2 text-sm font-medium text-tinta-suave">Monto recibido</span>
                     <input
@@ -559,7 +629,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                       </span>
                       <span
                         className={`text-xl font-bold ${
-                          Math.abs(restante) < 0.01 ? 'text-emerald-600' : 'text-red-600'
+                          Math.abs(restante) < 0.01 ? 'text-acento' : 'text-red-600'
                         }`}
                       >
                         {pesos(Math.abs(restante))}
@@ -612,7 +682,9 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                         ? faltaCliente
                           ? 'Selecciona un cliente'
                           : `Fiar ${pesos(neto)}`
-                        : `Cobrar ${pesos(neto)}`}
+                        : restaurante
+                          ? `Cobrar e imprimir ${pesos(neto)}`
+                          : `Cobrar ${pesos(neto)}`}
                 </button>
               </div>
             </div>
@@ -637,6 +709,13 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
               Reimprimir copia
             </button>
             <button
+              onClick={() => setNotaAbierto(true)}
+              className="flex items-center gap-1.5 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            >
+              <Icono nombre="recibo" size={15} />
+              Nota de venta
+            </button>
+            <button
               onClick={finalizar}
               disabled={procesando}
               className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-60"
@@ -647,9 +726,20 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
         }
       >
         {ticketFinal && (
-          <TicketFinal titulo={ticketFinal.titulo} orden={ticketFinal.orden} copia={esCopia} />
+          <TicketFinal
+            titulo={ticketFinal.titulo}
+            orden={ticketFinal.orden}
+            copia={esCopia}
+            notaVenta={notaPreview ?? undefined}
+          />
         )}
       </Modal>
+
+      <NotaVentaDialog
+        abierto={notaAbierto}
+        onCerrar={() => setNotaAbierto(false)}
+        onImprimir={imprimirNotaVenta}
+      />
 
       <Modal
         abierto={ticketCocina !== null}

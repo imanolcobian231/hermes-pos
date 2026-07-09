@@ -6,9 +6,10 @@ import type {
   DetalleOrden,
   DispositivoBluetooth,
   Impresora,
-  LogoTicket
+  LogoTicket,
+  OpcionesTicketFinal
 } from '@shared/types'
-import { logoHermes } from '@renderer/lib/logo'
+import { logoAnkyra, socialALogo } from '@renderer/lib/logo'
 
 // Impresión térmica de varias impresoras. La conexión y el envío de bytes viven
 // en el renderer (Chromium para BLE; el main para COM). El proceso main solo
@@ -33,6 +34,9 @@ const FILTROS = [
   ...SERVICIOS_CONOCIDOS.map((services) => ({ services: [services] })),
   ...PREFIJOS_NOMBRE.map((namePrefix) => ({ namePrefix }))
 ]
+
+// Id del último dispositivo Bluetooth usado, para reconectar solo al imprimir.
+const ULTIMO_DISPOSITIVO = 'ankyra:ultimoDispositivo'
 
 interface EstadoImpresora {
   conectado: boolean
@@ -69,8 +73,10 @@ interface ImpresionContextValue {
   // Conexión
   conectar: (id: string) => Promise<void>
   configurarCom: (id: string, puerto: string, baudRate: number) => Promise<void>
+  configurarWindows: (id: string, nombre: string) => Promise<void>
   desconectar: (id: string) => void
   listarPuertos: () => Promise<string[]>
+  listarImpresorasWindows: () => Promise<string[]>
   mostrarTodos: () => void
   elegirDispositivo: (deviceId: string) => void
   cancelarSelector: () => void
@@ -101,7 +107,7 @@ interface ImpresionContextValue {
       }
     }[]
   ) => Promise<void>
-  imprimirFinal: (ordenId: number, opciones?: { copia?: boolean }) => Promise<void>
+  imprimirFinal: (ordenId: number, opciones?: OpcionesTicketFinal) => Promise<void>
   imprimirCorte: (corte: Corte) => Promise<void>
   imprimirPrueba: (impresoraId: string) => Promise<void>
 }
@@ -272,10 +278,17 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     }
     const nuevos: Record<string, EstadoImpresora> = {}
     for (const imp of config.impresoras) {
-      if (imp.tipo === 'com') {
+      if (imp.tipo === 'windows') {
+        nuevos[imp.id] = { conectado: !!imp.impresoraWindows, nombre: imp.impresoraWindows ?? null }
+      } else if (imp.tipo === 'com') {
         nuevos[imp.id] = { conectado: !!imp.puerto, nombre: imp.puerto ?? null }
       } else if (imp.tipo === 'bluetooth') {
-        const device = conocidos.find((d) => d.id === imp.dispositivoId)
+        // Empareja por id o por nombre: tras reiniciar, el id del dispositivo puede
+        // cambiar aunque el permiso persista; el nombre ayuda a reconocerlo.
+        const device =
+          (imp.dispositivoId && conocidos.find((d) => d.id === imp.dispositivoId)) ||
+          (imp.dispositivoNombre && conocidos.find((d) => d.name === imp.dispositivoNombre)) ||
+          undefined
         if (device) {
           dispositivos.current[imp.id] = device
           nuevos[imp.id] = { conectado: true, nombre: device.name ?? 'Bluetooth' }
@@ -368,10 +381,12 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
       )
       await enColaBLE(() => usarImpresora(device, async () => undefined))
       dispositivos.current[id] = device
+      localStorage.setItem(ULTIMO_DISPOSITIVO, device.id)
       setEstado(id, { conectado: true, nombre: device.name ?? 'Bluetooth' })
       await actualizarImpresora(id, {
         tipo: 'bluetooth',
         dispositivoId: device.id,
+        dispositivoNombre: device.name ?? undefined,
         puerto: undefined,
         baudRate: undefined
       })
@@ -390,7 +405,20 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     await actualizarImpresora(id, { tipo: 'com', puerto, baudRate, dispositivoId: undefined })
   }
 
+  const configurarWindows = async (id: string, nombre: string): Promise<void> => {
+    delete dispositivos.current[id]
+    setEstado(id, { conectado: !!nombre, nombre: nombre || null })
+    await actualizarImpresora(id, {
+      tipo: 'windows',
+      impresoraWindows: nombre,
+      puerto: undefined,
+      baudRate: undefined,
+      dispositivoId: undefined
+    })
+  }
+
   const listarPuertos = (): Promise<string[]> => window.api.printer.listarPuertos()
+  const listarImpresorasWindows = (): Promise<string[]> => window.api.printer.listarWindows()
 
   const mostrarTodos = (): void => {
     const id = enCurso.current
@@ -431,16 +459,54 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
   async function resolverDevice(imp: Impresora): Promise<BluetoothDevice> {
     const enMem = dispositivos.current[imp.id]
     if (enMem) return enMem
-    if (!imp.dispositivoId) throw new Error(`${imp.nombre}: reconéctala en Ajustes`)
-    if (!navigator.bluetooth?.getDevices) throw new Error('Reconecta la impresora en Ajustes')
-    const conocidos = await navigator.bluetooth.getDevices()
-    const device = conocidos.find((d) => d.id === imp.dispositivoId)
-    if (!device) throw new Error(`${imp.nombre} no está disponible; reconéctala en Ajustes`)
+    if (!navigator.bluetooth) throw new Error(`${imp.nombre}: este equipo no tiene Bluetooth`)
+    // Dispositivos ya autorizados en esta sesión. Intenta el registrado por id o
+    // nombre, el último usado, o el único conocido (reconexión dentro de la sesión).
+    if (navigator.bluetooth.getDevices) {
+      const conocidos = await navigator.bluetooth.getDevices()
+      const ultimo = localStorage.getItem(ULTIMO_DISPOSITIVO)
+      const device =
+        (imp.dispositivoId && conocidos.find((d) => d.id === imp.dispositivoId)) ||
+        (imp.dispositivoNombre && conocidos.find((d) => d.name === imp.dispositivoNombre)) ||
+        (ultimo ? conocidos.find((d) => d.id === ultimo) : undefined) ||
+        (conocidos.length === 1 ? conocidos[0] : undefined)
+      if (device) {
+        dispositivos.current[imp.id] = device
+        return device
+      }
+    }
+    // No hay ninguno disponible (típico tras reiniciar la app: Web Bluetooth olvida
+    // el permiso). Abrimos el selector aprovechando el gesto del clic de imprimir;
+    // el usuario elige una vez por arranque y de ahí imprime toda la sesión.
+    let device: BluetoothDevice
+    try {
+      device = await navigator.bluetooth.requestDevice({
+        filters: FILTROS,
+        optionalServices: SERVICIOS_CONOCIDOS
+      })
+    } catch (e) {
+      if (e instanceof Error && e.name === 'NotFoundError') {
+        throw new Error(`${imp.nombre}: elige la impresora en la lista para imprimir`)
+      }
+      throw e
+    }
     dispositivos.current[imp.id] = device
+    localStorage.setItem(ULTIMO_DISPOSITIVO, device.id)
+    setEstado(imp.id, { conectado: true, nombre: device.name ?? 'Bluetooth' })
+    void actualizarImpresora(imp.id, {
+      tipo: 'bluetooth',
+      dispositivoId: device.id,
+      dispositivoNombre: device.name ?? undefined
+    })
     return device
   }
 
   const enviarA = async (imp: Impresora, bytes: number[]): Promise<void> => {
+    if (imp.tipo === 'windows') {
+      if (!imp.impresoraWindows) throw new Error(`${imp.nombre}: falta la impresora de Windows`)
+      await window.api.printer.enviarWindows(imp.impresoraWindows, bytes)
+      return
+    }
     if (imp.tipo === 'com') {
       if (!imp.puerto) throw new Error(`${imp.nombre}: falta el puerto COM`)
       await window.api.printer.enviarCom(imp.puerto, imp.baudRate ?? 9600, bytes)
@@ -455,6 +521,7 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
         for (let intento = 0; intento < 2; intento++) {
           try {
             await usarImpresora(device, (car) => escribirBytes(car, bytes))
+            localStorage.setItem(ULTIMO_DISPOSITIVO, device.id)
             return
           } catch (e) {
             ultimoError = e
@@ -476,15 +543,35 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
   const buscarImpresora = (id: string): Impresora | undefined =>
     cfgRef.current?.impresoras.find((i) => i.id === id)
 
-  // Logo de Hermes (pie del ticket) rasterizado al ancho de la impresora. Si
-  // falla la rasterización, devuelve undefined y el ticket usa el texto "Hermes".
-  const pieHermes = async (imp: Impresora): Promise<LogoTicket | undefined> => {
+  // Logo de Ankyra (pie del ticket) rasterizado al ancho de la impresora. Si
+  // falla la rasterización, devuelve undefined y el ticket usa el texto "ANKYRA".
+  const pieAnkyra = async (imp: Impresora): Promise<LogoTicket | undefined> => {
     const dots = (imp.ancho ?? cfgRef.current?.ancho ?? 32) === 48 ? 576 : 384
     try {
-      return await logoHermes(Math.round(dots / 2))
+      // ~46.9% del ancho del rollo (antes 62.5%, reducido 25%).
+      return await logoAnkyra(Math.round((dots / 2) * 0.9375))
     } catch {
       return undefined
     }
+  }
+
+  // Redes sociales del negocio como bitmaps (ícono + usuario), una por red.
+  const socialesPie = async (imp: Impresora): Promise<LogoTicket[]> => {
+    const redes = cfgRef.current?.redesSociales
+    if (!redes) return []
+    const dots = (imp.ancho ?? cfgRef.current?.ancho ?? 32) === 48 ? 576 : 384
+    const w = Math.round(dots * 0.85)
+    const salida: LogoTicket[] = []
+    for (const tipo of ['facebook', 'instagram'] as const) {
+      const val = redes[tipo]?.trim()
+      if (!val) continue
+      try {
+        salida.push(await socialALogo(tipo, val, w))
+      } catch {
+        /* si falla una, se omite */
+      }
+    }
+    return salida
   }
 
   const imprimirComanda: ImpresionContextValue['imprimirComanda'] = async (
@@ -521,7 +608,13 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     const conf = cfgRef.current
     const caja = conf?.impresoras.find((i) => i.id === conf.impresoraCajaId)
     if (!caja) throw new Error('No hay impresora de Caja configurada (asígnala en Ajustes)')
-    const bytes = await window.api.printer.bytesFinal(ordenId, opciones, caja.ancho, await pieHermes(caja))
+    const bytes = await window.api.printer.bytesFinal(
+      ordenId,
+      opciones,
+      caja.ancho,
+      await pieAnkyra(caja),
+      await socialesPie(caja)
+    )
     await enviarA(caja, bytes)
   }
 
@@ -538,8 +631,9 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     if (!imp) throw new Error('Impresora no encontrada')
     const destino: DestinoImpresion =
       cfgRef.current?.impresoraCajaId === impresoraId ? 'caja' : 'cocina'
-    const pie = destino === 'caja' ? await pieHermes(imp) : undefined
-    const bytes = await window.api.printer.bytesPrueba(destino, imp.ancho, pie)
+    const pie = destino === 'caja' ? await pieAnkyra(imp) : undefined
+    const sociales = destino === 'caja' ? await socialesPie(imp) : undefined
+    const bytes = await window.api.printer.bytesPrueba(destino, imp.ancho, pie, sociales)
     await enviarA(imp, bytes)
   }
 
@@ -561,8 +655,10 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
         cambiarAnchoImpresora,
         conectar,
         configurarCom,
+        configurarWindows,
         desconectar,
         listarPuertos,
+        listarImpresorasWindows,
         mostrarTodos,
         elegirDispositivo,
         cancelarSelector,
