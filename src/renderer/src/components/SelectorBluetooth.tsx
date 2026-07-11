@@ -16,14 +16,14 @@ export function SelectorBluetooth(): React.JSX.Element | null {
         <>
           <button
             onClick={mostrarTodos}
-            className="mr-auto rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            className="mr-auto btn-texto"
             title="Quita el filtro y muestra todos los dispositivos Bluetooth"
           >
             Mostrar todos
           </button>
           <button
             onClick={cancelarSelector}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            className="btn-texto"
           >
             Cancelar
           </button>

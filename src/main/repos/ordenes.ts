@@ -99,14 +99,33 @@ function exigirOrdenAbierta(ordenId: number): void {
 }
 
 function recalcularTotal(ordenId: number): void {
+  // El total resta el descuento por línea (nunca deja una línea en negativo).
   obtenerDb()
     .prepare(
       `UPDATE ordenes SET total = (
-         SELECT COALESCE(SUM(cantidad * precio_unitario), 0)
+         SELECT COALESCE(SUM(MAX(cantidad * precio_unitario - descuento, 0)), 0)
          FROM detalle_ordenes WHERE orden_id = ?
        ) WHERE id = ?`
     )
     .run(ordenId, ordenId)
+}
+
+/**
+ * Fija el descuento (monto en pesos) de una línea del carrito, sin afectar las
+ * demás. Se acota al importe de la línea y recalcula el total de la orden.
+ */
+export function fijarDescuentoLinea(detalleId: number, descuento: number): OrdenConDetalle {
+  const db = obtenerDb()
+  const linea = db
+    .prepare('SELECT orden_id, cantidad, precio_unitario FROM detalle_ordenes WHERE id = ?')
+    .get(detalleId) as { orden_id: number; cantidad: number; precio_unitario: number } | undefined
+  if (!linea) throw new Error(`Línea ${detalleId} no encontrada`)
+  exigirOrdenAbierta(linea.orden_id)
+  const importe = linea.cantidad * linea.precio_unitario
+  const desc = Math.max(0, Math.min(descuento || 0, importe))
+  db.prepare('UPDATE detalle_ordenes SET descuento = ? WHERE id = ?').run(desc, detalleId)
+  recalcularTotal(linea.orden_id)
+  return obtenerConDetalle(linea.orden_id)
 }
 
 /**
@@ -135,6 +154,40 @@ function ajustarStockProductos(db: ReturnType<typeof obtenerDb>, ordenId: number
        JOIN productos p ON p.id = d.producto_id
       WHERE d.orden_id = ? AND p.controlar_stock = 1
       GROUP BY d.producto_id`
+  ).run(tipo, nota, ahora(), ordenId)
+}
+
+/**
+ * Descuenta (o repone) los INSUMOS que consumen los productos de una orden según
+ * su receta. Consumo por insumo = Σ (cantidad vendida × cantidad de la receta).
+ * factor = -1 al vender (descuenta); +1 al devolver (repone).
+ */
+function ajustarInsumosReceta(db: ReturnType<typeof obtenerDb>, ordenId: number, factor: number): void {
+  db.prepare(
+    `UPDATE insumos
+       SET stock = ROUND(stock + ? * (
+         SELECT COALESCE(SUM(d.cantidad * pi.cantidad), 0)
+           FROM detalle_ordenes d
+           JOIN producto_insumos pi ON pi.producto_id = d.producto_id
+          WHERE d.orden_id = ? AND pi.insumo_id = insumos.id
+       ), 3)
+     WHERE id IN (
+       SELECT pi.insumo_id FROM detalle_ordenes d
+         JOIN producto_insumos pi ON pi.producto_id = d.producto_id
+        WHERE d.orden_id = ?
+     )`
+  ).run(factor, ordenId, ordenId)
+
+  // Registra el consumo en el historial de cada insumo.
+  const tipo = factor < 0 ? 'salida' : 'entrada'
+  const nota = factor < 0 ? `Receta orden #${ordenId}` : `Devolución orden #${ordenId}`
+  db.prepare(
+    `INSERT INTO movimientos_inventario (insumo_id, tipo, cantidad, nota, usuario, creado_en)
+     SELECT pi.insumo_id, ?, SUM(d.cantidad * pi.cantidad), ?, 'caja', ?
+       FROM detalle_ordenes d
+       JOIN producto_insumos pi ON pi.producto_id = d.producto_id
+      WHERE d.orden_id = ?
+      GROUP BY pi.insumo_id`
   ).run(tipo, nota, ahora(), ordenId)
 }
 
@@ -262,6 +315,14 @@ export function cambiarNota(ordenId: number, detalleId: number, nota: string): O
   return obtenerConDetalle(ordenId)
 }
 
+/** Fija la nota libre del ticket a nivel orden (se imprime en el ticket). */
+export function fijarNotaOrden(ordenId: number, nota: string): OrdenConDetalle {
+  obtenerDb()
+    .prepare('UPDATE ordenes SET nota = ? WHERE id = ?')
+    .run(nota.trim() || null, ordenId)
+  return obtenerConDetalle(ordenId)
+}
+
 export function quitarLinea(ordenId: number, detalleId: number): OrdenConDetalle {
   const db = obtenerDb()
   exigirOrdenAbierta(ordenId)
@@ -347,6 +408,7 @@ export function cobrar(
     const ins = db.prepare('INSERT INTO pagos (orden_id, metodo, monto) VALUES (?, ?, ?)')
     for (const p of limpios) ins.run(ordenId, p.metodo, p.monto)
     ajustarStockProductos(db, ordenId, -1) // descuenta inventario al vender
+    ajustarInsumosReceta(db, ordenId, -1) // descuenta insumos de la receta
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()
@@ -412,6 +474,7 @@ export function fiar(ordenId: number, clienteId: number, descuento = 0): OrdenCo
     db.prepare('DELETE FROM pagos WHERE orden_id = ?').run(ordenId)
     creditos.registrarCargo(clienteId, aPagar, ordenId)
     ajustarStockProductos(db, ordenId, -1) // fiar también es venta: descuenta stock
+    ajustarInsumosReceta(db, ordenId, -1) // descuenta insumos de la receta
     if (orden.mesaId != null) mesas.cambiarEstado(orden.mesaId, 'libre')
   })
   tx()
@@ -440,6 +503,7 @@ export function devolver(ordenId: number, motivo: string, usuario = 'caja'): voi
     db.prepare("UPDATE ordenes SET estado = 'devuelta' WHERE id = ?").run(ordenId)
     if (fila.metodo_pago === 'credito') creditos.revertirCargoDeOrden(ordenId)
     ajustarStockProductos(db, ordenId, 1) // devolución: repone el inventario vendido
+    ajustarInsumosReceta(db, ordenId, 1) // repone los insumos de la receta
     cancelaciones.registrar(ordenId, `Devolución: ${razon}`, usuario, fila.total)
   })
   tx()

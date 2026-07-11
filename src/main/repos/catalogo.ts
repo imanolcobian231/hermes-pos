@@ -1,6 +1,7 @@
 import type {
   Categoria,
   CategoriaInput,
+  ComboItem,
   FilaImportProducto,
   GrupoInput,
   GrupoModificador,
@@ -8,6 +9,7 @@ import type {
   ModificadorInput,
   Producto,
   ProductoInput,
+  RecetaItem,
   ResultadoImport
 } from '@shared/types'
 import { obtenerDb } from '../db'
@@ -68,7 +70,15 @@ export function listarProductos(): Producto[] {
     string,
     unknown
   >[]
-  return filas.map((f) => ({ ...aProducto(f), grupos: gruposDeProducto(f.id as number) }))
+  return filas.map((f) => {
+    const p = aProducto(f)
+    return {
+      ...p,
+      grupos: gruposDeProducto(p.id),
+      // Las partes del combo se incluyen para poder expandirlo en la comanda.
+      comboItems: p.esCombo ? comboItems(p.id) : undefined
+    }
+  })
 }
 
 /** Importa productos en masa. La categoría se busca por nombre (se crea si no
@@ -89,8 +99,8 @@ export function importarProductos(filas: FilaImportProducto[]): ResultadoImport 
     ((db.prepare('SELECT COALESCE(MAX(orden), 0) AS m FROM categorias').get() as { m: number }).m || 0) + 1
 
   const insProd = db.prepare(
-    `INSERT INTO productos (nombre, precio, categoria_id, activo, controlar_stock, stock, stock_minimo, costo)
-     VALUES (?, ?, ?, 1, ?, ?, ?, ?)`
+    `INSERT INTO productos (nombre, precio, categoria_id, activo, controlar_stock, stock, stock_minimo, costo, codigo_barras)
+     VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?)`
   )
 
   const tx = db.transaction(() => {
@@ -122,7 +132,8 @@ export function importarProductos(filas: FilaImportProducto[]): ResultadoImport 
         f.controlarStock ? 1 : 0,
         Math.max(0, f.stock || 0),
         Math.max(0, f.stockMinimo || 0),
-        Math.max(0, f.costo || 0)
+        Math.max(0, f.costo || 0),
+        (f.codigoBarras || '').trim() || null
       )
       creados++
     })
@@ -260,34 +271,76 @@ export function guardarProducto(prod: ProductoInput): Producto {
   const minimo = Math.max(0, prod.stockMinimo || 0)
   const costo = Math.max(0, prod.costo || 0)
   const color = prod.color?.trim() || null
-  if (prod.id != null) {
-    db.prepare(
-      `UPDATE productos
-         SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ?,
-             controlar_stock = ?, stock = ?, stock_minimo = ?, costo = ?, color = ?
-       WHERE id = ?`
-    ).run(
-      prod.nombre.trim(),
-      prod.precio,
-      prod.categoriaId,
-      activo,
-      prod.descripcion ?? null,
-      controla,
-      stock,
-      minimo,
-      costo,
-      color,
-      prod.id
-    )
-    return obtenerProducto(prod.id)
-  }
-  const r = db
+  const codigoBarras = prod.codigoBarras?.trim() || null
+  const esCombo = prod.esCombo ? 1 : 0
+
+  const tx = db.transaction(() => {
+    let id: number
+    if (prod.id != null) {
+      db.prepare(
+        `UPDATE productos
+           SET nombre = ?, precio = ?, categoria_id = ?, activo = ?, descripcion = ?,
+               controlar_stock = ?, stock = ?, stock_minimo = ?, costo = ?, color = ?, codigo_barras = ?, es_combo = ?
+         WHERE id = ?`
+      ).run(
+        prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null,
+        controla, stock, minimo, costo, color, codigoBarras, esCombo, prod.id
+      )
+      id = prod.id
+    } else {
+      const r = db
+        .prepare(
+          `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo, costo, color, codigo_barras, es_combo)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo, costo, color, codigoBarras, esCombo)
+      id = Number(r.lastInsertRowid)
+    }
+    // Reemplaza las partes del combo (borra y reinserta).
+    db.prepare('DELETE FROM combo_items WHERE combo_id = ?').run(id)
+    if (esCombo && prod.comboItems && prod.comboItems.length > 0) {
+      const ins = db.prepare(
+        'INSERT INTO combo_items (combo_id, producto_id, cantidad) VALUES (?, ?, ?)'
+      )
+      for (const it of prod.comboItems) {
+        if (it.productoId && it.productoId !== id) ins.run(id, it.productoId, Math.max(1, it.cantidad || 1))
+      }
+    }
+    // Reemplaza la receta (insumos que consume el producto al venderse).
+    db.prepare('DELETE FROM producto_insumos WHERE producto_id = ?').run(id)
+    if (prod.receta && prod.receta.length > 0) {
+      const insR = db.prepare(
+        'INSERT OR REPLACE INTO producto_insumos (producto_id, insumo_id, cantidad) VALUES (?, ?, ?)'
+      )
+      for (const it of prod.receta) {
+        if (it.insumoId && it.cantidad > 0) insR.run(id, it.insumoId, it.cantidad)
+      }
+    }
+    return id
+  })
+  return obtenerProducto(tx())
+}
+
+/** Receta de un producto: insumos que consume + cantidad, con nombre y unidad. */
+export function receta(productoId: number): RecetaItem[] {
+  return obtenerDb()
     .prepare(
-      `INSERT INTO productos (nombre, precio, categoria_id, activo, descripcion, controlar_stock, stock, stock_minimo, costo, color)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `SELECT pi.insumo_id AS insumoId, pi.cantidad AS cantidad, i.nombre AS nombre, i.unidad AS unidad
+         FROM producto_insumos pi JOIN insumos i ON i.id = pi.insumo_id
+        WHERE pi.producto_id = ? ORDER BY i.nombre`
     )
-    .run(prod.nombre.trim(), prod.precio, prod.categoriaId, activo, prod.descripcion ?? null, controla, stock, minimo, costo, color)
-  return obtenerProducto(Number(r.lastInsertRowid))
+    .all(productoId) as RecetaItem[]
+}
+
+/** Partes de un combo (producto + cantidad), con el nombre de cada parte. */
+export function comboItems(comboId: number): ComboItem[] {
+  return obtenerDb()
+    .prepare(
+      `SELECT ci.producto_id AS productoId, ci.cantidad AS cantidad, p.nombre AS nombre
+         FROM combo_items ci JOIN productos p ON p.id = ci.producto_id
+        WHERE ci.combo_id = ? ORDER BY ci.id`
+    )
+    .all(comboId) as ComboItem[]
 }
 
 export function eliminarProducto(id: number): void {

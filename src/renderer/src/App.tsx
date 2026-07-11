@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import type { Mesa, OrdenConDetalle } from '@shared/types'
+import type { Mesa, OrdenConDetalle, Producto } from '@shared/types'
 import { ProveedorDatos, useDatos } from '@renderer/store/datos'
-import { ProveedorToast } from '@renderer/components/Toast'
+import { ProveedorToast, useToast } from '@renderer/components/Toast'
+import { useEscaner } from '@renderer/lib/escaner'
 import { ProveedorAuth, useAuth } from '@renderer/store/auth'
 import { ProveedorAutorizacion } from '@renderer/store/autorizacion'
 import { ProveedorImpresion, useImpresion } from '@renderer/store/impresion'
@@ -17,7 +18,6 @@ import { Pedidos } from '@renderer/pages/Pedidos'
 import { Cobro } from '@renderer/pages/Cobro'
 import { Corte } from '@renderer/pages/Corte'
 import { Catalogo } from '@renderer/pages/Catalogo'
-import { Finanzas } from '@renderer/pages/Finanzas'
 import { Reportes } from '@renderer/pages/Reportes'
 import { Clientes } from '@renderer/pages/Clientes'
 import { Inventario } from '@renderer/pages/Inventario'
@@ -33,7 +33,6 @@ type Vista =
   | 'cobro'
   | 'corte'
   | 'catalogo'
-  | 'finanzas'
   | 'reportes'
   | 'clientes'
   | 'inventario'
@@ -47,10 +46,9 @@ const NAV: { id: Vista; label: string; icono: NombreIcono; roles: Rol[] }[] = [
   { id: 'tienda', label: 'Venta', icono: 'cobro', roles: ['admin', 'cajero', 'mesero'] },
   { id: 'cobro', label: 'Cobro', icono: 'cobro', roles: ['admin', 'cajero', 'mesero'] },
   { id: 'gastos', label: 'Gastos', icono: 'gasto', roles: ['mesero'] },
-  { id: 'finanzas', label: 'Finanzas', icono: 'finanzas', roles: ['admin'] },
   { id: 'reportes', label: 'Reportes', icono: 'corte', roles: ['admin'] },
   { id: 'clientes', label: 'Clientes', icono: 'usuarios', roles: ['admin', 'cajero'] },
-  { id: 'corte', label: 'Corte de caja', icono: 'corte', roles: ['admin'] },
+  { id: 'corte', label: 'Finanzas', icono: 'finanzas', roles: ['admin'] },
   { id: 'catalogo', label: 'Catálogo', icono: 'catalogo', roles: ['admin'] },
   { id: 'inventario', label: 'Inventario', icono: 'inventario', roles: ['admin'] },
   { id: 'usuarios', label: 'Usuarios', icono: 'usuarios', roles: ['admin'] },
@@ -62,11 +60,10 @@ const TITULOS: Record<Vista, string> = {
   tienda: 'Venta',
   pedidos: 'Toma de pedido',
   cobro: 'Cobro',
-  finanzas: 'Finanzas',
   reportes: 'Reportes',
   clientes: 'Clientes',
   inventario: 'Inventario',
-  corte: 'Corte de caja',
+  corte: 'Finanzas',
   catalogo: 'Catálogo',
   usuarios: 'Usuarios',
   ajustes: 'Ajustes',
@@ -89,62 +86,63 @@ function BannerReconectar(): React.JSX.Element | null {
     (i) => (i.tipo === 'bluetooth' && !!i.dispositivoId) || (i.tipo === 'com' && !!i.puerto)
   )
   if (configuradas.length === 0) return null
-  // Bluetooth guardadas pero desconectadas → se pueden reconectar con un clic.
-  const reconectar = configuradas.find(
-    (i) => i.tipo === 'bluetooth' && !estados[i.id]?.conectado
-  )
 
-  if (reconectar) {
-    const ocupado = conectando === reconectar.id
-    const etiqueta = reconectar.dispositivoNombre || reconectar.nombre
+  const conectadas = configuradas.filter((i) => estados[i.id]?.conectado)
+
+  // Si hay AL MENOS UNA impresora conectada, "en línea" (aunque otra guardada esté
+  // desconectada). Solo se muestra "desconectada" cuando NINGUNA está conectada.
+  if (conectadas.length > 0) {
+    const texto =
+      conectadas.length === 1
+        ? `Impresora «${estados[conectadas[0].id]?.nombre || conectadas[0].nombre}» conectada`
+        : `${conectadas.length} impresoras conectadas`
     return (
-      <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-amber-300/70 bg-amber-50 px-4 py-3 shadow-sm">
-        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-          <Icono nombre="imprimir" size={22} />
-          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-black leading-none text-white ring-2 ring-amber-50">
-            !
+      <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-acento/20 bg-acento/[0.06] px-4 py-2.5">
+        <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-acento/10 text-acento">
+          <Icono nombre="imprimir" size={19} />
+          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white" />
           </span>
         </span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-bold text-amber-900">Impresora desconectada</div>
-          <div className="truncate text-xs font-medium text-amber-800/70">
-            «{etiqueta}» perdió la conexión Bluetooth
-          </div>
+          <div className="truncate text-sm font-semibold text-tinta">{texto}</div>
+          <div className="text-xs text-tinta-suave">Lista para imprimir</div>
         </div>
-        <button
-          onClick={() => void conectar(reconectar.id)}
-          disabled={ocupado}
-          className="flex shrink-0 items-center gap-1.5 rounded-xl bg-amber-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-amber-600 active:scale-95 disabled:opacity-60"
-        >
-          <Icono nombre="recargar" size={15} className={ocupado ? 'animate-spin' : ''} />
-          {ocupado ? 'Conectando…' : 'Reconectar'}
-        </button>
+        <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+          En línea
+        </span>
       </div>
     )
   }
 
-  // Todas las configuradas están conectadas → indicador "en línea", persistente.
-  const conectadas = configuradas.filter((i) => estados[i.id]?.conectado)
-  const texto =
-    conectadas.length === 1
-      ? `Impresora «${estados[conectadas[0].id]?.nombre || conectadas[0].nombre}» conectada`
-      : `${conectadas.length} impresoras conectadas`
+  // Ninguna conectada: ofrecer reconectar una Bluetooth guardada.
+  const reconectar = configuradas.find((i) => i.tipo === 'bluetooth' && !estados[i.id]?.conectado)
+  if (!reconectar) return null
+  const ocupado = conectando === reconectar.id
+  const etiqueta = reconectar.dispositivoNombre || reconectar.nombre
   return (
-    <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-acento/20 bg-acento/[0.06] px-4 py-2.5">
-      <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-acento/10 text-acento">
-        <Icono nombre="imprimir" size={19} />
-        <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-          <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+    <div className="animar-entrada mb-4 flex items-center gap-3.5 rounded-2xl border border-black/[0.08] bg-white px-4 py-3 shadow-sm">
+      <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black/[0.05] text-tinta-suave">
+        <Icono nombre="imprimir" size={22} />
+        <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-black leading-none text-white ring-2 ring-white">
+          !
         </span>
       </span>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold text-tinta">{texto}</div>
-        <div className="text-xs text-tinta-suave">Lista para imprimir</div>
+        <div className="text-sm font-bold text-tinta">Impresora desconectada</div>
+        <div className="truncate text-xs font-medium text-tinta-suave">
+          «{etiqueta}» perdió la conexión Bluetooth
+        </div>
       </div>
-      <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
-        En línea
-      </span>
+      <button
+        onClick={() => void conectar(reconectar.id)}
+        disabled={ocupado}
+        className="btn-primario shrink-0"
+      >
+        <Icono nombre="recargar" size={15} className={ocupado ? 'animate-spin' : ''} />
+        {ocupado ? 'Conectando…' : 'Reconectar'}
+      </button>
     </div>
   )
 }
@@ -166,9 +164,11 @@ function Reloj(): React.JSX.Element {
 }
 
 function Contenido(): React.JSX.Element {
-  const { cargando, ordenes, resumen, abrirOrden, abrirOrdenLlevar, descartarOrden } = useDatos()
+  const { cargando, ordenes, productos, resumen, abrirOrden, abrirOrdenLlevar, descartarOrden } =
+    useDatos()
   const { usuarioActual, esAdmin, logout } = useAuth()
   const { cfg } = useImpresion()
+  const toast = useToast()
   const rol = usuarioActual?.rol
   // En modo tiendita la pantalla principal es "Venta" (productos) en vez de Mesas.
   const tiendita = cfg?.modoTiendita === true
@@ -187,6 +187,31 @@ function Contenido(): React.JSX.Element {
   }, [tiendita, vista])
   const [pedido, setPedido] = useState<PedidoActivo | null>(null)
   const [ordenCobro, setOrdenCobro] = useState<number | null>(null)
+
+  // Escaneo global de código de barras: estés donde estés (en modo tiendita), un
+  // código detectado lleva a la Venta y agrega el producto. Se ignora si el foco
+  // está en un campo (p. ej. al capturar el código en el editor de Catálogo).
+  const [scanPendiente, setScanPendiente] = useState<{ producto: Producto; nonce: number } | null>(
+    null
+  )
+  const alEscanear = (codigo: string): void => {
+    const el = document.activeElement
+    if (
+      el instanceof HTMLElement &&
+      (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)
+    )
+      return
+    // Compara sin distinguir mayúsculas ni espacios (códigos alfanuméricos).
+    const cod = codigo.trim().toUpperCase()
+    const p = productos.find((x) => x.activo && (x.codigoBarras ?? '').trim().toUpperCase() === cod)
+    if (!p) {
+      toast(`Código ${codigo} no encontrado`, 'error')
+      return
+    }
+    setScanPendiente({ producto: p, nonce: Date.now() })
+    setVista('tienda')
+  }
+  useEscaner(alEscanear, tiendita)
 
   const balance =
     resumen.totalEfectivo + resumen.totalTarjeta + resumen.totalTransferencia - resumen.totalGastos
@@ -243,9 +268,9 @@ function Contenido(): React.JSX.Element {
   }
 
   return (
-    <div className="flex h-screen bg-fondo text-tinta">
+    <div className="flex h-screen bg-white text-tinta">
       {/* Barra lateral — clara y translúcida, estilo Apple */}
-      <aside className="flex w-64 flex-col border-r border-black/[0.07] bg-white/70 backdrop-blur-xl">
+      <aside className="flex w-64 flex-col">
         <div className="flex items-center justify-center px-5 pb-5 pt-10">
           <LogoAnkyra className="w-3/4 object-contain" />
         </div>
@@ -302,23 +327,27 @@ function Contenido(): React.JSX.Element {
               <Icono nombre="salir" size={16} />
             </button>
           </div>
-          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.5.0 · Olyssea</div>
+          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.6.0 · Olyssea</div>
         </div>
       </aside>
 
-      {/* Columna principal */}
+      {/* Columna principal: header transparente (parte del chrome) + contenido flotante */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Barra superior translúcida — la barra ocupa todo el ancho; su contenido
-            se centra y limita igual que el área principal. */}
-        <header className="border-b border-black/[0.06] bg-white/60 backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between px-8 py-3">
-            <div className="text-[15px] font-semibold tracking-tight text-tinta">{TITULOS[vista]}</div>
-            <Reloj />
+        {/* Barra superior transparente: se funde con el chrome blanco (barra lateral). */}
+        <header>
+          <div className="mx-auto grid w-full max-w-[1600px] grid-cols-3 items-center px-8 py-3">
+            <div />
+            <div className="text-center text-2xl font-bold tracking-tight text-tinta">
+              {TITULOS[vista]}
+            </div>
+            <div className="flex justify-end">
+              <Reloj />
+            </div>
           </div>
         </header>
 
-        {/* Contenido — centrado y con ancho máximo para no estirarse en pantallas grandes */}
-        <main className="flex-1 overflow-auto">
+        {/* Contenido — panel gris flotante con esquinas redondeadas */}
+        <main className="mx-2 mb-2 min-h-0 flex-1 overflow-auto rounded-2xl bg-fondo shadow-sm">
           <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col p-8">
           {vista !== 'ajustes' && <BannerReconectar />}
           <div key={vista} className="animar-entrada min-h-0 flex-1">
@@ -338,9 +367,14 @@ function Contenido(): React.JSX.Element {
               onCobrar={irACobro}
             />
           )}
-          {vista === 'tienda' && <Tienda onCobrar={irACobro} />}
+          {vista === 'tienda' && (
+            <Tienda
+              onCobrar={irACobro}
+              escaneado={scanPendiente}
+              onEscaneoConsumido={() => setScanPendiente(null)}
+            />
+          )}
           {vista === 'cobro' && <Cobro ordenIdInicial={ordenCobro} />}
-          {vista === 'finanzas' && <Finanzas />}
           {vista === 'reportes' && <Reportes />}
           {vista === 'clientes' && <Clientes />}
           {vista === 'inventario' && <Inventario />}

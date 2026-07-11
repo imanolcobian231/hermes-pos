@@ -37,10 +37,7 @@ export function NotaVentaDialog({
           <button onClick={onCerrar} className="btn-texto">
             Cancelar
           </button>
-          <button
-            onClick={imprimir}
-            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
-          >
+          <button onClick={imprimir} className="btn-primario">
             Imprimir comprobante
           </button>
         </>

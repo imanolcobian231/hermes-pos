@@ -8,10 +8,12 @@ import type {
 } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { useAuth } from '@renderer/store/auth'
-import { pesos, fechaHora } from '@renderer/lib/format'
+import { pesos, fechaHora, capitalizar } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { useToast } from '@renderer/components/Toast'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
+import { EstadoVacio } from '@renderer/components/Pagina'
+import { Select } from '@renderer/components/Select'
 
 const UNIDADES = ['pieza', 'kg', 'g', 'litro', 'ml', 'paquete', 'caja', 'bolsa']
 
@@ -69,16 +71,13 @@ export function Inventario(): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <header className="mb-5 flex items-end justify-between">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-tinta">Inventario</h1>
-          <p className="mt-1 text-sm text-tinta-suave">
-            {resumen.num} {resumen.num === 1 ? 'insumo' : 'insumos'} ·{' '}
-            <span className={resumen.bajo > 0 ? 'font-semibold text-amber-600' : ''}>
-              {resumen.bajo} bajo stock
-            </span>{' '}
-            · valor <strong className="text-tinta">{pesos(resumen.valor)}</strong>
-          </p>
-        </div>
+        <p className="text-sm text-tinta-suave">
+          {resumen.num} {resumen.num === 1 ? 'insumo' : 'insumos'} ·{' '}
+          <span className={resumen.bajo > 0 ? 'font-semibold text-amber-600' : ''}>
+            {resumen.bajo} bajo stock
+          </span>{' '}
+          · valor <strong className="text-tinta">{pesos(resumen.valor)}</strong>
+        </p>
         <button
           onClick={() => setForm({ nombre: '', unidad: 'pieza', stockMinimo: 0, costo: 0 })}
           className="btn-primario"
@@ -89,13 +88,11 @@ export function Inventario(): React.JSX.Element {
       </header>
 
       {insumos.length === 0 && productosStock.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
-          <Icono nombre="inventario" size={40} className="text-tinta-suave/40" />
-          <p className="mt-3 font-semibold">Sin insumos ni productos con inventario</p>
-          <p className="mt-1 text-sm">
-            Crea un insumo, o marca un producto con “controlar inventario” en Catálogo.
-          </p>
-        </div>
+        <EstadoVacio
+          icono="inventario"
+          titulo="Sin insumos ni productos con inventario"
+          descripcion="Crea un insumo, o marca un producto con “controlar inventario” en Catálogo."
+        />
       ) : (
         <div className="flex flex-col gap-6 overflow-auto">
           {insumos.length > 0 && (
@@ -233,17 +230,12 @@ export function Inventario(): React.JSX.Element {
             />
             <div>
               <label className="mb-1 block text-sm font-medium text-tinta-suave">Unidad</label>
-              <input
-                list="unidades-insumo"
-                value={form.unidad}
-                onChange={(e) => setForm({ ...form, unidad: e.target.value })}
-                className="campo"
+              <Select
+                valor={form.unidad}
+                onChange={(unidad) => setForm({ ...form, unidad })}
+                opciones={UNIDADES.map((u) => ({ valor: u, label: capitalizar(u) }))}
+                placeholder="Elegir unidad"
               />
-              <datalist id="unidades-insumo">
-                {UNIDADES.map((u) => (
-                  <option key={u} value={u} />
-                ))}
-              </datalist>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <CampoNum

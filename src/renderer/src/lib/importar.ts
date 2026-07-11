@@ -13,6 +13,7 @@ export type CampoProducto =
   | 'stock'
   | 'stockMinimo'
   | 'controlarStock'
+  | 'codigoBarras'
 
 /** Mapeo campo del producto → nombre de columna del archivo (null = sin mapear). */
 export type MapeoColumnas = Record<CampoProducto, string | null>
@@ -101,7 +102,8 @@ const ALIAS: Record<CampoProducto, string[]> = {
   costo: ['costo', 'costo compra', 'compra', 'costo unitario'],
   stock: ['stock', 'existencia', 'existencias', 'cantidad', 'inventario inicial'],
   stockMinimo: ['stock minimo', 'stockminimo', 'minimo', 'min', 'stock min'],
-  controlarStock: ['controlar inventario', 'controlar stock', 'inventario', 'controla', 'controla stock']
+  controlarStock: ['controlar inventario', 'controlar stock', 'inventario', 'controla', 'controla stock'],
+  codigoBarras: ['codigo de barras', 'codigo barras', 'codigo', 'barcode', 'sku', 'upc', 'ean', 'clave']
 }
 
 /** Adivina un mapeo por defecto comparando los encabezados con los alias. */
@@ -132,7 +134,8 @@ export function mapearFilas(
       costo: num(val(row, 'costo')),
       stock: num(val(row, 'stock')),
       stockMinimo: num(val(row, 'stockMinimo')),
-      controlarStock: esSi(val(row, 'controlarStock'))
+      controlarStock: esSi(val(row, 'controlarStock')),
+      codigoBarras: String(val(row, 'codigoBarras') ?? '').trim() || undefined
     }))
     .filter((f) => f.nombre.length > 0 || f.categoria.length > 0)
 }

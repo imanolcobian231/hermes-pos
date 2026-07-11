@@ -9,8 +9,8 @@ import { obtenerDb } from '../db'
 import { aInsumo, aMovimientoInventario } from '../db/mapeo'
 
 // Inventario de insumos. El stock se mantiene en la fila del insumo y cada
-// cambio queda en movimientos_inventario para auditoría. (La descarga
-// automática por receta es una fase posterior.)
+// cambio queda en movimientos_inventario para auditoría. La descarga automática
+// por receta al vender vive en ordenes.ts (`ajustarInsumosReceta`).
 
 const ahora = (): string => new Date().toISOString()
 

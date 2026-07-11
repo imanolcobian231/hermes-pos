@@ -7,10 +7,11 @@ import { TicketCocina, agruparPorComensal } from '@renderer/components/TicketCoc
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { CuadriculaVirtual } from '@renderer/components/CuadriculaVirtual'
 import { CantidadEditable } from '@renderer/components/CantidadEditable'
+import { DescuentoLineaDialog } from '@renderer/components/DescuentoLineaDialog'
 import { HistorialMesa } from '@renderer/components/HistorialMesa'
 import { useToast } from '@renderer/components/Toast'
 import { useImpresion } from '@renderer/store/impresion'
-import { comandasPorArea, rolesConfigurados, type GrupoComanda } from '@renderer/lib/comandas'
+import { comandasPorArea, expandirCombos, rolesConfigurados, type GrupoComanda } from '@renderer/lib/comandas'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono } from '@renderer/components/Icono'
@@ -32,6 +33,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     agregarProducto,
     cambiarCantidad,
     cambiarNota,
+    descontarLinea,
     quitarLinea,
     enviarACocina,
     marcarPorCobrar,
@@ -71,6 +73,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   } | null>(null)
   const [notaLinea, setNotaLinea] = useState<DetalleOrden | null>(null)
   const [notaTexto, setNotaTexto] = useState('')
+  // Línea seleccionada para descuento (abre el diálogo).
+  const [descLinea, setDescLinea] = useState<DetalleOrden | null>(null)
   const [confirmarCancel, setConfirmarCancel] = useState(false)
   const [motivoCancel, setMotivoCancel] = useState('')
   // Historial de tickets de esta mesa (reimprimir ventas pasadas).
@@ -187,7 +191,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   // a Caja, pero igual separado por área.
   const repartir = (lineas: DetalleOrden[]): ReturnType<typeof comandasPorArea> =>
     comandasPorArea(
-      lineas,
+      expandirCombos(lineas, productos),
       productos,
       categorias,
       rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null),
@@ -401,7 +405,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
       </section>
 
       {/* Comanda */}
-      <aside className="flex w-96 flex-col rounded-lg border border-black/[0.06] bg-white">
+      <aside className="flex w-96 flex-col rounded-2xl border border-black/[0.06] bg-white shadow-sm">
         <header className="border-b border-black/[0.04] px-5 py-3">
           <h2 className="mb-2 text-lg font-bold text-tinta">Comanda</h2>
           {/* Selector de comensal */}
@@ -469,9 +473,9 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               {items.map((d) => (
                 <div
                   key={d.id}
-                  className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-black/[0.03]"
+                  className="flex items-start gap-1 rounded-lg px-2 py-2 hover:bg-black/[0.03]"
                 >
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-tinta">{d.nombreProducto}</span>
                       {d.enviadoCocina && (
@@ -488,40 +492,71 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
                     ))}
                     <button
                       onClick={() => setNotaLinea(d)}
-                      className="text-left text-xs text-tinta-suave hover:text-tinta"
+                      className={`mt-1 inline-flex max-w-full items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                        d.notas
+                          ? 'border-acento/30 bg-acento/[0.06] text-acento'
+                          : 'border-black/[0.08] bg-black/[0.02] text-tinta-suave hover:border-acento/40 hover:text-acento'
+                      }`}
                     >
-                      {d.notas ? `Nota: ${d.notas}` : '+ nota'}
+                      <Icono nombre="editar" size={13} className="shrink-0" />
+                      <span className="truncate">{d.notas ? d.notas : 'Nota'}</span>
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex shrink-0 items-center gap-1">
                     <button
                       onClick={() => restar(d)}
                       title={d.enviadoCocina ? 'Restar (ya enviado: pide autorización)' : 'Restar'}
-                      className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
+                      className="h-9 w-9 shrink-0 rounded-md bg-black/[0.05] text-base font-bold text-tinta-suave hover:bg-black/[0.08]"
                     >
                       −
                     </button>
                     <CantidadEditable valor={d.cantidad} onFijar={(n) => fijarCantidad(d, n)} />
                     <button
                       onClick={() => cambiarCantidad(orden.id, d.id, +1)}
-                      className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
+                      className="h-9 w-9 shrink-0 rounded-md bg-black/[0.05] text-base font-bold text-tinta-suave hover:bg-black/[0.08]"
                     >
                       +
                     </button>
                   </div>
 
-                  <span className="w-16 pt-1 text-right font-semibold text-tinta">
-                    {pesos(d.cantidad * d.precioUnitario)}
+                  <span className="w-16 shrink-0 pt-0.5 text-right text-sm tabular-nums">
+                    {d.descuento > 0 ? (
+                      <>
+                        <span className="block text-[10px] font-normal text-tinta-suave line-through">
+                          {pesos(d.cantidad * d.precioUnitario)}
+                        </span>
+                        <span className="font-semibold text-tinta">
+                          {pesos(d.cantidad * d.precioUnitario - d.descuento)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-semibold text-tinta">
+                        {pesos(d.cantidad * d.precioUnitario)}
+                      </span>
+                    )}
                   </span>
 
-                  <button
-                    onClick={() => quitar(d)}
-                    title={d.enviadoCocina ? 'Quitar (ya enviado: pide autorización)' : 'Quitar producto'}
-                    className="mt-0.5 rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
-                  >
-                    <Icono nombre="eliminar" size={15} />
-                  </button>
+                  <div className="mt-0.5 flex shrink-0 flex-col">
+                    <button
+                      onClick={() => setDescLinea(d)}
+                      title="Descuento"
+                      className={`rounded-md p-1 ${
+                        d.descuento > 0
+                          ? 'text-acento'
+                          : 'text-tinta-suave hover:bg-black/[0.05] hover:text-tinta'
+                      }`}
+                    >
+                      <Icono nombre="gasto" size={15} />
+                    </button>
+                    <button
+                      onClick={() => quitar(d)}
+                      title={d.enviadoCocina ? 'Quitar (ya enviado: pide autorización)' : 'Quitar producto'}
+                      className="rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                    >
+                      <Icono nombre="eliminar" size={15} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -592,7 +627,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
         pie={
           <button
             onClick={() => setTicket(null)}
-            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            className="btn-primario"
           >
             Listo
           </button>
@@ -624,13 +659,13 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           <>
             <button
               onClick={() => setColaImpresion(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Terminar
             </button>
             <button
               onClick={() => void imprimirSiguienteEnCola()}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Imprimir{' '}
               {colaImpresion?.grupos[0]?.area === 'barra' ? 'Barra' : 'Cocina'}
@@ -656,13 +691,13 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           <>
             <button
               onClick={() => setNotaLinea(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
             <button
               onClick={guardarNota}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Guardar
             </button>
@@ -696,7 +731,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
                 setConfirmarCancel(false)
                 setMotivoCancel('')
               }}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               No
             </button>
@@ -758,6 +793,15 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
       <HistorialMesa
         mesa={verHistorial ? (mesas.find((m) => m.id === orden.mesaId) ?? null) : null}
         onCerrar={() => setVerHistorial(false)}
+      />
+
+      <DescuentoLineaDialog
+        linea={descLinea}
+        onCerrar={() => setDescLinea(null)}
+        onAplicar={(monto) => {
+          if (descLinea) void descontarLinea(descLinea.id, monto)
+          setDescLinea(null)
+        }}
       />
     </div>
   )

@@ -3,6 +3,7 @@ import { useDatos } from '@renderer/store/datos'
 import { hora, pesos } from '@renderer/lib/format'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
+import { EncabezadoPagina } from '@renderer/components/Pagina'
 
 // Página de gastos pensada para el rol mesero: solo registrar gastos del turno,
 // sin totales, balances ni cifras de ventas.
@@ -26,14 +27,12 @@ export function Gastos(): React.JSX.Element {
 
   return (
     <div className="mx-auto flex h-full max-w-xl flex-col">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-tinta">Gastos y retiros</h1>
-        <p className="text-sm text-tinta-suave">
-          Registra gastos del turno o retiros de efectivo del cajón
-        </p>
-      </header>
+      <EncabezadoPagina
+        titulo="Gastos y retiros"
+        subtitulo="Registra gastos del turno o retiros de efectivo del cajón"
+      />
 
-      <div className="rounded-xl border border-black/[0.06] bg-white p-4">
+      <div className="rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
         {/* Tipo: gasto (baja del balance) o retiro (solo baja el efectivo del cajón). */}
         <div className="mb-3 grid grid-cols-2 gap-2">
           {(['gasto', 'retiro'] as const).map((t) => (
@@ -52,6 +51,7 @@ export function Gastos(): React.JSX.Element {
         </div>
         <input
           value={concepto}
+          maxLength={40}
           onChange={(e) => setConcepto(e.target.value)}
           placeholder={
             esRetiro ? 'Concepto (ej. depósito banco, pago proveedor)' : 'Concepto (ej. Hielo, gas, mandado)'
@@ -75,7 +75,7 @@ export function Gastos(): React.JSX.Element {
           </div>
           <button
             onClick={guardar}
-            className="rounded-md bg-acento px-5 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            className="btn-primario"
           >
             Agregar
           </button>
@@ -85,7 +85,7 @@ export function Gastos(): React.JSX.Element {
       <h2 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-tinta-suave">
         Movimientos del turno
       </h2>
-      <div className="flex-1 overflow-auto rounded-xl border border-black/[0.06] bg-white">
+      <div className="flex-1 overflow-auto rounded-2xl border border-black/[0.06] bg-white shadow-sm">
         {gastos.length === 0 ? (
           <p className="px-3 py-10 text-center text-sm text-tinta-suave">Sin movimientos en el turno</p>
         ) : (

@@ -131,6 +131,21 @@ export function migrar(db: Database.Database): void {
     db.exec('ALTER TABLE detalle_ordenes ADD COLUMN comensal INTEGER NOT NULL DEFAULT 1')
   }
 
+  // Descuento por línea (producto) en el detalle de orden (aditiva).
+  if (!columnas(db, 'detalle_ordenes').includes('descuento')) {
+    db.exec('ALTER TABLE detalle_ordenes ADD COLUMN descuento REAL NOT NULL DEFAULT 0')
+  }
+
+  // Producto tipo combo (aditiva). La tabla combo_items la crea el esquema.
+  if (!columnas(db, 'productos').includes('es_combo')) {
+    db.exec('ALTER TABLE productos ADD COLUMN es_combo INTEGER NOT NULL DEFAULT 0')
+  }
+
+  // Nota libre del ticket a nivel orden (aditiva).
+  if (!columnas(db, 'ordenes').includes('nota')) {
+    db.exec('ALTER TABLE ordenes ADD COLUMN nota TEXT')
+  }
+
   // Control de inventario por producto (aditivas).
   const colsProd = columnas(db, 'productos')
   if (!colsProd.includes('controlar_stock')) {
@@ -145,6 +160,10 @@ export function migrar(db: Database.Database): void {
   // Color del botón de producto (aditiva).
   if (!colsProd.includes('color')) {
     db.exec('ALTER TABLE productos ADD COLUMN color TEXT')
+  }
+  // Código de barras del producto (aditiva).
+  if (!colsProd.includes('codigo_barras')) {
+    db.exec('ALTER TABLE productos ADD COLUMN codigo_barras TEXT')
   }
 
   // Grupos de modificadores reutilizables.

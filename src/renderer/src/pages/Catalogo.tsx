@@ -17,6 +17,8 @@ import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
 import { AsignarGrupos } from '@renderer/components/AsignarGrupos'
 import { GestorModificadores } from '@renderer/components/GestorModificadores'
+import { EncabezadoPagina, EstadoVacio, Pestanas } from '@renderer/components/Pagina'
+import { Select } from '@renderer/components/Select'
 import { COLORES } from '@renderer/lib/colores'
 
 type Pestana = 'productos' | 'categorias' | 'modificadores'
@@ -27,32 +29,31 @@ const PESTANAS: { id: Pestana; label: string }[] = [
   { id: 'modificadores', label: 'Modificadores' }
 ]
 
+type FiltroTipo = 'todos' | 'producto' | 'combo'
+
+const FILTROS: { id: FiltroTipo; label: string }[] = [
+  { id: 'todos', label: 'Todos' },
+  { id: 'producto', label: 'Productos' },
+  { id: 'combo', label: 'Combos' }
+]
+
 
 export function Catalogo(): React.JSX.Element {
   const [pestana, setPestana] = useState<Pestana>('productos')
 
   return (
     <div className="flex h-full flex-col">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-tinta">Catálogo</h1>
-        <p className="text-sm text-tinta-suave">Administra productos, categorías y modificadores</p>
-      </header>
+      <EncabezadoPagina
+        titulo="Catálogo"
+        subtitulo="Administra productos, categorías y modificadores"
+      />
 
-      <div className="mb-5 flex gap-2">
-        {PESTANAS.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPestana(p.id)}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              pestana === p.id
-                ? 'bg-acento text-white'
-                : 'bg-white text-tinta-suave hover:bg-black/[0.08]'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <Pestanas
+        className="mb-5 w-full max-w-md"
+        opciones={PESTANAS}
+        valor={pestana}
+        onChange={setPestana}
+      />
 
       {pestana === 'productos' && <PanelProductos />}
       {pestana === 'categorias' && <PanelCategorias />}
@@ -64,19 +65,30 @@ export function Catalogo(): React.JSX.Element {
 // --- Productos --------------------------------------------------------------
 
 function PanelProductos(): React.JSX.Element {
-  const { productos, categorias, guardarProducto, eliminarProducto, importarProductos } = useDatos()
+  const { productos, categorias, insumos, guardarProducto, eliminarProducto, importarProductos } =
+    useDatos()
   const toast = useToast()
   const [editando, setEditando] = useState<Partial<Producto> | null>(null)
   const [aEliminar, setAEliminar] = useState<Producto | null>(null)
   const [archivo, setArchivo] = useState<ArchivoProductos | null>(null)
   const [mapeo, setMapeo] = useState<MapeoColumnas | null>(null)
   const [importando, setImportando] = useState(false)
+  const [filtro, setFiltro] = useState<FiltroTipo>('todos')
   const fileRef = useRef<HTMLInputElement>(null)
   const listaRef = useRef<HTMLDivElement>(null)
+  // El filtro de tipo solo se ofrece si hay combos (si no, no aporta nada).
+  const hayCombos = useMemo(() => productos.some((p) => p.esCombo), [productos])
+  const productosFiltrados = useMemo(
+    () =>
+      productos.filter(
+        (p) => filtro === 'todos' || (filtro === 'combo' ? p.esCombo : !p.esCombo)
+      ),
+    [productos, filtro]
+  )
   const vProd = useVirtualizer({
-    count: productos.length,
+    count: productosFiltrados.length,
     getScrollElement: () => listaRef.current,
-    estimateSize: () => 46,
+    estimateSize: () => 64,
     overscan: 8
   })
 
@@ -86,7 +98,52 @@ function PanelProductos(): React.JSX.Element {
   }
 
   const nuevo = (): void =>
-    setEditando({ nombre: '', precio: 0, categoriaId: categorias[0]?.id, activo: true })
+    setEditando({ nombre: '', precio: 0, categoriaId: categorias[0]?.id, activo: true, esCombo: false, comboItems: [], receta: [] })
+
+  // Al editar carga las partes del combo (si aplica) y la receta de insumos.
+  const editar = async (p: Producto): Promise<void> => {
+    const items = p.esCombo ? await window.api.catalogo.comboItems(p.id) : []
+    const receta = await window.api.catalogo.receta(p.id)
+    setEditando({ ...p, comboItems: items, receta })
+  }
+
+  // Insumos disponibles para la receta (para el selector).
+  const insumosParaReceta = insumos.map((i) => ({ valor: i.id, label: `${i.nombre} (${i.unidad})` }))
+  const setRecetaItem = (i: number, patch: { insumoId?: number; cantidad?: number }): void =>
+    setEditando((e) => {
+      const items = [...(e?.receta ?? [])]
+      items[i] = { ...items[i], ...patch }
+      return { ...e, receta: items }
+    })
+  const agregarRecetaItem = (): void =>
+    setEditando((e) => ({
+      ...e,
+      receta: [...(e?.receta ?? []), { insumoId: insumos[0]?.id ?? 0, cantidad: 1 }]
+    }))
+  const quitarRecetaItem = (i: number): void =>
+    setEditando((e) => ({ ...e, receta: (e?.receta ?? []).filter((_, j) => j !== i) }))
+
+  // Productos que pueden ir dentro de un combo (no combos, no el que se edita).
+  const productosParaCombo = productos
+    .filter((p) => !p.esCombo && p.id !== editando?.id)
+    .map((p) => ({ valor: p.id, label: capitalizar(p.nombre) }))
+
+  const setComboItem = (i: number, patch: { productoId?: number; cantidad?: number }): void =>
+    setEditando((e) => {
+      const items = [...(e?.comboItems ?? [])]
+      items[i] = { ...items[i], ...patch }
+      return { ...e, comboItems: items }
+    })
+  const agregarComboItem = (): void =>
+    setEditando((e) => ({
+      ...e,
+      comboItems: [
+        ...(e?.comboItems ?? []),
+        { productoId: productos.find((p) => !p.esCombo)?.id ?? 0, cantidad: 1 }
+      ]
+    }))
+  const quitarComboItem = (i: number): void =>
+    setEditando((e) => ({ ...e, comboItems: (e?.comboItems ?? []).filter((_, j) => j !== i) }))
 
   const elegirArchivo = async (file: File | undefined): Promise<void> => {
     if (!file) return
@@ -146,7 +203,7 @@ function PanelProductos(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="mb-3 flex shrink-0 justify-end gap-2">
+      <div className="mb-3 flex shrink-0 flex-wrap items-center justify-between gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -154,25 +211,46 @@ function PanelProductos(): React.JSX.Element {
           className="hidden"
           onChange={(e) => void elegirArchivo(e.target.files?.[0])}
         />
-        <button
-          onClick={() => fileRef.current?.click()}
-          className="rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
-        >
-          Importar Excel/CSV
-        </button>
-        <button
-          onClick={nuevo}
-          disabled={categorias.length === 0}
-          title={categorias.length === 0 ? 'Crea una categoría primero' : ''}
-          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
-        >
-          + Nuevo producto
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="text-sm text-tinta-suave">
+            <span className="font-semibold text-tinta">{productosFiltrados.length}</span>{' '}
+            {productosFiltrados.length === 1 ? 'producto' : 'productos'}
+            {productosFiltrados.length > 0 && (
+              <> · {productosFiltrados.filter((p) => p.activo).length} activos</>
+            )}
+          </div>
+          {hayCombos && (
+            <Pestanas
+              className="w-72"
+              opciones={FILTROS}
+              valor={filtro}
+              onChange={setFiltro}
+            />
+          )}
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={() => fileRef.current?.click()}
+            className="btn-neutro"
+          >
+            <Icono nombre="catalogo" size={15} />
+            Importar Excel/CSV
+          </button>
+          <button
+            onClick={nuevo}
+            disabled={categorias.length === 0}
+            title={categorias.length === 0 ? 'Crea una categoría primero' : ''}
+            className="btn-primario disabled:bg-black/10 disabled:text-tinta-suave/50"
+          >
+            <Icono nombre="mas" size={16} />
+            Nuevo producto
+          </button>
+        </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-black/[0.06] bg-white">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-sm">
         <div
-          className={`grid ${COLS} shrink-0 items-center gap-2 border-b border-black/[0.06] bg-black/[0.03] px-4 py-2.5 text-xs uppercase text-tinta-suave`}
+          className={`grid ${COLS} shrink-0 items-center gap-2 border-b border-black/[0.06] bg-black/[0.02] px-4 py-3 text-xs font-semibold uppercase tracking-wider text-tinta-suave`}
         >
           <span>Producto</span>
           <span>Categoría</span>
@@ -181,17 +259,31 @@ function PanelProductos(): React.JSX.Element {
           <span className="text-center">Estado</span>
           <span></span>
         </div>
-        {productos.length === 0 ? (
-          <p className="px-4 py-8 text-center text-tinta-suave">
-            {categorias.length === 0
-              ? 'Crea una categoría en la pestaña “Categorías” antes de agregar productos.'
-              : 'No hay productos'}
-          </p>
+        {productosFiltrados.length === 0 ? (
+          <EstadoVacio
+            icono="catalogo"
+            titulo={
+              productos.length > 0
+                ? filtro === 'combo'
+                  ? 'No hay combos'
+                  : 'No hay productos individuales'
+                : categorias.length === 0
+                  ? 'Aún no hay productos'
+                  : 'No hay productos'
+            }
+            descripcion={
+              productos.length > 0
+                ? 'Cambia el filtro para ver otros productos.'
+                : categorias.length === 0
+                  ? 'Crea una categoría en la pestaña “Categorías” antes de agregar productos.'
+                  : 'Agrega tu primer producto con el botón de arriba.'
+            }
+          />
         ) : (
           <div ref={listaRef} className="min-h-0 flex-1 overflow-auto">
             <div style={{ height: vProd.getTotalSize(), position: 'relative', width: '100%' }}>
               {vProd.getVirtualItems().map((vr) => {
-                const p = productos[vr.index]
+                const p = productosFiltrados[vr.index]
                 return (
                   <div
                     key={p.id}
@@ -201,23 +293,30 @@ function PanelProductos(): React.JSX.Element {
                       left: 0,
                       width: '100%',
                       transform: `translateY(${vr.start}px)`,
-                      height: 46
+                      height: 64
                     }}
-                    className={`grid ${COLS} items-center gap-2 border-b border-black/[0.04] px-4 text-sm`}
+                    className={`group grid ${COLS} items-center gap-2 border-b border-black/[0.04] px-4 text-sm transition hover:bg-black/[0.02]`}
                   >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {p.color && (
-                        <span
-                          className="h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: p.color }}
-                        />
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        className="h-3.5 w-3.5 shrink-0 rounded-full ring-1 ring-inset ring-black/10"
+                        style={{ backgroundColor: p.color ?? 'transparent' }}
+                      />
+                      <span className="min-w-0 truncate text-[15px] font-semibold text-tinta">
+                        {p.nombre}
+                      </span>
+                      {p.esCombo && (
+                        <span className="shrink-0 rounded bg-acento/10 px-1.5 py-0.5 text-[10px] font-bold uppercase text-acento">
+                          Combo
+                        </span>
                       )}
-                      <span className="min-w-0 truncate font-medium text-tinta">{p.nombre}</span>
                     </span>
                     <span className="min-w-0 truncate text-tinta-suave">
                       {nombreCategoria(p.categoriaId)}
                     </span>
-                    <span className="text-right text-tinta">{pesos(p.precio)}</span>
+                    <span className="text-right font-semibold tabular-nums text-tinta">
+                      {pesos(p.precio)}
+                    </span>
                     <span className="text-right">
                       {p.controlarStock ? (
                         <span
@@ -238,24 +337,29 @@ function PanelProductos(): React.JSX.Element {
                     </span>
                     <span className="text-center">
                       <span
-                        className={`rounded px-2 py-0.5 text-xs font-semibold ${
-                          p.activo ? 'bg-acento text-white' : 'bg-black/[0.05] text-tinta-suave'
+                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                          p.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-black/[0.05] text-tinta-suave'
                         }`}
                       >
+                        <span
+                          className={`h-1.5 w-1.5 rounded-full ${
+                            p.activo ? 'bg-emerald-500' : 'bg-tinta-suave/50'
+                          }`}
+                        />
                         {p.activo ? 'Activo' : 'Inactivo'}
                       </span>
                     </span>
                     <span className="flex justify-end gap-1">
                       <button
-                        onClick={() => setEditando(p)}
-                        className="rounded-md p-1.5 text-tinta-suave hover:bg-black/[0.05] hover:text-tinta"
+                        onClick={() => void editar(p)}
+                        className="rounded-lg p-1.5 text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta"
                         aria-label="Editar"
                       >
                         <Icono nombre="editar" size={16} />
                       </button>
                       <button
                         onClick={() => setAEliminar(p)}
-                        className="rounded-md p-1.5 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                        className="rounded-lg p-1.5 text-tinta-suave transition hover:bg-red-50 hover:text-red-600"
                         aria-label="Eliminar"
                       >
                         <Icono nombre="eliminar" size={16} />
@@ -278,7 +382,7 @@ function PanelProductos(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
@@ -297,12 +401,16 @@ function PanelProductos(): React.JSX.Element {
                   stock: Number(editando.stock) || 0,
                   stockMinimo: Number(editando.stockMinimo) || 0,
                   costo: Number(editando.costo) || 0,
-                  color: editando.color
+                  color: editando.color,
+                  codigoBarras: editando.codigoBarras?.trim() || undefined,
+                  esCombo: editando.esCombo ?? false,
+                  comboItems: (editando.comboItems ?? []).filter((it) => it.productoId),
+                  receta: (editando.receta ?? []).filter((it) => it.insumoId && it.cantidad > 0)
                 })
                 setEditando(null)
                 toast(esNuevo ? 'Producto creado' : 'Producto actualizado')
               }}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Guardar
             </button>
@@ -314,7 +422,16 @@ function PanelProductos(): React.JSX.Element {
             <Campo label="Nombre">
               <input
                 value={editando.nombre ?? ''}
+                maxLength={40}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
+                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+              />
+            </Campo>
+            <Campo label="Código de barras">
+              <input
+                value={editando.codigoBarras ?? ''}
+                placeholder="Escanéalo aquí o escríbelo (largo libre, opcional)"
+                onChange={(e) => setEditando({ ...editando, codigoBarras: e.target.value })}
                 className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
@@ -322,7 +439,7 @@ function PanelProductos(): React.JSX.Element {
               <Campo label="Precio">
                 <input
                   type="number"
-                  value={editando.precio ?? 0}
+                  value={editando.precio || ''}
                   onChange={(e) => setEditando({ ...editando, precio: Number(e.target.value) })}
                   className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                 />
@@ -330,25 +447,18 @@ function PanelProductos(): React.JSX.Element {
               <Campo label="Costo">
                 <input
                   type="number"
-                  value={editando.costo ?? 0}
+                  value={editando.costo || ''}
                   onChange={(e) => setEditando({ ...editando, costo: Number(e.target.value) })}
                   className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                 />
               </Campo>
               <Campo label="Categoría">
-                <select
-                  value={editando.categoriaId ?? ''}
-                  onChange={(e) =>
-                    setEditando({ ...editando, categoriaId: Number(e.target.value) })
-                  }
-                  className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
-                >
-                  {categorias.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {capitalizar(c.nombre)}
-                    </option>
-                  ))}
-                </select>
+                <Select<number>
+                  valor={editando.categoriaId ?? 0}
+                  onChange={(categoriaId) => setEditando({ ...editando, categoriaId })}
+                  opciones={categorias.map((c) => ({ valor: c.id, label: capitalizar(c.nombre) }))}
+                  placeholder="Elegir categoría"
+                />
               </Campo>
             </div>
             <label className="flex items-center gap-2 text-sm text-tinta-suave">
@@ -405,7 +515,7 @@ function PanelProductos(): React.JSX.Element {
                     <Campo label="Stock actual">
                       <input
                         type="number"
-                        value={editando.stock ?? 0}
+                        value={editando.stock || ''}
                         onChange={(e) => setEditando({ ...editando, stock: Number(e.target.value) })}
                         className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                       />
@@ -413,7 +523,7 @@ function PanelProductos(): React.JSX.Element {
                     <Campo label="Stock mínimo">
                       <input
                         type="number"
-                        value={editando.stockMinimo ?? 0}
+                        value={editando.stockMinimo || ''}
                         onChange={(e) => setEditando({ ...editando, stockMinimo: Number(e.target.value) })}
                         className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                       />
@@ -423,6 +533,132 @@ function PanelProductos(): React.JSX.Element {
                     El stock baja solo al cobrar y se repone al devolver la venta.
                   </p>
                 </>
+              )}
+            </div>
+
+            {/* Combo: precio fijo que incluye varios productos */}
+            <div className="rounded-xl border border-black/[0.06] p-3">
+              <label className="flex items-center gap-2 text-sm font-medium text-tinta">
+                <input
+                  type="checkbox"
+                  checked={editando.esCombo ?? false}
+                  onChange={(e) => setEditando({ ...editando, esCombo: e.target.checked })}
+                  className="h-4 w-4 rounded"
+                />
+                Es un combo (precio fijo con varios productos)
+              </label>
+              {editando.esCombo && (
+                <div className="mt-3 space-y-2">
+                  {(editando.comboItems ?? []).length === 0 && (
+                    <p className="text-xs text-tinta-suave">
+                      Agrega los productos que incluye el combo.
+                    </p>
+                  )}
+                  {(editando.comboItems ?? []).map((it, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select<number>
+                        className="min-w-0 flex-1"
+                        size="sm"
+                        valor={it.productoId}
+                        onChange={(v) => setComboItem(i, { productoId: v })}
+                        opciones={productosParaCombo}
+                        placeholder="Producto"
+                      />
+                      <div className="flex items-center rounded-lg border border-black/10 px-2">
+                        <span className="text-xs text-tinta-suave">×</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={it.cantidad}
+                          onChange={(e) =>
+                            setComboItem(i, { cantidad: Math.max(1, Number(e.target.value) || 1) })
+                          }
+                          className="w-12 bg-transparent py-1.5 pl-1 text-right text-sm outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => quitarComboItem(i)}
+                        className="rounded-lg p-1.5 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                        aria-label="Quitar"
+                      >
+                        <Icono nombre="eliminar" size={15} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={agregarComboItem}
+                    disabled={productosParaCombo.length === 0}
+                    className="flex items-center gap-1.5 rounded-lg border border-black/[0.08] px-3 py-1.5 text-sm font-semibold text-tinta-suave transition-colors hover:border-acento/40 hover:text-acento disabled:opacity-40"
+                  >
+                    <Icono nombre="mas" size={15} /> Agregar producto
+                  </button>
+                  <p className="text-[11px] text-tinta-suave/80">
+                    El combo se vende como un solo producto al precio de arriba.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Receta: insumos que consume el producto al venderse (descuenta stock). */}
+            <div className="rounded-xl border border-black/[0.06] p-3">
+              <div className="text-sm font-medium text-tinta">Insumos que consume (receta)</div>
+              {insumos.length === 0 ? (
+                <p className="mt-2 text-xs text-tinta-suave">
+                  Crea insumos en Inventario para armar la receta.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {(editando.receta ?? []).length === 0 && (
+                    <p className="text-xs text-tinta-suave">
+                      Agrega los insumos que gasta cada unidad de este producto.
+                    </p>
+                  )}
+                  {(editando.receta ?? []).map((it, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select<number>
+                        className="min-w-0 flex-1"
+                        size="sm"
+                        valor={it.insumoId}
+                        onChange={(v) => setRecetaItem(i, { insumoId: v })}
+                        opciones={insumosParaReceta}
+                        placeholder="Insumo"
+                      />
+                      <div className="flex items-center rounded-lg border border-black/10 px-2">
+                        <span className="text-xs text-tinta-suave">×</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step="any"
+                          value={it.cantidad}
+                          onChange={(e) =>
+                            setRecetaItem(i, { cantidad: Math.max(0, Number(e.target.value) || 0) })
+                          }
+                          className="w-16 bg-transparent py-1.5 pl-1 text-right text-sm outline-none"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => quitarRecetaItem(i)}
+                        className="rounded-lg p-1.5 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                        aria-label="Quitar"
+                      >
+                        <Icono nombre="eliminar" size={15} />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={agregarRecetaItem}
+                    className="flex items-center gap-1.5 rounded-lg border border-black/[0.08] px-3 py-1.5 text-sm font-semibold text-tinta-suave transition-colors hover:border-acento/40 hover:text-acento"
+                  >
+                    <Icono nombre="mas" size={15} /> Agregar insumo
+                  </button>
+                  <p className="text-[11px] text-tinta-suave/80">
+                    Al vender, se descuenta del inventario la cantidad × unidades vendidas.
+                  </p>
+                </div>
               )}
             </div>
 
@@ -450,7 +686,7 @@ function PanelProductos(): React.JSX.Element {
             <button
               onClick={() => void confirmarImport()}
               disabled={importando || !mapeoListo || validos === 0}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
+              className="btn-primario disabled:opacity-50"
             >
               {importando ? 'Importando…' : `Importar ${validos}`}
             </button>
@@ -471,6 +707,7 @@ function PanelProductos(): React.JSX.Element {
                   ['categoria', 'Categoría', true],
                   ['precio', 'Precio', false],
                   ['costo', 'Costo', false],
+                  ['codigoBarras', 'Código de barras', false],
                   ['stock', 'Stock', false],
                   ['stockMinimo', 'Stock mínimo', false],
                   ['controlarStock', 'Controlar inventario', false]
@@ -487,20 +724,17 @@ function PanelProductos(): React.JSX.Element {
                       {obligatorio && <span className="ml-0.5 text-red-500">*</span>}
                     </div>
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <select
-                        value={col ?? ''}
-                        onChange={(e) => setMapeo({ ...mapeo, [campo]: e.target.value || null })}
-                        className={`min-w-0 flex-1 rounded-md border px-2 py-1.5 text-sm outline-none focus:border-acento ${
-                          obligatorio && !col ? 'border-amber-300 bg-amber-50' : 'border-black/10'
-                        }`}
-                      >
-                        <option value="">— Ninguna —</option>
-                        {archivo.columnas.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        size="sm"
+                        className="min-w-0 flex-1"
+                        invalido={obligatorio && !col}
+                        valor={col ?? ''}
+                        onChange={(v) => setMapeo({ ...mapeo, [campo]: v || null })}
+                        opciones={[
+                          { valor: '', label: '— Ninguna —' },
+                          ...archivo.columnas.map((c) => ({ valor: c, label: c }))
+                        ]}
+                      />
                       <span className="w-28 shrink-0 truncate text-xs text-tinta-suave">
                         {col ? (ejemplo(col) ? `ej: ${ejemplo(col)}` : 'vacío') : ''}
                       </span>
@@ -602,9 +836,10 @@ function PanelCategorias(): React.JSX.Element {
       <div className="mb-3 flex justify-end">
         <button
           onClick={() => setEditando({ nombre: '', orden: (ordenadas.at(-1)?.orden ?? 0) + 1 })}
-          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+          className="btn-primario"
         >
-          + Nueva categoría
+          <Icono nombre="mas" size={16} />
+          Nueva categoría
         </button>
       </div>
 
@@ -612,7 +847,7 @@ function PanelCategorias(): React.JSX.Element {
         {ordenadas.map((c) => (
           <div
             key={c.id}
-            className="flex items-center justify-between rounded-xl border border-black/[0.06] bg-white px-4 py-3"
+            className="flex items-center justify-between rounded-2xl border border-black/[0.06] bg-white px-4 py-3 shadow-sm"
           >
             <div>
               <span className="font-semibold text-tinta">{capitalizar(c.nombre)}</span>
@@ -646,7 +881,11 @@ function PanelCategorias(): React.JSX.Element {
           </div>
         ))}
         {ordenadas.length === 0 && (
-          <p className="py-8 text-center text-tinta-suave">No hay categorías</p>
+          <EstadoVacio
+            icono="catalogo"
+            titulo="No hay categorías"
+            descripcion="Crea una categoría para empezar a organizar tus productos."
+          />
         )}
       </div>
 
@@ -658,7 +897,7 @@ function PanelCategorias(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
@@ -675,7 +914,7 @@ function PanelCategorias(): React.JSX.Element {
                 setEditando(null)
                 toast(esNueva ? 'Categoría creada' : 'Categoría actualizada')
               }}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Guardar
             </button>
@@ -687,6 +926,7 @@ function PanelCategorias(): React.JSX.Element {
             <Campo label="Nombre">
               <input
                 value={editando.nombre ?? ''}
+                maxLength={40}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
                 className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
@@ -700,16 +940,14 @@ function PanelCategorias(): React.JSX.Element {
               />
             </Campo>
             <Campo label="Área de impresión">
-              <select
-                value={editando.rol === 'barra' ? 'barra' : 'cocina'}
-                onChange={(e) =>
-                  setEditando({ ...editando, rol: e.target.value === 'barra' ? 'barra' : 'cocina' })
-                }
-                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
-              >
-                <option value="cocina">Cocina</option>
-                <option value="barra">Barra</option>
-              </select>
+              <Select<'cocina' | 'barra'>
+                valor={editando.rol === 'barra' ? 'barra' : 'cocina'}
+                onChange={(rol) => setEditando({ ...editando, rol })}
+                opciones={[
+                  { valor: 'cocina', label: 'Cocina' },
+                  { valor: 'barra', label: 'Barra' }
+                ]}
+              />
               <p className="mt-1 text-xs text-tinta-suave">
                 Cocina o Barra. Con una sola impresora salen como tickets separados; con varias, cada
                 área va a la impresora de su rol.

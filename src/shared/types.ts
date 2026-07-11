@@ -73,8 +73,34 @@ export interface Producto {
   costo: number
   /** Color del botón del producto en pedidos (hex, ej. "#ef4444"). Sin color = neutro. */
   color?: string
+  /** Código de barras del producto (para lector/scanner). Vacío = sin código. */
+  codigoBarras?: string
+  /** true si el producto es un combo a precio fijo (sus partes van en comboItems). */
+  esCombo: boolean
+  /** Productos que incluye el combo (solo se cargan cuando se necesitan). */
+  comboItems?: ComboItem[]
+  /** Insumos que consume el producto al venderse (receta; se cargan al editar). */
+  receta?: RecetaItem[]
   /** Grupos de modificadores del producto (incluidos al listar el catálogo). */
   grupos?: GrupoModificador[]
+}
+
+/** Un insumo que consume un producto al venderse, con la cantidad por unidad. */
+export interface RecetaItem {
+  insumoId: number
+  /** Cantidad del insumo que gasta UNA unidad del producto. */
+  cantidad: number
+  /** Nombre y unidad del insumo (para mostrar; se llenan al leer). */
+  nombre?: string
+  unidad?: string
+}
+
+/** Un producto incluido dentro de un combo, con su cantidad. */
+export interface ComboItem {
+  productoId: number
+  cantidad: number
+  /** Nombre del producto incluido (para mostrar; se llena al leer). */
+  nombre?: string
 }
 
 /** Grupo de modificadores reutilizable (ej. "Término", "Salsas", "Extras"). */
@@ -121,6 +147,8 @@ export interface Orden {
   montoRecibido?: number
   cambio?: number
   ticketImpreso: boolean
+  /** Nota libre del ticket (se imprime en el ticket del cliente). */
+  nota?: string
   abiertoEn: string
   cerradoEn?: string
 }
@@ -133,6 +161,8 @@ export interface DetalleOrden {
   cantidad: number
   /** Precio efectivo unitario (base + modificadores). */
   precioUnitario: number
+  /** Descuento aplicado a esta línea (monto total en pesos, no por unidad). */
+  descuento: number
   notas?: string
   /** Número de comensal al que pertenece la línea (1 por defecto). */
   comensal: number
@@ -253,6 +283,7 @@ export interface FilaImportProducto {
   stock?: number
   stockMinimo?: number
   controlarStock?: boolean
+  codigoBarras?: string
 }
 
 /** Resultado de una importación masiva de productos. */
@@ -398,6 +429,9 @@ export interface ConfigImpresoras {
   /** Impuestos personalizados del negocio (nombre + tasa). Si está vacío, se usa
    *  el IVA único de `impuestoTasa`. */
   impuestos?: Impuesto[]
+  /** Redondeo del total en efectivo al múltiplo indicado (0 = sin redondeo,
+   *  0.5 = a $0.50, 1 = al peso). Solo aplica cuando el pago es en efectivo. */
+  redondeoEfectivo?: number
 }
 
 /** Un impuesto con nombre y tasa (%). Ej. { nombre: 'IVA', tasa: 16 }. */

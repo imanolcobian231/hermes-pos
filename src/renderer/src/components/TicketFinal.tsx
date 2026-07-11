@@ -49,6 +49,12 @@ export function TicketFinal({ titulo, orden, copia, notaVenta }: Props): React.J
   }, [wAnkyra])
   // Dirección por renglones (cada línea aparte), igual que impreso.
   const direccionLineas = (cfg?.direccion ?? '').split('\n').map((s) => s.trim()).filter(Boolean)
+  // Redondeo de efectivo: diferencia entre lo pagado y el total real (si aplica).
+  const totalReal = imp.total + orden.propina
+  const pagado =
+    orden.pagos && orden.pagos.length > 0 ? orden.pagos.reduce((s, p) => s + p.monto, 0) : null
+  const redondeo = pagado != null ? Math.round((pagado - totalReal) * 100) / 100 : 0
+  const totalFinal = Math.round((totalReal + redondeo) * 100) / 100
   return (
     <div className="mx-auto w-64 rounded-lg border border-dashed border-black/10 bg-black/[0.03] px-4 pb-4 pt-2 font-mono text-xs text-tinta">
       {/* Ancho derivado del raster: iguala la proporción real de impresión. */}
@@ -94,9 +100,16 @@ export function TicketFinal({ titulo, orden, copia, notaVenta }: Props): React.J
       <div className="text-[10px] text-tinta-suave">{fechaHora(orden.cerradoEn ?? orden.abiertoEn)}</div>
       <div className="my-2 border-t border-dashed border-black/10" />
 
-      {/* Encabezado de columnas en negritas, pegado a los productos */}
-      <div className="mb-1 flex justify-between font-bold">
-        <span>Cant. Descripción</span>
+      {orden.nota && (
+        <div className="mb-2 rounded bg-black/[0.04] px-2 py-1 text-[11px] text-tinta">
+          Nota: {orden.nota}
+        </div>
+      )}
+
+      {/* Encabezado de columnas en negritas, alineado con las filas (Cant | Descripción | Importe) */}
+      <div className="mb-1 flex font-bold">
+        <span className="w-7 shrink-0">Cant</span>
+        <span className="flex-1">Descripción</span>
         <span>Importe</span>
       </div>
 
@@ -104,18 +117,25 @@ export function TicketFinal({ titulo, orden, copia, notaVenta }: Props): React.J
         const sumaMods = d.modificadores.reduce((s, m) => s + m.precio, 0)
         return (
           <div key={i}>
-            <div className="flex justify-between">
-              <span className="pr-2">
-                {d.cantidad} {d.nombreProducto}
+            <div className="flex">
+              <span className="w-7 shrink-0 tabular-nums">{d.cantidad}</span>
+              <span className="flex-1 pr-2">{d.nombreProducto}</span>
+              <span className="tabular-nums">
+                {pesos(d.cantidad * (d.precioUnitario - sumaMods))}
               </span>
-              <span>{pesos(d.cantidad * (d.precioUnitario - sumaMods))}</span>
             </div>
             {d.modificadores.map((m, j) => (
-              <div key={j} className="flex justify-between pl-3 text-tinta-suave">
+              <div key={j} className="flex justify-between pl-7 text-tinta-suave">
                 <span>+ {m.nombre}</span>
                 {m.precio > 0 && <span>{pesos(d.cantidad * m.precio)}</span>}
               </div>
             ))}
+            {d.descuento > 0 && (
+              <div className="flex justify-between pl-7 text-tinta-suave">
+                <span>Descuento</span>
+                <span>−{pesos(d.descuento)}</span>
+              </div>
+            )}
           </div>
         )
       })}
@@ -161,12 +181,21 @@ export function TicketFinal({ titulo, orden, copia, notaVenta }: Props): React.J
           </div>
         </>
       )}
+      {redondeo !== 0 && (
+        <div className="flex justify-between">
+          <span>Redondeo</span>
+          <span>
+            {redondeo > 0 ? '+' : '−'}
+            {pesos(Math.abs(redondeo))}
+          </span>
+        </div>
+      )}
       <div className="mt-2 flex items-center justify-between text-lg font-extrabold">
         <span>TOTAL</span>
-        <span>{pesos(imp.total + orden.propina)}</span>
+        <span>{pesos(totalFinal)}</span>
       </div>
       <div className="mt-1 text-center text-[10px] text-tinta-suave">
-        Son {totalEnLetra(imp.total + orden.propina)}
+        Son {totalEnLetra(totalFinal)}
       </div>
 
       {orden.pagos && orden.pagos.length > 0 ? (

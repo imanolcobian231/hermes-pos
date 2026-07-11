@@ -23,6 +23,32 @@ export function rolesConfigurados(
 
 export type AreaComanda = 'cocina' | 'barra'
 
+/**
+ * Prepara los combos para la comanda: deja el combo como UNA línea (su nombre) y
+ * lista sus productos desglosados debajo (como sub-ítems), en vez de tagear cada
+ * producto. La línea del combo se rutea por la categoría del combo.
+ */
+export function expandirCombos(lineas: DetalleOrden[], productos: Producto[]): DetalleOrden[] {
+  const porId = new Map(productos.map((p) => [p.id, p]))
+  return lineas.map((l) => {
+    const p = porId.get(l.productoId)
+    if (p?.esCombo && p.comboItems && p.comboItems.length > 0) {
+      return {
+        ...l,
+        // Las partes se muestran indentadas bajo el combo (como modificadores).
+        modificadores: p.comboItems.map((it, idx) => ({
+          id: l.id * 1000 + idx,
+          detalleId: l.id,
+          modificadorId: null,
+          nombre: `${it.cantidad * l.cantidad} x ${it.nombre ?? 'Producto'}`,
+          precio: 0
+        }))
+      }
+    }
+    return l
+  })
+}
+
 /** Un ticket de comanda: su área (para el encabezado) y la impresora destino. */
 export interface GrupoComanda {
   area: AreaComanda

@@ -3,6 +3,7 @@ import type { ReporteVentas } from '@shared/types'
 import { pesos } from '@renderer/lib/format'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 import { RangoFechas } from '@renderer/components/RangoFechas'
+import { Pestanas } from '@renderer/components/Pagina'
 import { useToast } from '@renderer/components/Toast'
 
 // Fecha local en formato YYYY-MM-DD (para los inputs y el rango del reporte).
@@ -67,6 +68,8 @@ export function Reportes(): React.JSX.Element {
     { id: '30', label: '30 días', desde: isoLocal(hace(29)), hasta: isoLocal(HOY), set: () => aplicarRango(hace(29), new Date()) },
     { id: 'mes', label: 'Mes', desde: isoLocal(INICIO_MES), hasta: isoLocal(HOY), set: () => aplicarRango(INICIO_MES, new Date()) }
   ]
+  // Preset activo según el rango actual (vacío si es un rango personalizado).
+  const presetActivo = presets.find((p) => desde === p.desde && hasta === p.hasta)?.id ?? ''
 
   const maxDia = Math.max(1, ...(rep?.porDia.map((d) => d.ventas) ?? [0]))
   const totalMetodos = rep
@@ -80,10 +83,7 @@ export function Reportes(): React.JSX.Element {
     <div className="flex h-full flex-col">
       {/* Encabezado con rango de fechas */}
       <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-tinta">Reportes</h1>
-          <p className="text-sm text-tinta-suave">Análisis de ventas por rango de fechas</p>
-        </div>
+        <p className="text-sm text-tinta-suave">Análisis de ventas por rango de fechas</p>
         <div className="flex flex-wrap items-end gap-3">
           <RangoFechas
             desde={desde}
@@ -93,22 +93,12 @@ export function Reportes(): React.JSX.Element {
               setHasta(h)
             }}
           />
-          <div className="flex gap-1 rounded-xl bg-black/[0.04] p-1">
-            {presets.map((p) => {
-              const activo = desde === p.desde && hasta === p.hasta
-              return (
-                <button
-                  key={p.id}
-                  onClick={p.set}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    activo ? 'bg-white text-acento shadow-sm' : 'text-tinta-suave hover:text-tinta'
-                  }`}
-                >
-                  {p.label}
-                </button>
-              )
-            })}
-          </div>
+          <Pestanas
+            className="w-72 shrink-0"
+            opciones={presets.map((p) => ({ id: p.id, label: p.label }))}
+            valor={presetActivo}
+            onChange={(id) => presets.find((p) => p.id === id)?.set()}
+          />
         </div>
       </header>
 

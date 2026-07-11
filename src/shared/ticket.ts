@@ -5,6 +5,8 @@ export interface LineaTicket {
   nombreProducto: string
   cantidad: number
   precioUnitario: number
+  /** Descuento total aplicado a la línea (suma de las líneas agrupadas). */
+  descuento: number
   modificadores: { nombre: string; precio: number }[]
 }
 
@@ -24,11 +26,13 @@ export function agruparLineas(detalle: DetalleOrden[]): LineaTicket[] {
     const existente = mapa.get(clave)
     if (existente) {
       existente.cantidad += d.cantidad
+      existente.descuento += d.descuento
     } else {
       mapa.set(clave, {
         nombreProducto: d.nombreProducto,
         cantidad: d.cantidad,
         precioUnitario: d.precioUnitario,
+        descuento: d.descuento,
         modificadores: d.modificadores.map((m) => ({ nombre: m.nombre, precio: m.precio }))
       })
     }

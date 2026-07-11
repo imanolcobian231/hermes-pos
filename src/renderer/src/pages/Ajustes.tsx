@@ -6,6 +6,8 @@ import { fechaHora } from '@renderer/lib/format'
 import { pngALogo, logoAVistaPrevia, iconoSocialDataUrl } from '@renderer/lib/logo'
 import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
+import { Pestanas } from '@renderer/components/Pagina'
+import { Select } from '@renderer/components/Select'
 
 const BAUDIOS = [9600, 19200, 38400, 57600, 115200]
 
@@ -82,26 +84,11 @@ export function Ajustes(): React.JSX.Element {
   return (
     <div className="mx-auto flex h-full max-w-2xl flex-col">
       <header className="mb-5">
-        <h1 className="text-2xl font-bold text-tinta">Ajustes</h1>
         <p className="text-sm text-tinta-suave">Configura tu negocio, ticket, impresoras y respaldos</p>
       </header>
 
       {/* Pestañas de secciones */}
-      <div className="mb-5 flex flex-wrap gap-2">
-        {PESTANAS_AJ.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPestana(p.id)}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              pestana === p.id
-                ? 'bg-acento text-white'
-                : 'bg-white text-tinta-suave hover:bg-black/[0.08]'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <Pestanas className="mb-5" opciones={PESTANAS_AJ} valor={pestana} onChange={setPestana} />
 
       <div className="flex flex-col gap-5 overflow-auto pb-4">
         {pestana === 'negocio' && (
@@ -113,6 +100,7 @@ export function Ajustes(): React.JSX.Element {
               label="Nombre del negocio"
               valor={negocio.nombreNegocio}
               placeholder="Ej. Taquería La Esquina"
+              maxLength={40}
               onChange={(v) => setNegocio((n) => ({ ...n, nombreNegocio: v }))}
               onGuardar={guardarNegocio}
             />
@@ -121,6 +109,7 @@ export function Ajustes(): React.JSX.Element {
               valor={negocio.direccion}
               multilinea
               placeholder={'Ej.\nAv. Juárez 123\nCol. Centro\nCiudad, CP 00000'}
+              maxLength={120}
               onChange={(v) => setNegocio((n) => ({ ...n, direccion: v }))}
               onGuardar={guardarNegocio}
             />
@@ -128,6 +117,7 @@ export function Ajustes(): React.JSX.Element {
               label="Teléfono"
               valor={negocio.telefono}
               placeholder="Ej. 55 1234 5678"
+              maxLength={20}
               onChange={(v) => setNegocio((n) => ({ ...n, telefono: v }))}
               onGuardar={guardarNegocio}
             />
@@ -135,13 +125,15 @@ export function Ajustes(): React.JSX.Element {
               label="RFC"
               valor={negocio.rfc}
               placeholder="Ej. XAXX010101000"
-              onChange={(v) => setNegocio((n) => ({ ...n, rfc: v }))}
+              maxLength={13}
+              onChange={(v) => setNegocio((n) => ({ ...n, rfc: v.toUpperCase() }))}
               onGuardar={guardarNegocio}
             />
             <CampoNegocio
               label="Mensaje del ticket"
               valor={negocio.mensajeTicket}
               placeholder="Ej. ¡Gracias por su compra!"
+              maxLength={80}
               onChange={(v) => setNegocio((n) => ({ ...n, mensajeTicket: v }))}
               onGuardar={guardarNegocio}
             />
@@ -150,6 +142,7 @@ export function Ajustes(): React.JSX.Element {
               valor={negocio.facebook}
               icono={<img src={iconoSocialDataUrl('facebook')} alt="" className="h-5 w-5" />}
               placeholder="Ej. /TaqueriaLaEsquina"
+              maxLength={40}
               onChange={(v) => setNegocio((n) => ({ ...n, facebook: v }))}
               onGuardar={guardarNegocio}
             />
@@ -158,6 +151,7 @@ export function Ajustes(): React.JSX.Element {
               valor={negocio.instagram}
               icono={<img src={iconoSocialDataUrl('instagram')} alt="" className="h-5 w-5" />}
               placeholder="Ej. @taqueria_la_esquina"
+              maxLength={40}
               onChange={(v) => setNegocio((n) => ({ ...n, instagram: v }))}
               onGuardar={guardarNegocio}
             />
@@ -204,6 +198,29 @@ export function Ajustes(): React.JSX.Element {
 
         {/* Impuestos */}
         <SeccionImpuestos />
+
+        {/* Cobro en efectivo */}
+        <Seccion titulo="Cobro en efectivo">
+          <div className="flex items-center justify-between gap-4 py-2">
+            <div>
+              <div className="text-sm text-tinta">Redondeo de efectivo</div>
+              <div className="text-xs text-tinta-suave">
+                Ajusta el total en efectivo al múltiplo elegido (evita centavos). No afecta
+                tarjeta ni transferencia.
+              </div>
+            </div>
+            <Select<number>
+              className="w-40 shrink-0"
+              valor={cfg.redondeoEfectivo ?? 0}
+              onChange={(v) => void actualizarCfg({ redondeoEfectivo: v })}
+              opciones={[
+                { valor: 0, label: 'Sin redondeo' },
+                { valor: 0.5, label: 'A $0.50' },
+                { valor: 1, label: 'Al peso ($1)' }
+              ]}
+            />
+          </div>
+        </Seccion>
 
         {/* Opciones de ticket */}
         <Seccion titulo="Opciones del ticket">
@@ -276,6 +293,7 @@ function CampoNegocio({
   placeholder,
   multilinea,
   icono,
+  maxLength,
   onChange,
   onGuardar
 }: {
@@ -284,6 +302,7 @@ function CampoNegocio({
   placeholder?: string
   multilinea?: boolean
   icono?: React.ReactNode
+  maxLength?: number
   onChange: (v: string) => void
   onGuardar: () => void
 }): React.JSX.Element {
@@ -298,6 +317,7 @@ function CampoNegocio({
           onChange={(e) => onChange(e.target.value)}
           onBlur={onGuardar}
           placeholder={placeholder}
+          maxLength={maxLength}
           rows={3}
           className={`${clase} resize-y`}
         />
@@ -314,6 +334,7 @@ function CampoNegocio({
             onBlur={onGuardar}
             onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
             placeholder={placeholder}
+            maxLength={maxLength}
             className={`${clase} ${icono ? 'pl-10' : ''}`}
           />
         </div>
@@ -393,7 +414,7 @@ function SeccionLogo(): React.JSX.Element {
         <button
           onClick={() => inputRef.current?.click()}
           disabled={procesando}
-          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
+          className="btn-primario disabled:opacity-50"
         >
           {procesando ? 'Procesando…' : vista ? 'Cambiar logo' : 'Elegir imagen PNG'}
         </button>
@@ -810,7 +831,7 @@ function FilaImpresora({
             <button
               onClick={() => void conectarBle()}
               disabled={conectandoBle}
-              className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:opacity-50"
+              className="w-full btn-primario disabled:opacity-50"
             >
               {conectandoBle ? 'Buscando…' : 'Conectar por Bluetooth'}
             </button>
@@ -821,18 +842,14 @@ function FilaImpresora({
                   Impresora de Windows (USB o red)
                 </label>
                 <div className="flex gap-2">
-                  <select
-                    value={impWin}
-                    onChange={(e) => setImpWin(e.target.value)}
-                    className="flex-1 rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
-                  >
-                    {impresorasWin.length === 0 && <option value="">Sin impresoras detectadas</option>}
-                    {impresorasWin.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    size="sm"
+                    className="flex-1"
+                    valor={impWin}
+                    onChange={setImpWin}
+                    placeholder="Sin impresoras detectadas"
+                    opciones={impresorasWin.map((p) => ({ valor: p, label: p }))}
+                  />
                   <button
                     type="button"
                     onClick={() => void refrescarWin()}
@@ -850,7 +867,7 @@ function FilaImpresora({
               </div>
               <button
                 onClick={() => void guardarWin()}
-                className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+                className="w-full btn-primario"
               >
                 Guardar impresora de Windows
               </button>
@@ -860,18 +877,14 @@ function FilaImpresora({
               <div>
                 <label className="mb-1 block text-xs font-medium text-tinta-suave">Puerto</label>
                 <div className="flex gap-2">
-                  <select
-                    value={puerto}
-                    onChange={(e) => setPuerto(e.target.value)}
-                    className="flex-1 rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
-                  >
-                    {puertos.length === 0 && <option value="">Sin puertos detectados</option>}
-                    {puertos.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    size="sm"
+                    className="flex-1"
+                    valor={puerto}
+                    onChange={setPuerto}
+                    placeholder="Sin puertos detectados"
+                    opciones={puertos.map((p) => ({ valor: p, label: p }))}
+                  />
                   <button
                     type="button"
                     onClick={() => void refrescarPuertos()}
@@ -885,21 +898,17 @@ function FilaImpresora({
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-tinta-suave">Baudios</label>
-                <select
-                  value={baud}
-                  onChange={(e) => setBaud(Number(e.target.value))}
-                  className="w-full rounded-md border border-black/10 px-2 py-1.5 text-sm outline-none focus:border-acento"
-                >
-                  {BAUDIOS.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
+                <Select<number>
+                  size="sm"
+                  className="w-full"
+                  valor={baud}
+                  onChange={setBaud}
+                  opciones={BAUDIOS.map((b) => ({ valor: b, label: String(b) }))}
+                />
               </div>
               <button
                 onClick={() => void guardarCom()}
-                className="w-full rounded-md bg-acento px-3 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+                className="w-full btn-primario"
               >
                 Guardar impresora COM
               </button>
@@ -1074,7 +1083,7 @@ function SeccionRespaldos(): React.JSX.Element {
           <>
             <button
               onClick={() => setARestaurar(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
@@ -1189,12 +1198,16 @@ function Switch({
       <span className="text-sm text-tinta">{label}</span>
       <button
         type="button"
+        role="switch"
+        aria-checked={activo}
         onClick={() => onChange(!activo)}
-        className={`relative h-6 w-11 rounded-full transition ${activo ? 'bg-acento' : 'bg-black/15'}`}
+        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-300 ease-out ${
+          activo ? 'bg-acento' : 'bg-black/15'
+        }`}
       >
         <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition ${
-            activo ? 'left-[22px]' : 'left-0.5'
+          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-300 ease-out ${
+            activo ? 'translate-x-5' : 'translate-x-0'
           }`}
         />
       </button>

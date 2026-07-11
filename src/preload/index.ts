@@ -5,6 +5,8 @@ import type {
   Categoria,
   CategoriaInput,
   CierreCorteInput,
+  ComboItem,
+  RecetaItem,
   Cliente,
   ClienteInput,
   ConfigImpresoras,
@@ -63,6 +65,10 @@ const api = {
     productos: (): Promise<Producto[]> => invoke(CANALES.catalogo.productos),
     guardarProducto: (prod: ProductoInput): Promise<Producto> =>
       invoke(CANALES.catalogo.guardarProducto, prod),
+    comboItems: (comboId: number): Promise<ComboItem[]> =>
+      invoke(CANALES.catalogo.comboItems, comboId),
+    receta: (productoId: number): Promise<RecetaItem[]> =>
+      invoke(CANALES.catalogo.receta, productoId),
     eliminarProducto: (id: number): Promise<void> => invoke(CANALES.catalogo.eliminarProducto, id),
     grupos: (): Promise<GrupoModificador[]> => invoke(CANALES.catalogo.grupos),
     guardarGrupo: (g: GrupoInput): Promise<GrupoModificador> =>
@@ -102,6 +108,10 @@ const api = {
       invoke(CANALES.ordenes.cambiarCantidad, ordenId, detalleId, delta),
     cambiarNota: (ordenId: number, detalleId: number, nota: string): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.cambiarNota, ordenId, detalleId, nota),
+    notaOrden: (ordenId: number, nota: string): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.notaOrden, ordenId, nota),
+    descontarLinea: (detalleId: number, descuento: number): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.descontarLinea, detalleId, descuento),
     quitarLinea: (ordenId: number, detalleId: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.quitarLinea, ordenId, detalleId),
     enviarCocina: (ordenId: number, comensal?: number): Promise<DetalleOrden[]> =>

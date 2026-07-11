@@ -258,6 +258,13 @@ export function bytesFinal(
   const imp = calcularImpuesto(neto, cfg)
   const propina = orden.propina ?? 0
   const totalConPropina = imp.total + propina
+  // Redondeo de efectivo: diferencia entre lo pagado y el total real (si aplica).
+  const pagosTotal = (orden.pagos ?? []).reduce((s, p) => s + p.monto, 0)
+  const redondeo =
+    orden.pagos && orden.pagos.length > 0
+      ? Math.round((pagosTotal - totalConPropina) * 100) / 100
+      : 0
+  const totalFinal = Math.round((totalConPropina + redondeo) * 100) / 100
 
   // --- Cuerpo (tamaño normal): encabezado, productos y desglose. ---
   // Con logo arriba no hace falta margen superior (el logo ya separa); sin logo,
@@ -291,21 +298,28 @@ export function bytesFinal(
   cabeza.push(fila(titulo, `Ticket #${orden.id}`))
   cabeza.push(fechaHora(orden.cerradoEn))
   cabeza.push(linea())
+  // Nota libre del ticket (si la orden trae una).
+  if (orden.nota) for (const ln of envolver(`Nota: ${orden.nota}`, w)) cabeza.push(ln)
   cabeza.push('')
   // Encabezado de columnas en negritas (ESC E 1 … ESC E 0), pegado a los productos.
-  cabeza.push('\x1bE\x01' + fila('Cant. Descripcion', 'Importe') + '\x1bE\x00')
+  // "Cant" ocupa 4 caracteres para que la descripción caiga alineada con los nombres.
+  cabeza.push('\x1bE\x01' + fila('Cant Descripcion', 'Importe') + '\x1bE\x00')
   // Productos agrupados (sin separar por comensal) para el ticket del cliente.
   // El precio del modificador se saca del producto y se muestra aparte: el
   // producto va a su precio base y cada modificador con precio lleva su importe.
   for (const d of agruparLineas(orden.detalle)) {
     const sumaMods = d.modificadores.reduce((s, m) => s + m.precio, 0)
     cabeza.push(
-      fila(`${d.cantidad} ${d.nombreProducto}`, pesos(d.cantidad * (d.precioUnitario - sumaMods)))
+      fila(
+        `${String(d.cantidad).padEnd(4)} ${d.nombreProducto}`,
+        pesos(d.cantidad * (d.precioUnitario - sumaMods))
+      )
     )
     for (const m of d.modificadores) {
-      if (m.precio > 0) cabeza.push(fila(`   + ${m.nombre}`, pesos(d.cantidad * m.precio)))
-      else cabeza.push(`   + ${m.nombre}`)
+      if (m.precio > 0) cabeza.push(fila(`     + ${m.nombre}`, pesos(d.cantidad * m.precio)))
+      else cabeza.push(`     + ${m.nombre}`)
     }
+    if (d.descuento > 0) cabeza.push(fila('     Descuento', `-${pesos(d.descuento)}`))
   }
   cabeza.push('')
   cabeza.push(linea())
@@ -321,11 +335,14 @@ export function bytesFinal(
     cabeza.push(fila('Venta', pesos(imp.total)))
     cabeza.push(fila('Propina', pesos(propina)))
   }
+  if (redondeo !== 0) {
+    cabeza.push(fila('Redondeo', `${redondeo > 0 ? '+' : '-'}${pesos(Math.abs(redondeo))}`))
+  }
   cabeza.push('') // margen antes del TOTAL
 
   // --- Pie (tamaño normal): total en letra (centrado) y pago. ---
   const cola: string[] = ['']
-  for (const ln of envolver(`Son ${totalEnLetra(totalConPropina)}`, w)) cola.push(centrar(ln))
+  for (const ln of envolver(`Son ${totalEnLetra(totalFinal)}`, w)) cola.push(centrar(ln))
   cola.push('')
   const pagos = orden.pagos ?? []
   if (pagos.length > 0) {
@@ -349,7 +366,7 @@ export function bytesFinal(
     [
       ...(logo ? [logo] : []),
       { texto: cabeza.join('\n') },
-      { texto: fmtMitad.fila('TOTAL', pesos(totalConPropina)), grande: true },
+      { texto: fmtMitad.fila('TOTAL', pesos(totalFinal)), grande: true },
       { texto: cola.join('\n') },
       { texto: '\n' },
       // Pie de marca: logo de Ankyra (ya incluye "Powered by Olyssea"). Fallback a
@@ -414,8 +431,6 @@ export function bytesCorte(corte: Corte, ancho?: number): number[] {
   return aBytes([
     { texto: l.join('\n') },
     { texto: fmtMitad.fila('BALANCE', pesos(balance)), grande: true },
-    { texto: '' },
-    { texto: centrar('Powered by Olyssea') },
     { texto: '\n' }
   ])
 }
@@ -434,12 +449,12 @@ export function bytesPrueba(
   const detalle: DetalleOrden[] = [
     {
       id: 1, ordenId: 0, productoId: 0, nombreProducto: 'Taco al pastor', cantidad: 3,
-      precioUnitario: 25, comensal: 1, enviadoCocina: true, modificadores: []
+      precioUnitario: 25, descuento: 0, comensal: 1, enviadoCocina: true, modificadores: []
     },
     {
       id: 2, ordenId: 0, productoId: 0, nombreProducto: 'Quesadilla', cantidad: 1,
       // precioUnitario incluye el extra con precio (45 base + 10 extra queso).
-      precioUnitario: 55, comensal: 1, enviadoCocina: true,
+      precioUnitario: 55, descuento: 0, comensal: 1, enviadoCocina: true,
       modificadores: [
         { id: 1, detalleId: 2, modificadorId: null, nombre: 'Sin cebolla', precio: 0 },
         { id: 2, detalleId: 2, modificadorId: null, nombre: 'Extra queso', precio: 10 }
@@ -447,7 +462,7 @@ export function bytesPrueba(
     },
     {
       id: 3, ordenId: 0, productoId: 0, nombreProducto: 'Refresco', cantidad: 2,
-      precioUnitario: 25, comensal: 1, enviadoCocina: true, modificadores: []
+      precioUnitario: 25, descuento: 0, comensal: 1, enviadoCocina: true, modificadores: []
     }
   ]
 

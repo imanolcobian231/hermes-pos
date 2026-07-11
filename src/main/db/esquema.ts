@@ -44,8 +44,30 @@ CREATE TABLE IF NOT EXISTS productos (
   -- Costo del producto, para reportes de utilidad (precio − costo).
   costo           REAL    NOT NULL DEFAULT 0,
   -- Color del botón del producto en pedidos (hex). NULL = sin color.
-  color           TEXT
+  color           TEXT,
+  -- Código de barras del producto (lector/scanner). NULL = sin código.
+  codigo_barras   TEXT,
+  -- 1 = el producto es un combo a precio fijo (sus partes van en combo_items).
+  es_combo        INTEGER NOT NULL DEFAULT 0
 );
+
+-- Productos que incluye un combo (combo_id) y en qué cantidad.
+CREATE TABLE IF NOT EXISTS combo_items (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  combo_id    INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  producto_id INTEGER NOT NULL REFERENCES productos(id),
+  cantidad    INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_combo_items ON combo_items(combo_id);
+
+-- Insumos que consume un producto al venderse (receta) y en qué cantidad por unidad.
+CREATE TABLE IF NOT EXISTS producto_insumos (
+  producto_id INTEGER NOT NULL REFERENCES productos(id) ON DELETE CASCADE,
+  insumo_id   INTEGER NOT NULL REFERENCES insumos(id),
+  cantidad    REAL    NOT NULL DEFAULT 0,
+  PRIMARY KEY (producto_id, insumo_id)
+);
+CREATE INDEX IF NOT EXISTS idx_producto_insumos ON producto_insumos(producto_id);
 
 CREATE TABLE IF NOT EXISTS ordenes (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,7 +85,9 @@ CREATE TABLE IF NOT EXISTS ordenes (
   ticket_impreso INTEGER NOT NULL DEFAULT 0,
   abierto_en     TEXT    NOT NULL,
   cerrado_en     TEXT,
-  corte_id       INTEGER REFERENCES cortes(id)
+  corte_id       INTEGER REFERENCES cortes(id),
+  -- Nota libre del ticket (se imprime en el ticket del cliente).
+  nota           TEXT
 );
 
 CREATE TABLE IF NOT EXISTS detalle_ordenes (
@@ -73,6 +97,7 @@ CREATE TABLE IF NOT EXISTS detalle_ordenes (
   nombre_producto TEXT    NOT NULL,
   cantidad        INTEGER NOT NULL DEFAULT 1,
   precio_unitario REAL    NOT NULL DEFAULT 0,
+  descuento       REAL    NOT NULL DEFAULT 0,
   notas           TEXT,
   comensal        INTEGER NOT NULL DEFAULT 1,
   enviado_cocina  INTEGER NOT NULL DEFAULT 0,

@@ -8,9 +8,11 @@ import { useToast } from '@renderer/components/Toast'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
+import { EncabezadoPagina } from '@renderer/components/Pagina'
+import { Select } from '@renderer/components/Select'
 
 export function Corte(): React.JSX.Element {
-  const { cortes, reimpresiones, cancelaciones, gastos: gastosTurno, resumen, cobradas, caja, abrirCaja, devolverOrden, cambiarMetodoPago, cerrarCorte } =
+  const { cortes, reimpresiones, cancelaciones, gastos: gastosTurno, resumen, cobradas, caja, abrirCaja, agregarGasto, eliminarGasto, devolverOrden, cambiarMetodoPago, cerrarCorte } =
     useDatos()
   const toast = useToast()
   const { usuarioActual } = useAuth()
@@ -24,6 +26,10 @@ export function Corte(): React.JSX.Element {
   // Apertura de caja.
   const [abriendo, setAbriendo] = useState(false)
   const [fondoApertura, setFondoApertura] = useState('')
+  // Alta de gasto/retiro desde el corte (antes vivía en Finanzas, ya fusionado).
+  const [gastoConcepto, setGastoConcepto] = useState('')
+  const [gastoMonto, setGastoMonto] = useState('')
+  const [gastoTipo, setGastoTipo] = useState<'gasto' | 'retiro'>('gasto')
   // Devolución de una venta.
   const [devolviendo, setDevolviendo] = useState<OrdenConDetalle | null>(null)
   const [motivoDev, setMotivoDev] = useState('')
@@ -119,6 +125,16 @@ export function Corte(): React.JSX.Element {
 
   const netoOrden = (o: OrdenConDetalle): number => o.total - o.descuento
 
+  const agregarGastoTurno = async (): Promise<void> => {
+    const c = gastoConcepto.trim()
+    const m = Number(gastoMonto)
+    if (!c || !m || m <= 0) return
+    await agregarGasto(c, m, gastoTipo)
+    setGastoConcepto('')
+    setGastoMonto('')
+    toast(gastoTipo === 'retiro' ? 'Retiro registrado' : 'Gasto registrado')
+  }
+
   // Corrige el método de pago de una venta del turno (ej. se asumió efectivo pero
   // el cliente pagó con tarjeta). Solo aplica a efectivo/tarjeta/transferencia.
   const editarMetodo = async (ordenId: number, metodo: MetodoPago): Promise<void> => {
@@ -132,28 +148,47 @@ export function Corte(): React.JSX.Element {
 
   return (
     <div>
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-tinta">Corte de caja</h1>
-          <p className="text-sm text-tinta-suave">Turno actual e historial de cortes</p>
-        </div>
-        <button
-          onClick={abrirCierre}
-          disabled={numOrdenes === 0}
-          className="rounded-lg bg-acento px-4 py-2.5 font-semibold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
-        >
-          Cerrar turno
-        </button>
-      </header>
+      <EncabezadoPagina titulo="Finanzas" subtitulo="Caja, ventas, gastos y cierre del turno">
+        {caja.abierta ? (
+          <button
+            onClick={abrirCierre}
+            disabled={numOrdenes === 0}
+            title={numOrdenes === 0 ? 'No hay ventas en el turno' : ''}
+            className="btn-primario disabled:bg-black/10 disabled:text-tinta-suave/50"
+          >
+            <Icono nombre="corte" size={16} />
+            Cerrar turno
+          </button>
+        ) : (
+          <button
+            onClick={() => {
+              setFondoApertura('')
+              setAbriendo(true)
+            }}
+            className="btn-primario"
+          >
+            <Icono nombre="mas" size={16} />
+            Abrir caja
+          </button>
+        )}
+      </EncabezadoPagina>
 
       {/* Estado de la caja (apertura con fondo) */}
       <div
-        className={`mb-6 flex items-center justify-between rounded-xl border px-5 py-3 ${
-          caja.abierta ? 'border-acento/30 bg-acento/[0.08]' : 'border-amber-200 bg-amber-50'
+        className={`mb-6 flex items-center justify-between rounded-2xl border px-5 py-3.5 ${
+          caja.abierta
+            ? 'border-acento/20 bg-acento/[0.05]'
+            : 'border-black/[0.08] bg-black/[0.02]'
         }`}
       >
-        <div className="flex items-center gap-2.5">
-          <span className={`h-2.5 w-2.5 rounded-full ${caja.abierta ? 'bg-acento' : 'bg-amber-500'}`} />
+        <div className="flex items-center gap-3">
+          <span
+            className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+              caja.abierta ? 'bg-acento/10 text-acento' : 'bg-black/[0.06] text-tinta-suave'
+            }`}
+          >
+            <Icono nombre="corte" size={18} />
+          </span>
           <div className="text-sm">
             {caja.abierta ? (
               <span className="text-tinta">
@@ -161,60 +196,71 @@ export function Corte(): React.JSX.Element {
                 {caja.abiertoEn ? ` · desde ${hora(caja.abiertoEn)}` : ''}
               </span>
             ) : (
-              <span className="text-tinta">Caja cerrada — ábrela con su fondo de cambio al iniciar el turno.</span>
+              <span className="text-tinta-suave">
+                Caja <strong className="text-tinta">cerrada</strong> — ábrela con su fondo de cambio al
+                iniciar el turno.
+              </span>
             )}
           </div>
         </div>
-        {!caja.abierta && (
-          <button
-            onClick={() => {
-              setFondoApertura('')
-              setAbriendo(true)
-            }}
-            className="rounded-md bg-acento px-3 py-1.5 text-xs font-semibold text-white hover:bg-acento-hover"
-          >
-            Abrir caja
-          </button>
-        )}
       </div>
 
-      {/* Turno actual */}
-      <section className="mb-8">
-        <div className="mb-4 grid grid-cols-3 gap-4">
-          <Tarjeta label="Efectivo" monto={efectivo} icono="efectivo" />
-          <Tarjeta label="Tarjeta" monto={tarjeta} icono="tarjeta" />
-          <Tarjeta label="Transferencia" monto={transferencia} icono="transferencia" />
+      {/* Resumen del turno — estilo hoja de corte (distinto al panel de Reportes) */}
+      <section className="mb-8 grid gap-4 lg:grid-cols-3">
+        {/* Balance destacado */}
+        <div className="flex flex-col rounded-2xl border border-acento/20 bg-acento/[0.05] p-6 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-semibold text-acento">
+            <Icono nombre="corte" size={16} /> Balance del turno
+          </div>
+          <div
+            className={`mt-3 text-[2.6rem] font-bold leading-none tabular-nums tracking-tight ${
+              balance < 0 ? 'text-red-600' : 'text-tinta'
+            }`}
+          >
+            {pesos(balance)}
+          </div>
+          <div className="mt-auto flex gap-8 pt-6 text-sm">
+            <div>
+              <div className="text-xs text-tinta-suave">Ventas</div>
+              <div className="font-semibold tabular-nums text-tinta">{pesos(total)}</div>
+            </div>
+            <div>
+              <div className="text-xs text-tinta-suave">{numOrdenes === 1 ? 'Orden' : 'Órdenes'}</div>
+              <div className="font-semibold tabular-nums text-tinta">{numOrdenes}</div>
+            </div>
+          </div>
         </div>
-        <div className="grid grid-cols-3 gap-4">
-          <Tarjeta label="Ventas" monto={total} icono="cobro" />
-          <Tarjeta label="Gastos" monto={gastos} icono="gasto" negativo />
-          <Tarjeta label="Balance del turno" monto={balance} icono="corte" destacar />
+
+        {/* Desglose del turno (hoja de corte) */}
+        <div className="rounded-2xl border border-black/[0.06] bg-white p-6 shadow-sm lg:col-span-2">
+          <div className="mb-1 text-sm font-bold text-tinta">Desglose del turno</div>
+          <div className="grid gap-x-10 sm:grid-flow-col sm:grid-rows-3">
+            <FilaCorte icono="efectivo" label="Efectivo" valor={pesos(efectivo)} />
+            <FilaCorte icono="tarjeta" label="Tarjeta" valor={pesos(tarjeta)} />
+            <FilaCorte icono="transferencia" label="Transferencia" valor={pesos(transferencia)} />
+            <FilaCorte icono="finanzas" label="Propinas" valor={pesos(propinas)} tono="verde" />
+            <FilaCorte icono="gasto" label="Gastos" valor={pesos(gastos)} tono="rojo" signo="−" />
+            <FilaCorte icono="corte" label="Retiros" valor={pesos(retiros)} tono="rojo" signo="−" />
+          </div>
         </div>
-        <p className="mt-3 text-sm text-tinta-suave">
-          {numOrdenes} {numOrdenes === 1 ? 'orden cobrada' : 'órdenes cobradas'} en el turno
-          {propinas > 0 && (
-            <>
-              {' · '}propinas <strong className="text-tinta">{pesos(propinas)}</strong>
-            </>
-          )}
-        </p>
       </section>
 
       {/* Ventas del turno (con opción de devolver) */}
       {cobradas.length > 0 && (
         <section className="mb-8">
           <h2 className="mb-3 text-lg font-bold text-tinta">Ventas del turno</h2>
-          <div className="max-h-64 overflow-auto rounded-xl border border-black/[0.06] bg-white">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
-                <tr>
-                  <th className="px-4 py-2.5">Hora</th>
-                  <th className="px-4 py-2.5">Orden</th>
-                  <th className="px-4 py-2.5">Método</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
-                  <th className="px-4 py-2.5 text-right">Acción</th>
-                </tr>
-              </thead>
+          <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
+            <div className="max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 z-10 border-b border-black/[0.06] bg-white/95 text-left text-xs uppercase tracking-wider text-tinta-suave backdrop-blur">
+                  <tr>
+                    <th className="px-4 py-2.5 font-semibold">Hora</th>
+                    <th className="px-4 py-2.5 font-semibold">Orden</th>
+                    <th className="px-4 py-2.5 font-semibold">Método</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">Total</th>
+                    <th className="px-4 py-2.5 text-right font-semibold">Acción</th>
+                  </tr>
+                </thead>
               <tbody>
                 {cobradas.map((o) => (
                   <tr key={o.id} className="border-t border-black/[0.04]">
@@ -226,16 +272,16 @@ export function Corte(): React.JSX.Element {
                       {o.metodoPago === 'efectivo' ||
                       o.metodoPago === 'tarjeta' ||
                       o.metodoPago === 'transferencia' ? (
-                        <select
-                          value={o.metodoPago}
-                          onChange={(e) => void editarMetodo(o.id, e.target.value as MetodoPago)}
-                          title="Cambia el método si el cliente pagó de otra forma"
-                          className="rounded-md border border-black/10 bg-white px-2 py-1 text-sm text-tinta outline-none focus:border-acento"
-                        >
-                          <option value="efectivo">Efectivo</option>
-                          <option value="tarjeta">Tarjeta</option>
-                          <option value="transferencia">Transferencia</option>
-                        </select>
+                        <Select<MetodoPago>
+                          size="sm"
+                          valor={o.metodoPago}
+                          onChange={(m) => void editarMetodo(o.id, m)}
+                          opciones={[
+                            { valor: 'efectivo', label: 'Efectivo' },
+                            { valor: 'tarjeta', label: 'Tarjeta' },
+                            { valor: 'transferencia', label: 'Transferencia' }
+                          ]}
+                        />
                       ) : (
                         <span className="capitalize">
                           {o.metodoPago === 'credito'
@@ -255,8 +301,9 @@ export function Corte(): React.JSX.Element {
                           setMotivoDev('')
                           setDevolviendo(o)
                         }}
-                        className="rounded-md border border-black/10 px-2.5 py-1 text-xs font-semibold text-red-600 hover:bg-red-50"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition hover:border-red-300 hover:bg-red-100 active:scale-95"
                       >
+                        <Icono nombre="recargar" size={12} />
                         Devolver
                       </button>
                     </td>
@@ -264,61 +311,124 @@ export function Corte(): React.JSX.Element {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </section>
       )}
 
       {/* Gastos y retiros del turno (salidas de efectivo del cajón) */}
-      {gastosTurno.length > 0 && (
-        <section className="mb-8">
-          <h2 className="mb-3 text-lg font-bold text-tinta">Gastos y retiros del turno</h2>
-          <div className="max-h-64 overflow-auto rounded-xl border border-black/[0.06] bg-white">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
-                <tr>
-                  <th className="px-4 py-2.5">Hora</th>
-                  <th className="px-4 py-2.5">Concepto</th>
-                  <th className="px-4 py-2.5 text-right">Monto</th>
-                </tr>
-              </thead>
-              <tbody>
-                {gastosTurno.map((g) => (
-                  <tr key={g.id} className="border-t border-black/[0.04]">
-                    <td className="px-4 py-2 text-tinta-suave">{hora(g.fecha)}</td>
-                    <td className="px-4 py-2 text-tinta">
-                      {g.concepto}
-                      {g.tipo === 'retiro' && (
-                        <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
-                          Retiro
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-right font-semibold text-red-600">
-                      −{pesos(g.monto)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot className="border-t border-black/[0.08] bg-black/[0.02]">
-                <tr>
-                  <td className="px-4 py-2 font-semibold text-tinta" colSpan={2}>
-                    Total de gastos (baja del balance)
-                  </td>
-                  <td className="px-4 py-2 text-right font-bold text-red-600">−{pesos(gastos)}</td>
-                </tr>
-                {retiros > 0 && (
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-bold text-tinta">Gastos y retiros del turno</h2>
+        <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-sm">
+          {/* Alta de gasto o retiro */}
+          <div className="flex flex-wrap items-center gap-2 border-b border-black/[0.04] p-4">
+            <div className="flex rounded-lg bg-black/[0.04] p-1">
+              {(['gasto', 'retiro'] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setGastoTipo(t)}
+                  className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    gastoTipo === t
+                      ? 'bg-white text-acento shadow-sm'
+                      : 'text-tinta-suave hover:text-tinta'
+                  }`}
+                >
+                  {t === 'gasto' ? 'Gasto' : 'Retiro'}
+                </button>
+              ))}
+            </div>
+            <input
+              value={gastoConcepto}
+              maxLength={40}
+              onChange={(e) => setGastoConcepto(e.target.value)}
+              placeholder={
+                gastoTipo === 'retiro' ? 'Concepto (ej. depósito banco)' : 'Concepto (ej. hielo, gas)'
+              }
+              className="min-w-[8rem] flex-1 rounded-lg border border-black/10 px-3 py-2 text-sm outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15"
+            />
+            <div className="flex items-center rounded-lg border border-black/10 px-3 transition focus-within:border-acento focus-within:ring-2 focus-within:ring-acento/15">
+              <span className="text-sm text-tinta-suave">$</span>
+              <input
+                type="number"
+                value={gastoMonto}
+                onChange={(e) => setGastoMonto(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && agregarGastoTurno()}
+                placeholder="0.00"
+                className="w-24 bg-transparent py-2 pl-1 text-right text-sm font-semibold outline-none"
+              />
+            </div>
+            <button onClick={() => void agregarGastoTurno()} className="btn-primario shrink-0">
+              <Icono nombre="mas" size={16} />
+              Agregar
+            </button>
+          </div>
+
+          {/* Lista de movimientos */}
+          {gastosTurno.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-tinta-suave">
+              Sin gastos ni retiros en el turno
+            </p>
+          ) : (
+            <div className="max-h-64 overflow-auto">
+              <table className="w-full text-sm">
+                <tbody>
+                  {gastosTurno.map((g) => (
+                    <tr
+                      key={g.id}
+                      className="group border-b border-black/[0.04] transition last:border-0 hover:bg-black/[0.02]"
+                    >
+                      <td className="px-4 py-2 text-tinta-suave">{hora(g.fecha)}</td>
+                      <td className="px-4 py-2 text-tinta">
+                        {g.concepto}
+                        {g.tipo === 'retiro' && (
+                          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                            Retiro
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold tabular-nums text-red-600">
+                        −{pesos(g.monto)}
+                      </td>
+                      <td className="w-8 px-2 py-2 text-right">
+                        <button
+                          onClick={() => {
+                            void eliminarGasto(g.id)
+                            toast('Movimiento eliminado', 'info')
+                          }}
+                          className="rounded-lg p-1.5 text-tinta-suave/60 opacity-0 transition hover:bg-red-50 hover:text-red-600 group-hover:opacity-100"
+                          aria-label="Eliminar"
+                        >
+                          <Icono nombre="eliminar" size={15} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="border-t border-black/[0.08] bg-black/[0.02]">
                   <tr>
                     <td className="px-4 py-2 font-semibold text-tinta" colSpan={2}>
-                      Total de retiros (solo baja el efectivo)
+                      Total de gastos (baja del balance)
                     </td>
-                    <td className="px-4 py-2 text-right font-bold text-red-600">−{pesos(retiros)}</td>
+                    <td className="px-4 py-2 text-right font-bold text-red-600" colSpan={2}>
+                      −{pesos(gastos)}
+                    </td>
                   </tr>
-                )}
-              </tfoot>
-            </table>
-          </div>
-        </section>
-      )}
+                  {retiros > 0 && (
+                    <tr>
+                      <td className="px-4 py-2 font-semibold text-tinta" colSpan={2}>
+                        Total de retiros (solo baja el efectivo)
+                      </td>
+                      <td className="px-4 py-2 text-right font-bold text-red-600" colSpan={2}>
+                        −{pesos(retiros)}
+                      </td>
+                    </tr>
+                  )}
+                </tfoot>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* Historial */}
       <section className="mb-8">
@@ -469,13 +579,13 @@ export function Corte(): React.JSX.Element {
           <>
             <button
               onClick={() => setConfirmar(false)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
             <button
               onClick={() => void confirmarCierre()}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Cerrar turno
             </button>
@@ -568,13 +678,13 @@ export function Corte(): React.JSX.Element {
           <>
             <button
               onClick={() => setAbriendo(false)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
             <button
               onClick={() => void confirmarApertura()}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Abrir caja
             </button>
@@ -603,15 +713,11 @@ export function Corte(): React.JSX.Element {
                 setDevolviendo(null)
                 setMotivoDev('')
               }}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
-            <button
-              onClick={confirmarDevolucion}
-              disabled={!motivoDev.trim()}
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-40"
-            >
+            <button onClick={confirmarDevolucion} disabled={!motivoDev.trim()} className="btn-peligro">
               Devolver
             </button>
           </>
@@ -643,43 +749,31 @@ export function Corte(): React.JSX.Element {
   )
 }
 
-function Tarjeta({
-  label,
-  monto,
+// Renglón del desglose del turno (hoja de corte): ícono + etiqueta y monto, con
+// separador punteado. `tono` colorea el monto (propinas verde, salidas rojo).
+function FilaCorte({
   icono,
-  destacar,
-  negativo
+  label,
+  valor,
+  tono,
+  signo
 }: {
-  label: string
-  monto: number
   icono: NombreIcono
-  destacar?: boolean
-  negativo?: boolean
+  label: string
+  valor: string
+  tono?: 'verde' | 'rojo'
+  signo?: string
 }): React.JSX.Element {
-  const colorMonto = destacar
-    ? monto < 0
-      ? 'text-red-300'
-      : 'text-white'
-    : negativo
-      ? 'text-red-600'
-      : 'text-tinta'
+  const color = tono === 'verde' ? 'text-emerald-600' : tono === 'rojo' ? 'text-red-600' : 'text-tinta'
   return (
-    <div
-      className={`rounded-lg border p-5 ${
-        destacar ? 'border-acento bg-acento text-white' : 'border-black/[0.06] bg-white'
-      }`}
-    >
-      <div
-        className={`mb-2 flex items-center gap-2 text-sm ${
-          destacar ? 'text-white/70' : 'text-tinta-suave'
-        }`}
-      >
-        <Icono nombre={icono} size={16} />
-        {label}
-      </div>
-      <div className={`text-2xl font-bold ${colorMonto}`}>
-        {negativo && monto > 0 ? `−${pesos(monto)}` : pesos(monto)}
-      </div>
+    <div className="flex items-center justify-between border-b border-dashed border-black/[0.08] py-2.5">
+      <span className="flex items-center gap-2 text-tinta-suave">
+        <Icono nombre={icono} size={14} /> {label}
+      </span>
+      <span className={`font-semibold tabular-nums ${color}`}>
+        {signo}
+        {valor}
+      </span>
     </div>
   )
 }

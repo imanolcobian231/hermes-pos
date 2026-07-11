@@ -136,6 +136,8 @@ interface DatosContextValue {
   ) => Promise<void>
   cambiarCantidad: (ordenId: number, detalleId: number, delta: number) => Promise<void>
   cambiarNota: (ordenId: number, detalleId: number, nota: string) => Promise<void>
+  cambiarNotaOrden: (ordenId: number, nota: string) => Promise<void>
+  descontarLinea: (detalleId: number, descuento: number) => Promise<void>
   quitarLinea: (ordenId: number, detalleId: number) => Promise<void>
   enviarACocina: (ordenId: number, comensal?: number) => Promise<DetalleOrden[]>
   marcarPorCobrar: (ordenId: number) => Promise<void>
@@ -413,6 +415,20 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
     [aplicarOrden]
   )
 
+  const cambiarNotaOrden = useCallback(
+    async (ordenId: number, nota: string) => {
+      aplicarOrden(await api.ordenes.notaOrden(ordenId, nota))
+    },
+    [aplicarOrden]
+  )
+
+  const descontarLinea = useCallback(
+    async (detalleId: number, descuento: number) => {
+      aplicarOrden(await api.ordenes.descontarLinea(detalleId, descuento))
+    },
+    [aplicarOrden]
+  )
+
   const quitarLinea = useCallback(
     async (ordenId: number, detalleId: number) => {
       aplicarOrden(await api.ordenes.quitarLinea(ordenId, detalleId))
@@ -452,10 +468,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarMesas(),
         refrescarResumen(),
         refrescarCobradas(),
-        refrescarCatalogo()
+        refrescarCatalogo(),
+        refrescarInsumos()
       ])
     },
-    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarCatalogo]
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarCatalogo, refrescarInsumos]
   )
 
   const cancelarOrden = useCallback(
@@ -483,10 +500,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarCobradas(),
         refrescarCancelaciones(),
         refrescarClientes(),
-        refrescarCatalogo()
+        refrescarCatalogo(),
+        refrescarInsumos()
       ])
     },
-    [refrescarResumen, refrescarCobradas, refrescarCancelaciones, refrescarClientes, refrescarCatalogo]
+    [refrescarResumen, refrescarCobradas, refrescarCancelaciones, refrescarClientes, refrescarCatalogo, refrescarInsumos]
   )
 
   const fiarOrden = useCallback(
@@ -498,10 +516,11 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
         refrescarResumen(),
         refrescarCobradas(),
         refrescarClientes(),
-        refrescarCatalogo()
+        refrescarCatalogo(),
+        refrescarInsumos()
       ])
     },
-    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarClientes, refrescarCatalogo]
+    [refrescarOrdenes, refrescarMesas, refrescarResumen, refrescarCobradas, refrescarClientes, refrescarCatalogo, refrescarInsumos]
   )
 
   const registrarReimpresion = useCallback(
@@ -751,6 +770,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       agregarProducto,
       cambiarCantidad,
       cambiarNota,
+      cambiarNotaOrden,
+      descontarLinea,
       quitarLinea,
       enviarACocina,
       marcarPorCobrar,
@@ -811,6 +832,8 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       agregarProducto,
       cambiarCantidad,
       cambiarNota,
+      cambiarNotaOrden,
+      descontarLinea,
       quitarLinea,
       enviarACocina,
       marcarPorCobrar,

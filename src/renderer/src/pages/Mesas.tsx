@@ -68,12 +68,9 @@ export function Mesas({ onAbrirMesa, onAbrirLlevar, onAbrirOrden }: Props): Reac
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-tinta">Mesas</h1>
-          <p className="mt-1 text-sm text-tinta-suave">
-            Selecciona una mesa para abrir o ver su orden · usa el botón de editar para renombrarla
-          </p>
-        </div>
+        <p className="text-sm text-tinta-suave">
+          Selecciona una mesa para abrir o ver su orden · usa el botón de editar para renombrarla
+        </p>
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex gap-4 text-xs">
             <Leyenda color="bg-black/25" label="Libre" />

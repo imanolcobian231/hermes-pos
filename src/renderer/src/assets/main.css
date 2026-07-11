@@ -36,11 +36,11 @@
 @keyframes ankyra-modal {
   from {
     opacity: 0;
-    transform: translateY(10px) scale(0.98);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 @keyframes ankyra-fundido {
@@ -51,19 +51,33 @@
     opacity: 1;
   }
 }
+@keyframes ankyra-salir {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
 .animar-entrada {
   animation: ankyra-aparecer 0.3s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 .animar-modal {
-  animation: ankyra-modal 0.26s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: ankyra-modal 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 .animar-fundido {
-  animation: ankyra-fundido 0.22s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation: ankyra-fundido 0.28s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.animar-salida {
+  animation: ankyra-salir 0.2s ease-in both;
 }
 @media (prefers-reduced-motion: reduce) {
   .animar-entrada,
   .animar-modal,
-  .animar-fundido {
+  .animar-fundido,
+  .animar-salida {
     animation: none;
   }
 }
@@ -128,14 +142,19 @@ h3 {
 /* Primitivos de diseño estilo Apple (botones píldora, tarjetas, campos). Se usan
    como clases en los componentes para mantener todo consistente. */
 @layer components {
+  /* Sistema de botones estandarizado (rounded-lg, transición y micro-escala al
+     presionar). Todos los botones del POS deben usar una de estas clases. */
   .btn-primario {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-acento px-6 py-3 text-base font-semibold text-white transition hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-acento px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-acento-hover active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-neutro {
-    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-black/10 bg-white px-6 py-3 text-base font-semibold text-tinta transition hover:bg-black/[0.04] disabled:cursor-not-allowed disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-tinta transition hover:bg-black/[0.04] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
+  }
+  .btn-peligro {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-texto {
-    @apply inline-flex min-h-11 items-center justify-center gap-1.5 rounded-full px-5 py-2.5 text-base font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta;
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta active:scale-[0.98];
   }
   .tarjeta {
     @apply rounded-2xl border border-black/[0.06] bg-superficie;

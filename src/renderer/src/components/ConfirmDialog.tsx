@@ -29,18 +29,10 @@ export function ConfirmDialog({
       onCerrar={onCancelar}
       pie={
         <>
-          <button
-            onClick={onCancelar}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
-          >
+          <button onClick={onCancelar} className="btn-texto">
             {textoCancelar}
           </button>
-          <button
-            onClick={onConfirmar}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
-              peligro ? 'bg-red-600 hover:bg-red-700' : 'bg-acento hover:bg-acento-hover'
-            }`}
-          >
+          <button onClick={onConfirmar} className={peligro ? 'btn-peligro' : 'btn-primario'}>
             {textoConfirmar}
           </button>
         </>

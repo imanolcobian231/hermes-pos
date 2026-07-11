@@ -7,6 +7,8 @@ interface ItemToast {
   id: number
   mensaje: string
   tipo: TipoToast
+  /** true en los últimos ms para animar la salida antes de quitarlo. */
+  saliendo?: boolean
 }
 
 const estilos: Record<TipoToast, { fondo: string; icono: NombreIcono }> = {
@@ -25,6 +27,11 @@ export function ProveedorToast({ children }: { children: ReactNode }): React.JSX
   const toast = useCallback<FnToast>((mensaje, tipo = 'exito') => {
     const id = Date.now() + Math.random()
     setItems((prev) => [...prev, { id, mensaje, tipo }])
+    // Marca la salida un poco antes de quitarlo para que anime el fundido.
+    setTimeout(
+      () => setItems((prev) => prev.map((t) => (t.id === id ? { ...t, saliendo: true } : t))),
+      2600
+    )
     setTimeout(() => setItems((prev) => prev.filter((t) => t.id !== id)), 2800)
   }, [])
 
@@ -35,7 +42,9 @@ export function ProveedorToast({ children }: { children: ReactNode }): React.JSX
         {items.map((t) => (
           <div
             key={t.id}
-            className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-lg ${estilos[t.tipo].fondo}`}
+            className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-4 py-3 text-sm font-medium text-white shadow-lg ${
+              t.saliendo ? 'animar-salida' : 'animar-entrada'
+            } ${estilos[t.tipo].fondo}`}
           >
             <Icono nombre={estilos[t.tipo].icono} size={16} />
             {t.mensaje}

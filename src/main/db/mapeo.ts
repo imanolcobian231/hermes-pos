@@ -70,7 +70,9 @@ export function aProducto(r: Record<string, unknown>): Producto {
     stock: (r.stock as number | null) ?? 0,
     stockMinimo: (r.stock_minimo as number | null) ?? 0,
     costo: (r.costo as number | null) ?? 0,
-    color: (r.color as string | null) ?? undefined
+    color: (r.color as string | null) ?? undefined,
+    codigoBarras: (r.codigo_barras as string | null) ?? undefined,
+    esCombo: Boolean(r.es_combo)
   }
 }
 
@@ -89,6 +91,7 @@ export function aOrden(r: Record<string, unknown>): Orden {
     montoRecibido: (r.monto_recibido as number | null) ?? undefined,
     cambio: (r.cambio as number | null) ?? undefined,
     ticketImpreso: Boolean(r.ticket_impreso),
+    nota: (r.nota as string | null) ?? undefined,
     abiertoEn: r.abierto_en as string,
     cerradoEn: (r.cerrado_en as string | null) ?? undefined
   }
@@ -105,6 +108,7 @@ export function aDetalle(
     nombreProducto: r.nombre_producto as string,
     cantidad: r.cantidad as number,
     precioUnitario: r.precio_unitario as number,
+    descuento: (r.descuento as number | null) ?? 0,
     notas: (r.notas as string | null) ?? undefined,
     comensal: (r.comensal as number | null) ?? 1,
     enviadoCocina: Boolean(r.enviado_cocina),

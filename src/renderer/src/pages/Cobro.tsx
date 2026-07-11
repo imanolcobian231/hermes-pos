@@ -13,11 +13,12 @@ import { Modal } from '@renderer/components/Modal'
 import { TicketCocina } from '@renderer/components/TicketCocina'
 import { TicketFinal } from '@renderer/components/TicketFinal'
 import { NotaVentaDialog } from '@renderer/components/NotaVentaDialog'
+import { Select } from '@renderer/components/Select'
 import { useToast } from '@renderer/components/Toast'
 import { useAuth } from '@renderer/store/auth'
 import { useAutorizacion } from '@renderer/store/autorizacion'
 import { useImpresion } from '@renderer/store/impresion'
-import { comandasPorArea, rolesConfigurados } from '@renderer/lib/comandas'
+import { comandasPorArea, expandirCombos, rolesConfigurados } from '@renderer/lib/comandas'
 import { calcularImpuesto } from '@shared/impuestos'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
@@ -43,8 +44,85 @@ const VACIO_MIXTO: Record<MetodoPago, string> = { efectivo: '', tarjeta: '', tra
 
 const RAPIDOS = [50, 100, 200, 500]
 
+// Etiqueta de sección del panel de pago (misma tipografía en todas).
+function Etiqueta({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-tinta-suave">
+      {children}
+    </div>
+  )
+}
+
+// Botón que abre/cierra una sección (Descuento, Propina) con chevron y badge.
+function BotonColapsable({
+  label,
+  abierto,
+  onToggle,
+  badge
+}: {
+  label: string
+  abierto: boolean
+  onToggle: () => void
+  badge?: string
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between rounded-xl border border-black/[0.08] bg-black/[0.02] px-3.5 py-2.5 text-sm font-semibold text-tinta-suave transition-colors hover:border-acento/40 hover:text-acento"
+    >
+      <span className="flex items-center gap-2">
+        {label}
+        {badge && (
+          <span className="rounded-full bg-acento/10 px-2 py-0.5 text-[11px] font-bold text-acento">
+            {badge}
+          </span>
+        )}
+      </span>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        className={`h-4 w-4 transition-transform duration-300 ${abierto ? 'rotate-180' : ''}`}
+      >
+        <path d="M6 9l6 6 6-6" />
+      </svg>
+    </button>
+  )
+}
+
+// Contenedor que anima su altura al abrir/cerrar (grid 0fr→1fr, suave en Chromium).
+function Colapsable({
+  abierto,
+  children
+}: {
+  abierto: boolean
+  children: React.ReactNode
+}): React.JSX.Element {
+  return (
+    <div
+      className="grid transition-[grid-template-rows] duration-300 ease-out"
+      style={{ gridTemplateRows: abierto ? '1fr' : '0fr' }}
+    >
+      <div className="overflow-hidden">{children}</div>
+    </div>
+  )
+}
+
+// Clase de las pastillas de selección (descuento/propina): activa en teal.
+function pill(activo: boolean): string {
+  return `rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors ${
+    activo
+      ? 'border-transparent bg-acento text-white shadow-sm shadow-acento/25'
+      : 'border-black/[0.06] bg-black/[0.02] text-tinta-suave hover:border-acento/40 hover:bg-acento/[0.05] hover:text-acento'
+  }`
+}
+
 export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
-  const { mesas, ordenes, productos, categorias, clientes, cobrarOrden, fiarOrden, registrarReimpresion } =
+  const { mesas, ordenes, productos, categorias, clientes, caja, abrirCaja, cambiarNotaOrden, cobrarOrden, fiarOrden, registrarReimpresion } =
     useDatos()
   const { usuarioActual } = useAuth()
   const { pedir } = useAutorizacion()
@@ -80,6 +158,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const [clienteSel, setClienteSel] = useState<number | null>(null)
   const [descuento, setDescuento] = useState(0)
   const [propinaTexto, setPropinaTexto] = useState('')
+  // Fondo para abrir la caja desde aquí cuando está cerrada (flujo estricto).
+  const [fondoCaja, setFondoCaja] = useState('')
+  // Descuento y propina van ocultos, cada uno tras su propio botón (panel más corto).
+  const [verDescuento, setVerDescuento] = useState(false)
+  const [verPropina, setVerPropina] = useState(false)
+  // Nota libre que se imprime en el ticket (colapsable).
+  const [verNota, setVerNota] = useState(false)
+  const [notaTicket, setNotaTicket] = useState('')
   // PIN autorizado para el descuento (se valida también en el backend al cobrar).
   const [pinDescuento, setPinDescuento] = useState<string | undefined>(undefined)
   // Evita doble cobro/cargo por doble clic en "Listo".
@@ -114,9 +200,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     setMixto(VACIO_MIXTO)
     setClienteSel(null)
     setPinDescuento(undefined)
+    setVerNota(false)
   }, [ordenId])
 
   const orden = porCobrar.find((o) => o.id === ordenId) ?? null
+  // Prellena la nota del ticket con la que ya tenga la orden (si aplica).
+  useEffect(() => {
+    setNotaTicket(orden?.nota ?? '')
+  }, [orden?.id, orden?.nota])
   const subtotal = orden?.total ?? 0
   const descClamp = Math.max(0, Math.min(descuento, subtotal))
   const imp = calcularImpuesto(
@@ -126,8 +217,16 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   const propina = Math.max(0, parseFloat(propinaTexto) || 0)
   // Lo que paga el cliente = venta (con IVA) + propina.
   const neto = imp.total + propina
+  // Redondeo de efectivo: si está configurado, el pago en efectivo se ajusta al
+  // múltiplo (ej. $0.50 o $1). No aplica a tarjeta/transferencia/mixto/crédito.
+  const pasoRedondeo = cfg?.redondeoEfectivo ?? 0
+  const netoACobrar =
+    metodo === 'efectivo' && pasoRedondeo > 0
+      ? Math.round(Math.round(neto / pasoRedondeo) * pasoRedondeo * 100) / 100
+      : neto
+  const redondeo = Math.round((netoACobrar - neto) * 100) / 100
   const recibido = parseFloat(recibidoTexto) || 0
-  const cambio = recibido - neto
+  const cambio = recibido - netoACobrar
 
   // Pago mixto: monto asignado por método y lo que falta por cubrir.
   const montoMix: Record<MetodoPago, number> = {
@@ -145,7 +244,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   }
 
   // En restaurante el efectivo se asume exacto (no se captura monto recibido).
-  const efectivoInsuficiente = metodo === 'efectivo' && !restaurante && recibido < neto
+  const efectivoInsuficiente = metodo === 'efectivo' && !restaurante && recibido < netoACobrar
   const mixtoInvalido = metodo === 'mixto' && Math.abs(restante) >= 0.01
   const faltaCliente = metodo === 'credito' && clienteSel == null
   const noPuedeCobrar = efectivoInsuficiente || mixtoInvalido || faltaCliente
@@ -164,9 +263,9 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     if (metodo === 'efectivo') {
       // Restaurante: pago exacto sin cambio (se asume pagado al entregar el ticket).
       if (restaurante) {
-        return { pagos: [{ metodo: 'efectivo', monto: neto }], efectivoRecibido: neto, cambio: 0 }
+        return { pagos: [{ metodo: 'efectivo', monto: netoACobrar }], efectivoRecibido: netoACobrar, cambio: 0 }
       }
-      return { pagos: [{ metodo: 'efectivo', monto: neto }], efectivoRecibido: recibido, cambio: Math.max(0, cambio) }
+      return { pagos: [{ metodo: 'efectivo', monto: netoACobrar }], efectivoRecibido: recibido, cambio: Math.max(0, cambio) }
     }
     return { pagos: [{ metodo, monto: neto }], efectivoRecibido: undefined, cambio: 0 }
   }
@@ -189,11 +288,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   // confirma al dar "Listo" (finalizar).
   const ejecutarConfirmar = (): void => {
     if (!orden) return
+    // Persiste la nota del ticket (por si se cobró sin salir del campo).
+    if ((orden.nota ?? '') !== notaTicket.trim()) void cambiarNotaOrden(orden.id, notaTicket)
     const baseTicket = {
       ...orden,
       estado: 'cobrada' as const,
       descuento: descClamp,
       propina,
+      nota: notaTicket.trim() || undefined,
       cerradoEn: new Date().toISOString()
     }
     if (metodo === 'credito') {
@@ -273,11 +375,12 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
     const enviadas = orden.detalle.filter((d) => d.enviadoCocina)
     if (enviadas.length === 0) return
     registrarReimpresion('cocina', orden.id, usuarioActual?.nombre)
-    setTicketCocina({ titulo: etiqueta(orden), lineas: enviadas })
+    const paraCocina = expandirCombos(enviadas, productos)
+    setTicketCocina({ titulo: etiqueta(orden), lineas: paraCocina })
     try {
       const unica = cfg?.modo === 'una' ? cfg.impresoraCajaId ?? null : null
       const { grupos } = comandasPorArea(
-        enviadas,
+        paraCocina,
         productos,
         categorias,
         rolesConfigurados(impresoras, cfg?.impresoraCocinaId ?? null, cfg?.impresoraBarraId ?? null),
@@ -325,7 +428,6 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
   return (
     <div className="flex h-full flex-col">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-tinta">Cobro</h1>
         <p className="text-sm text-tinta-suave">Selecciona una cuenta por cobrar y registra el pago</p>
       </header>
 
@@ -335,17 +437,17 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
           <p className="mt-3 font-semibold">No hay cuentas por cobrar</p>
         </div>
       ) : (
-        <div className="flex flex-1 gap-6">
+        <div className="flex min-h-0 flex-1 gap-6">
           {/* Lista de cuentas por cobrar */}
           <div className="flex w-72 flex-col gap-2 overflow-auto">
             {porCobrar.map((o) => (
               <button
                 key={o.id}
                 onClick={() => setOrdenId(o.id)}
-                className={`flex items-center justify-between rounded-lg border-2 px-4 py-3 text-left transition ${
+                className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
                   ordenId === o.id
-                    ? 'border-acento bg-black/[0.05]'
-                    : 'border-black/[0.06] bg-white hover:border-black/10'
+                    ? 'border-acento bg-acento/[0.06] shadow-sm'
+                    : 'border-black/[0.08] bg-white hover:border-acento/40'
                 }`}
               >
                 <span className="font-semibold text-tinta">{etiqueta(o)}</span>
@@ -356,16 +458,16 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
 
           {/* Panel de cobro */}
           {orden && (
-            <div className="flex flex-1 gap-6">
+            <div className="flex min-h-0 flex-1 gap-6">
               {/* Detalle */}
-              <div className="flex flex-1 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
+              <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
                 <div className="mb-3 flex items-center justify-between">
                   <h2 className="text-lg font-bold text-tinta">{etiqueta(orden)}</h2>
                   {/* En tiendita no hay cocina: se oculta la reimpresión de comanda. */}
                   {!tiendita && (
                     <button
                       onClick={reimprimirCocina}
-                      className="flex items-center gap-1.5 rounded-md border border-black/10 px-3 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+                      className="flex items-center gap-1.5 rounded-lg border border-black/[0.08] px-3 py-1.5 text-xs font-semibold text-tinta-suave transition hover:border-acento/40 hover:text-tinta"
                       title="Reimprimir comanda de cocina"
                     >
                       <Icono nombre="imprimir" size={14} />
@@ -389,6 +491,12 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                           + {m.nombre}
                         </div>
                       ))}
+                      {d.descuento > 0 && (
+                        <div className="flex justify-between pl-4 text-xs text-tinta-suave">
+                          <span>Descuento</span>
+                          <span>−{pesos(d.descuento)}</span>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -435,16 +543,63 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
               </div>
 
               {/* Pago */}
-              <div className="flex w-80 flex-col rounded-lg border border-black/[0.06] bg-white p-5">
+              <div className="flex min-h-0 w-80 flex-col rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
+                {!caja.abierta ? (
+                  /* Flujo estricto: hay que abrir la caja (con su fondo) para cobrar. */
+                  <div className="flex flex-1 animar-fundido flex-col items-center justify-center gap-3 text-center">
+                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.05] text-tinta-suave">
+                      <Icono nombre="corte" size={26} />
+                    </span>
+                    <div>
+                      <p className="font-semibold text-tinta">La caja está cerrada</p>
+                      <p className="mt-0.5 text-sm text-tinta-suave">
+                        Ábrela con su fondo de cambio para poder cobrar.
+                      </p>
+                    </div>
+                    <div className="flex w-full items-center gap-1 rounded-xl border border-black/10 px-3 focus-within:border-acento">
+                      <span className="text-sm text-tinta-suave">$</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={fondoCaja}
+                        onChange={(e) => setFondoCaja(e.target.value)}
+                        placeholder="Fondo inicial"
+                        className="w-full bg-transparent py-2.5 text-right outline-none"
+                      />
+                    </div>
+                    <button onClick={() => void abrirCaja(Number(fondoCaja) || 0)} className="btn-primario w-full">
+                      Abrir caja
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                {/* Total a cobrar — foco del panel */}
+                <div className="mb-4 shrink-0 rounded-xl bg-acento/[0.06] px-4 py-3 text-center">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-acento/80">
+                    Total a cobrar
+                  </div>
+                  <div className="text-3xl font-bold tabular-nums tracking-tight text-acento">
+                    {pesos(netoACobrar)}
+                  </div>
+                  {redondeo !== 0 && (
+                    <div className="text-[11px] font-medium text-acento/70">
+                      redondeo {redondeo > 0 ? '+' : '−'}
+                      {pesos(Math.abs(redondeo))} · exacto {pesos(neto)}
+                    </div>
+                  )}
+                </div>
+                {/* Contenido con scroll interno: el panel no cambia de tamaño al
+                    alternar método (evita los saltos de layout). */}
+                <div className="min-h-0 flex-1 overflow-y-auto" style={{ scrollbarGutter: 'stable' }}>
                 {restaurante ? (
                   /* Modo restaurante: se asume pagado (efectivo); solo se ofrece
                      fiar a crédito. El método real se corrige luego en el corte. */
                   <div className="mb-4">
-                    <div className="mb-2 flex items-center gap-2 rounded-md bg-black/[0.03] px-3 py-2 text-sm text-tinta-suave">
-                      <Icono nombre="info" size={15} />
-                      Se registra como pagado. Si fue tarjeta/transferencia, ajústalo en el corte.
+                    <div className="mb-3 flex items-start gap-2 rounded-xl bg-acento/[0.05] px-3 py-2.5 text-xs text-tinta-suave">
+                      <Icono nombre="info" size={15} className="mt-0.5 shrink-0 text-acento" />
+                      Se registra como pagado. Si fue tarjeta o transferencia, ajústalo en el corte.
                     </div>
-                    <label className="flex cursor-pointer items-center gap-2.5 rounded-md border border-black/[0.06] px-3 py-2.5">
+                    <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-black/[0.08] px-3 py-2.5 transition hover:border-acento/40">
                       <input
                         type="checkbox"
                         checked={metodo === 'credito'}
@@ -460,162 +615,185 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                     </label>
                   </div>
                 ) : (
-                  <>
-                    <span className="mb-2 text-sm font-medium text-tinta-suave">Método de pago</span>
-                    <div className="mb-4 grid grid-cols-2 gap-2">
+                  <div className="mb-4">
+                    <Etiqueta>Método de pago</Etiqueta>
+                    <div className="grid grid-cols-2 gap-2">
                       {OPCIONES.map((m) => (
                         <button
                           key={m.id}
                           onClick={() => setMetodo(m.id)}
-                          className={`flex flex-col items-center gap-1.5 rounded-md border py-3 text-xs font-semibold transition ${
+                          className={`flex flex-col items-center gap-2 rounded-2xl border py-3.5 text-xs font-semibold transition-colors ${
                             metodo === m.id
-                              ? 'border-acento bg-acento text-white'
-                              : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
+                              ? 'border-transparent bg-acento text-white shadow-md shadow-acento/25'
+                              : 'border-black/[0.06] bg-black/[0.02] text-tinta-suave hover:border-acento/40 hover:bg-acento/[0.05] hover:text-acento'
                           }`}
                         >
-                          <Icono nombre={m.icono} size={20} />
+                          <Icono nombre={m.icono} size={22} />
                           {m.label}
                         </button>
                       ))}
                     </div>
-                  </>
-                )}
-
-                {/* Descuento */}
-                <span className="mb-2 text-sm font-medium text-tinta-suave">Descuento</span>
-                <div className="mb-2 flex flex-wrap gap-2">
-                  {[0, 10, 15, 20].map((p) => {
-                    const monto = p === 0 ? 0 : Math.round(subtotal * p) / 100
-                    const activo = descClamp === monto && (p !== 0 || descClamp === 0)
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setDescuento(monto)}
-                        className={`rounded-md border px-3 py-1 text-sm font-semibold transition ${
-                          activo
-                            ? 'border-acento bg-acento text-white'
-                            : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
-                        }`}
-                      >
-                        {p === 0 ? 'Sin' : `${p}%`}
-                      </button>
-                    )
-                  })}
-                  <div className="flex items-center gap-1">
-                    <span className="text-sm text-tinta-suave">$</span>
-                    <input
-                      type="number"
-                      value={descuento || ''}
-                      onChange={(e) => setDescuento(Math.max(0, Number(e.target.value) || 0))}
-                      placeholder="Otro"
-                      className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
-                    />
-                  </div>
-                </div>
-                {descClamp > 0 && (
-                  <div className="mb-3 flex justify-between rounded-md bg-black/[0.03] px-3 py-2 text-sm">
-                    <span className="text-tinta-suave">Descuento</span>
-                    <span className="font-semibold text-tinta">−{pesos(descClamp)}</span>
                   </div>
                 )}
 
-                {/* Propina (no aplica a crédito/fiado) */}
-                {metodo !== 'credito' && (
-                  <>
-                    <span className="mb-2 text-sm font-medium text-tinta-suave">Propina</span>
-                    <div className="mb-3 flex flex-wrap gap-2">
-                      {[0, 5, 10, 15].map((p) => {
-                        const monto = p === 0 ? 0 : Math.round(imp.total * p) / 100
-                        const activo =
-                          Math.abs(propina - monto) < 0.01 && (p !== 0 || propina === 0)
+                {/* Descuento (colapsable con transición suave) */}
+                <div className="mb-3">
+                  <BotonColapsable
+                    label="Descuento"
+                    abierto={verDescuento}
+                    onToggle={() => setVerDescuento((v) => !v)}
+                    badge={descClamp > 0 ? `−${pesos(descClamp)}` : undefined}
+                  />
+                  <Colapsable abierto={verDescuento}>
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      {[0, 10, 15, 20].map((p) => {
+                        const monto = p === 0 ? 0 : Math.round(subtotal * p) / 100
+                        const activo = descClamp === monto && (p !== 0 || descClamp === 0)
                         return (
-                          <button
-                            key={p}
-                            onClick={() => setPropinaTexto(monto ? String(monto) : '')}
-                            className={`rounded-md border px-3 py-1 text-sm font-semibold transition ${
-                              activo
-                                ? 'border-acento bg-acento text-white'
-                                : 'border-black/[0.06] text-tinta-suave hover:border-black/20'
-                            }`}
-                          >
+                          <button key={p} onClick={() => setDescuento(monto)} className={pill(activo)}>
                             {p === 0 ? 'Sin' : `${p}%`}
                           </button>
                         )
                       })}
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 rounded-lg border border-black/[0.08] px-2 focus-within:border-acento">
                         <span className="text-sm text-tinta-suave">$</span>
                         <input
                           type="number"
-                          value={propinaTexto}
-                          onChange={(e) => setPropinaTexto(e.target.value)}
-                          placeholder="Otra"
-                          className="w-20 rounded-md border border-black/10 px-2 py-1 text-right text-sm outline-none focus:border-acento"
+                          value={descuento || ''}
+                          onChange={(e) => setDescuento(Math.max(0, Number(e.target.value) || 0))}
+                          placeholder="Otro"
+                          className="w-16 bg-transparent py-1.5 text-right text-sm outline-none"
                         />
                       </div>
                     </div>
-                  </>
+                  </Colapsable>
+                </div>
+
+                {/* Propina (colapsable; no aplica a crédito/fiado) */}
+                {metodo !== 'credito' && (
+                  <div className="mb-3">
+                    <BotonColapsable
+                      label="Propina"
+                      abierto={verPropina}
+                      onToggle={() => setVerPropina((v) => !v)}
+                      badge={propina > 0 ? `+${pesos(propina)}` : undefined}
+                    />
+                    <Colapsable abierto={verPropina}>
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        {[0, 5, 10, 15].map((p) => {
+                          const monto = p === 0 ? 0 : Math.round(imp.total * p) / 100
+                          const activo = Math.abs(propina - monto) < 0.01 && (p !== 0 || propina === 0)
+                          return (
+                            <button
+                              key={p}
+                              onClick={() => setPropinaTexto(monto ? String(monto) : '')}
+                              className={pill(activo)}
+                            >
+                              {p === 0 ? 'Sin' : `${p}%`}
+                            </button>
+                          )
+                        })}
+                        <div className="flex items-center gap-1 rounded-lg border border-black/[0.08] px-2 focus-within:border-acento">
+                          <span className="text-sm text-tinta-suave">$</span>
+                          <input
+                            type="number"
+                            value={propinaTexto}
+                            onChange={(e) => setPropinaTexto(e.target.value)}
+                            placeholder="Otra"
+                            className="w-16 bg-transparent py-1.5 text-right text-sm outline-none"
+                          />
+                        </div>
+                      </div>
+                    </Colapsable>
+                  </div>
                 )}
 
+                {/* Nota del ticket (colapsable): texto libre que se imprime */}
+                <div className="mb-3">
+                  <BotonColapsable
+                    label="Nota del ticket"
+                    abierto={verNota}
+                    onToggle={() => setVerNota((v) => !v)}
+                    badge={notaTicket.trim() ? 'nota' : undefined}
+                  />
+                  <Colapsable abierto={verNota}>
+                    <textarea
+                      value={notaTicket}
+                      onChange={(e) => setNotaTicket(e.target.value)}
+                      onBlur={() => {
+                        if (orden && (orden.nota ?? '') !== notaTicket.trim())
+                          void cambiarNotaOrden(orden.id, notaTicket)
+                      }}
+                      rows={2}
+                      maxLength={120}
+                      placeholder="Ej. Para Juan · sin picante · dirección…"
+                      className="mt-2 w-full resize-y rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+                    />
+                  </Colapsable>
+                </div>
+
                 {metodo === 'efectivo' && !restaurante && (
-                  <>
-                    <span className="mb-2 text-sm font-medium text-tinta-suave">Monto recibido</span>
+                  <div className="mb-4 animar-fundido">
+                    <Etiqueta>Monto recibido</Etiqueta>
                     <input
                       type="number"
                       value={recibidoTexto}
                       onChange={(e) => setRecibidoTexto(e.target.value)}
                       placeholder="0.00"
-                      className="mb-2 w-full rounded-lg border border-black/10 px-3 py-2 text-right text-lg font-semibold outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+                      className="mb-2 w-full rounded-xl border border-black/10 px-3 py-2.5 text-right text-lg font-bold outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                     />
-                    <div className="mb-3 flex flex-wrap gap-2">
+                    <div className="mb-2 flex flex-wrap gap-2">
                       {RAPIDOS.map((v) => (
                         <button
                           key={v}
                           onClick={() => setRecibidoTexto(String(v))}
-                          className="rounded-lg bg-black/[0.05] px-3 py-1 text-sm font-semibold text-tinta-suave hover:bg-black/[0.08]"
+                          className="rounded-lg border border-black/[0.06] bg-black/[0.02] px-3.5 py-2 text-sm font-semibold text-tinta-suave transition-colors hover:border-acento/40 hover:bg-acento/[0.05] hover:text-acento"
                         >
                           ${v}
                         </button>
                       ))}
                       <button
-                        onClick={() => setRecibidoTexto(String(neto))}
-                        className="rounded-lg bg-black/[0.05] px-3 py-1 text-sm font-semibold text-tinta-suave hover:bg-black/[0.08]"
+                        onClick={() => setRecibidoTexto(String(netoACobrar))}
+                        className="rounded-lg border border-acento/30 bg-acento/[0.08] px-3.5 py-2 text-sm font-bold text-acento transition-colors hover:bg-acento/15"
                       >
                         Exacto
                       </button>
                     </div>
-                    <div className="mb-4 flex justify-between rounded-lg bg-black/[0.03] px-4 py-3">
+                    <div className="flex items-center justify-between rounded-xl bg-black/[0.03] px-4 py-3">
                       <span className="font-semibold text-tinta-suave">Cambio</span>
                       <span
-                        className={`text-xl font-bold ${cambio < 0 ? 'text-red-600' : 'text-tinta'}`}
+                        className={`text-xl font-bold tabular-nums ${cambio < 0 ? 'text-red-600' : 'text-tinta'}`}
                       >
                         {pesos(Math.max(0, cambio))}
                       </span>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {metodo === 'mixto' && (
-                  <>
-                    <span className="mb-2 text-sm font-medium text-tinta-suave">Reparte el pago</span>
-                    <div className="mb-2 flex flex-col gap-2">
+                  <div className="mb-4 animar-fundido">
+                    <Etiqueta>Reparte el pago</Etiqueta>
+                    <div className="flex flex-col gap-2">
                       {METODOS.map((m) => (
                         <div key={m.id} className="flex items-center gap-2">
-                          <span className="flex w-24 items-center gap-1.5 text-sm text-tinta-suave">
+                          <span className="flex w-28 shrink-0 items-center gap-1.5 text-sm text-tinta-suave">
                             <Icono nombre={m.icono} size={15} />
                             {m.label}
                           </span>
-                          <span className="text-sm text-tinta-suave">$</span>
-                          <input
-                            type="number"
-                            value={mixto[m.id]}
-                            onChange={(e) => setMixto((s) => ({ ...s, [m.id]: e.target.value }))}
-                            placeholder="0.00"
-                            className="w-24 flex-1 rounded-md border border-black/10 px-2 py-1.5 text-right text-sm outline-none focus:border-acento"
-                          />
+                          <div className="flex flex-1 items-center gap-1 rounded-lg border border-black/[0.08] px-2 focus-within:border-acento">
+                            <span className="text-sm text-tinta-suave">$</span>
+                            <input
+                              type="number"
+                              value={mixto[m.id]}
+                              onChange={(e) => setMixto((s) => ({ ...s, [m.id]: e.target.value }))}
+                              placeholder="0.00"
+                              className="w-full bg-transparent py-1.5 text-right text-sm outline-none"
+                            />
+                          </div>
                           <button
                             type="button"
                             onClick={() => ponerResto(m.id)}
-                            className="rounded-md border border-black/[0.06] px-2 py-1 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+                            className="rounded-lg border border-black/[0.06] bg-black/[0.02] px-2.5 py-1.5 text-xs font-semibold text-tinta-suave transition-colors hover:border-acento/40 hover:bg-acento/[0.05] hover:text-acento"
                             title="Asignar lo que falta a este método"
                           >
                             resto
@@ -623,54 +801,52 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                         </div>
                       ))}
                     </div>
-                    <div className="mb-4 flex justify-between rounded-lg bg-black/[0.03] px-4 py-3">
+                    <div className="mt-2 flex items-center justify-between rounded-xl bg-black/[0.03] px-4 py-3">
                       <span className="font-semibold text-tinta-suave">
                         {restante > 0 ? 'Falta' : restante < 0 ? 'Sobra' : 'Restante'}
                       </span>
                       <span
-                        className={`text-xl font-bold ${
+                        className={`text-xl font-bold tabular-nums ${
                           Math.abs(restante) < 0.01 ? 'text-acento' : 'text-red-600'
                         }`}
                       >
                         {pesos(Math.abs(restante))}
                       </span>
                     </div>
-                  </>
+                  </div>
                 )}
 
                 {metodo === 'credito' && (
-                  <>
-                    <span className="mb-2 text-sm font-medium text-tinta-suave">Cliente</span>
+                  <div className="mb-4 animar-fundido">
+                    <Etiqueta>Cliente</Etiqueta>
                     {clientes.length === 0 ? (
-                      <p className="mb-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
                         No hay clientes registrados. Crea uno en la sección Clientes.
                       </p>
                     ) : (
-                      <select
-                        value={clienteSel ?? ''}
-                        onChange={(e) => setClienteSel(e.target.value ? Number(e.target.value) : null)}
-                        className="mb-3 w-full rounded-lg border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento"
-                      >
-                        <option value="">Selecciona un cliente…</option>
-                        {clientes.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.nombre}
-                            {c.saldo > 0 ? ` · debe ${pesos(c.saldo)}` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <Select<number>
+                        className="w-full"
+                        valor={clienteSel ?? 0}
+                        onChange={(id) => setClienteSel(id || null)}
+                        placeholder="Selecciona un cliente…"
+                        opciones={clientes.map((c) => ({
+                          valor: c.id,
+                          label: `${c.nombre}${c.saldo > 0 ? ` · debe ${pesos(c.saldo)}` : ''}`
+                        }))}
+                      />
                     )}
-                    <div className="mb-4 rounded-lg bg-black/[0.03] px-4 py-3 text-sm text-tinta-suave">
+                    <div className="mt-2 rounded-xl bg-black/[0.03] px-4 py-3 text-sm text-tinta-suave">
                       Se cargará <strong className="text-tinta">{pesos(neto)}</strong> a la cuenta
                       del cliente.
                     </div>
-                  </>
+                  </div>
                 )}
+                </div>
 
                 <button
                   onClick={confirmar}
                   disabled={noPuedeCobrar}
-                  className="mt-auto w-full rounded-md bg-acento py-3 font-bold text-white transition enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
+                  className="mt-4 w-full shrink-0 rounded-xl bg-acento py-3.5 text-base font-bold text-white shadow-sm transition-colors enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
                 >
                   {efectivoInsuficiente
                     ? 'Monto insuficiente'
@@ -683,9 +859,11 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
                           ? 'Selecciona un cliente'
                           : `Fiar ${pesos(neto)}`
                         : restaurante
-                          ? `Cobrar e imprimir ${pesos(neto)}`
-                          : `Cobrar ${pesos(neto)}`}
+                          ? `Cobrar e imprimir ${pesos(netoACobrar)}`
+                          : `Cobrar ${pesos(netoACobrar)}`}
                 </button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -703,14 +881,14 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
           <>
             <button
               onClick={reimprimirCopia}
-              className="flex items-center gap-1.5 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-neutro"
             >
               <Icono nombre="imprimir" size={15} />
               Reimprimir copia
             </button>
             <button
               onClick={() => setNotaAbierto(true)}
-              className="flex items-center gap-1.5 rounded-md border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-neutro"
             >
               <Icono nombre="recibo" size={15} />
               Nota de venta
@@ -718,7 +896,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
             <button
               onClick={finalizar}
               disabled={procesando}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-primario disabled:cursor-not-allowed disabled:opacity-60"
             >
               {procesando ? 'Procesando…' : 'Listo'}
             </button>
@@ -748,7 +926,7 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
         pie={
           <button
             onClick={() => setTicketCocina(null)}
-            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            className="btn-primario"
           >
             Listo
           </button>

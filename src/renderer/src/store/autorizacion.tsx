@@ -88,10 +88,11 @@ export function ProveedorAutorizacion({ children }: { children: ReactNode }): Re
         <input
           type="password"
           inputMode="numeric"
+          maxLength={4}
           value={pin}
           autoFocus
           onChange={(e) => {
-            setPin(e.target.value)
+            setPin(e.target.value.replace(/\D/g, '').slice(0, 4))
             setError(false)
           }}
           onKeyDown={(e) => e.key === 'Enter' && pin && void confirmar()}

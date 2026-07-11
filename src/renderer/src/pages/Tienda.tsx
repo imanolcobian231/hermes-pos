@@ -1,22 +1,27 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { Producto } from '@shared/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { DetalleOrden, Producto } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
 import { pesos, capitalizar } from '@renderer/lib/format'
 import { SelectorModificadores } from '@renderer/components/SelectorModificadores'
 import { CuadriculaVirtual } from '@renderer/components/CuadriculaVirtual'
 import { CantidadEditable } from '@renderer/components/CantidadEditable'
 import { TicketsRecientes } from '@renderer/components/TicketsRecientes'
+import { DescuentoLineaDialog } from '@renderer/components/DescuentoLineaDialog'
 import { Icono } from '@renderer/components/Icono'
 
 interface Props {
   /** Pasa al cobro la orden del carrito. */
   onCobrar: (ordenId: number) => void
+  /** Producto llegado por escaneo global (App lo detecta desde cualquier pantalla). */
+  escaneado?: { producto: Producto; nonce: number } | null
+  /** Aviso a App de que ya se consumió el escaneo (para limpiarlo). */
+  onEscaneoConsumido?: () => void
 }
 
 // Venta rápida (modo tiendita): se tocan productos para armar un carrito y se
 // cobra directo. El "carrito" es una orden para llevar viva; tocar un producto
 // lo agrega (agrupa cantidades). No hay mesas ni envío a cocina.
-export function Tienda({ onCobrar }: Props): React.JSX.Element {
+export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): React.JSX.Element {
   const {
     categorias,
     productos,
@@ -25,9 +30,12 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
     abrirOrdenLlevar,
     agregarProducto,
     cambiarCantidad,
+    descontarLinea,
     quitarLinea,
     marcarPorCobrar
   } = useDatos()
+  // Línea seleccionada para aplicarle un descuento (abre el diálogo).
+  const [descLinea, setDescLinea] = useState<DetalleOrden | null>(null)
 
   const categoriasOrdenadas = useMemo(
     () => categorias.slice().sort((a, b) => a.orden - b.orden),
@@ -66,6 +74,17 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
     if (p.grupos && p.grupos.length > 0) setModProducto(p)
     else void agregar(p)
   }
+
+  // Producto llegado por escaneo global (App lo detecta desde cualquier pantalla
+  // y navega aquí). El nonce evita re-procesar el mismo escaneo (incl. StrictMode).
+  const ultimoScan = useRef<number | null>(null)
+  useEffect(() => {
+    if (!escaneado || escaneado.nonce === ultimoScan.current) return
+    ultimoScan.current = escaneado.nonce
+    setBusqueda('')
+    tocarProducto(escaneado.producto)
+    onEscaneoConsumido?.()
+  }, [escaneado?.nonce])
 
   const cobrar = async (): Promise<void> => {
     if (ordenId == null || !orden || orden.detalle.length === 0) return
@@ -171,7 +190,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
       </section>
 
       {/* Carrito */}
-      <aside className="flex w-96 flex-col rounded-lg border border-black/[0.06] bg-white">
+      <aside className="flex w-96 flex-col rounded-2xl border border-black/[0.06] bg-white shadow-sm">
         <header className="flex items-center justify-between gap-2 border-b border-black/[0.04] px-5 py-3">
           <div>
             <h2 className="text-lg font-bold text-tinta">Venta</h2>
@@ -179,7 +198,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
           </div>
           <button
             onClick={() => setVerTickets(true)}
-            className="flex shrink-0 items-center gap-1.5 rounded-md border border-black/10 px-3 py-1.5 text-xs font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            className="flex shrink-0 items-center gap-1.5 rounded-full border border-acento/20 bg-acento/[0.06] px-3.5 py-2 text-xs font-semibold text-acento transition hover:border-acento/40 hover:bg-acento/10 active:scale-95"
             title="Reimprimir tickets de venta del turno"
           >
             <Icono nombre="recibo" size={15} />
@@ -194,7 +213,7 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
             orden.detalle.map((d) => (
               <div
                 key={d.id}
-                className="flex items-start gap-2 rounded-lg px-2 py-2 hover:bg-black/[0.03]"
+                className="flex items-start gap-1 rounded-lg px-2 py-2 hover:bg-black/[0.03]"
               >
                 <div className="min-w-0 flex-1">
                   <span className="font-medium text-tinta">{d.nombreProducto}</span>
@@ -205,10 +224,10 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
                     </div>
                   ))}
                 </div>
-                <div className="flex items-center gap-1.5">
+                <div className="flex shrink-0 items-center gap-1">
                   <button
                     onClick={() => cambiarCantidad(orden.id, d.id, -1)}
-                    className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
+                    className="h-9 w-9 shrink-0 rounded-md bg-black/[0.05] text-base font-bold text-tinta-suave hover:bg-black/[0.08]"
                   >
                     −
                   </button>
@@ -221,21 +240,47 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
                   />
                   <button
                     onClick={() => cambiarCantidad(orden.id, d.id, +1)}
-                    className="h-10 w-10 rounded-md bg-black/[0.05] text-lg font-bold text-tinta-suave hover:bg-black/[0.08]"
+                    className="h-9 w-9 shrink-0 rounded-md bg-black/[0.05] text-base font-bold text-tinta-suave hover:bg-black/[0.08]"
                   >
                     +
                   </button>
                 </div>
-                <span className="w-20 shrink-0 whitespace-nowrap pt-1 text-right font-semibold tabular-nums text-tinta">
-                  {pesos(d.cantidad * d.precioUnitario)}
+                <span className="w-16 shrink-0 whitespace-nowrap pt-0.5 text-right text-sm tabular-nums">
+                  {d.descuento > 0 ? (
+                    <>
+                      <span className="block text-[10px] font-normal text-tinta-suave line-through">
+                        {pesos(d.cantidad * d.precioUnitario)}
+                      </span>
+                      <span className="font-semibold text-tinta">
+                        {pesos(d.cantidad * d.precioUnitario - d.descuento)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className="font-semibold text-tinta">
+                      {pesos(d.cantidad * d.precioUnitario)}
+                    </span>
+                  )}
                 </span>
-                <button
-                  onClick={() => quitarLinea(orden.id, d.id)}
-                  title="Quitar"
-                  className="mt-0.5 rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
-                >
-                  <Icono nombre="eliminar" size={15} />
-                </button>
+                <div className="mt-0.5 flex shrink-0 flex-col">
+                  <button
+                    onClick={() => setDescLinea(d)}
+                    title="Descuento"
+                    className={`rounded-md p-1 ${
+                      d.descuento > 0
+                        ? 'text-acento'
+                        : 'text-tinta-suave hover:bg-black/[0.05] hover:text-tinta'
+                    }`}
+                  >
+                    <Icono nombre="gasto" size={15} />
+                  </button>
+                  <button
+                    onClick={() => quitarLinea(orden.id, d.id)}
+                    title="Quitar"
+                    className="rounded-md p-1 text-tinta-suave hover:bg-red-50 hover:text-red-600"
+                  >
+                    <Icono nombre="eliminar" size={15} />
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -273,6 +318,15 @@ export function Tienda({ onCobrar }: Props): React.JSX.Element {
         tickets={cobradas}
         vacio="Aún no hay ventas en el turno."
         onCerrar={() => setVerTickets(false)}
+      />
+
+      <DescuentoLineaDialog
+        linea={descLinea}
+        onCerrar={() => setDescLinea(null)}
+        onAplicar={(monto) => {
+          if (descLinea) void descontarLinea(descLinea.id, monto)
+          setDescLinea(null)
+        }}
       />
     </div>
   )

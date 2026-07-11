@@ -4,6 +4,8 @@ import { Modal } from '@renderer/components/Modal'
 import { ConfirmDialog } from '@renderer/components/ConfirmDialog'
 import { useToast } from '@renderer/components/Toast'
 import { Icono } from '@renderer/components/Icono'
+import { EncabezadoPagina } from '@renderer/components/Pagina'
+import { Select } from '@renderer/components/Select'
 
 const ETIQUETA_ROL: Record<Rol, string> = {
   admin: 'Administrador',
@@ -56,20 +58,16 @@ export function Usuarios(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-tinta">Usuarios</h1>
-          <p className="text-sm text-tinta-suave">Cajeros y administradores · acceso por PIN</p>
-        </div>
+      <EncabezadoPagina titulo="Usuarios" subtitulo="Cajeros y administradores · acceso por PIN">
         <button
           onClick={() => setEditando({ nombre: '', rol: 'cajero', pin: '' })}
-          className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+          className="btn-primario"
         >
           + Nuevo usuario
         </button>
-      </header>
+      </EncabezadoPagina>
 
-      <div className="overflow-hidden rounded-xl border border-black/[0.06] bg-white">
+      <div className="overflow-hidden rounded-2xl border border-black/[0.06] bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead className="bg-black/[0.03] text-left text-xs uppercase text-tinta-suave">
             <tr>
@@ -125,13 +123,13 @@ export function Usuarios(): React.JSX.Element {
           <>
             <button
               onClick={() => setEditando(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
             <button
               onClick={guardar}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Guardar
             </button>
@@ -143,28 +141,29 @@ export function Usuarios(): React.JSX.Element {
             <Campo label="Nombre">
               <input
                 value={editando.nombre}
+                maxLength={40}
                 onChange={(e) => setEditando({ ...editando, nombre: e.target.value })}
                 className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
               />
             </Campo>
             <Campo label="Rol">
-              <select
-                value={editando.rol}
-                onChange={(e) => setEditando({ ...editando, rol: e.target.value as Rol })}
-                className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
-              >
-                <option value="cajero">Cajero</option>
-                <option value="mesero">Mesero</option>
-                <option value="admin">Administrador</option>
-              </select>
+              <Select<Rol>
+                valor={editando.rol}
+                onChange={(rol) => setEditando({ ...editando, rol })}
+                opciones={[
+                  { valor: 'cajero', label: 'Cajero' },
+                  { valor: 'mesero', label: 'Mesero' },
+                  { valor: 'admin', label: 'Administrador' }
+                ]}
+              />
             </Campo>
             <Campo label={editando.id ? 'PIN (dejar vacío para no cambiar)' : 'PIN (4 dígitos)'}>
               <input
                 inputMode="numeric"
-                maxLength={6}
+                maxLength={4}
                 value={editando.pin ?? ''}
                 onChange={(e) =>
-                  setEditando({ ...editando, pin: e.target.value.replace(/\D/g, '') })
+                  setEditando({ ...editando, pin: e.target.value.replace(/\D/g, '').slice(0, 4) })
                 }
                 placeholder="••••"
                 className="w-full rounded-lg border border-black/10 px-3 py-2 tracking-widest outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"

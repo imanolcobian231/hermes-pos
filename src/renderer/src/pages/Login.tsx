@@ -59,7 +59,7 @@ function InicioSesion(): React.JSX.Element {
 
   const teclear = (d: string): void => {
     setError(false)
-    setPin((p) => (p.length >= 6 ? p : p + d))
+    setPin((p) => (p.length >= 4 ? p : p + d))
   }
 
   const intentar = async (pinFinal: string): Promise<void> => {

@@ -5,6 +5,7 @@ import { pesos, fechaHora } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { useToast } from '@renderer/components/Toast'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
+import { EncabezadoPagina, EstadoVacio } from '@renderer/components/Pagina'
 
 const METODOS: { id: MetodoPago; label: string; icono: NombreIcono }[] = [
   { id: 'efectivo', label: 'Efectivo', icono: 'efectivo' },
@@ -38,34 +39,32 @@ export function Clientes(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="mb-5 flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-tinta">Clientes</h1>
-          <p className="text-sm text-tinta-suave">
-            Cuentas de crédito (fiados) · por cobrar <strong>{pesos(totalPorCobrar)}</strong>
-          </p>
-        </div>
+      <EncabezadoPagina
+        titulo="Clientes"
+        subtitulo={`Cuentas de crédito (fiados) · por cobrar ${pesos(totalPorCobrar)}`}
+      >
         <button
           onClick={() => setForm({ nombre: '', telefono: '', nota: '' })}
-          className="flex items-center gap-2 rounded-lg bg-acento px-4 py-2.5 font-semibold text-white hover:bg-acento-hover"
+          className="btn-primario"
         >
           <Icono nombre="mas" size={16} />
           Nuevo cliente
         </button>
-      </header>
+      </EncabezadoPagina>
 
       {clientes.length === 0 ? (
-        <div className="flex flex-1 flex-col items-center justify-center text-tinta-suave">
-          <Icono nombre="usuarios" size={40} className="text-tinta-suave/60" />
-          <p className="mt-3 font-semibold">No hay clientes con crédito</p>
-        </div>
+        <EstadoVacio
+          icono="usuarios"
+          titulo="No hay clientes con crédito"
+          descripcion="Da de alta un cliente para llevar sus fiados y abonos."
+        />
       ) : (
         <div className="grid gap-3 overflow-auto pb-4 sm:grid-cols-2 lg:grid-cols-3">
           {clientes.map((c) => (
             <button
               key={c.id}
               onClick={() => setDetalleId(c.id)}
-              className="flex flex-col rounded-xl border border-black/[0.06] bg-white p-4 text-left hover:border-black/20"
+              className="flex flex-col rounded-2xl border border-black/[0.06] bg-white p-4 text-left shadow-sm transition hover:border-black/20 hover:shadow"
             >
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-tinta">{c.nombre}</span>
@@ -92,13 +91,13 @@ export function Clientes(): React.JSX.Element {
           <>
             <button
               onClick={() => setForm(null)}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+              className="btn-texto"
             >
               Cancelar
             </button>
             <button
               onClick={() => void guardar()}
-              className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+              className="btn-primario"
             >
               Guardar
             </button>
@@ -112,6 +111,7 @@ export function Clientes(): React.JSX.Element {
               valor={form.nombre}
               onChange={(v) => setForm({ ...form, nombre: v })}
               placeholder="Ej. Don Beto"
+              maxLength={40}
               autoFocus
             />
             <Campo
@@ -119,12 +119,14 @@ export function Clientes(): React.JSX.Element {
               valor={form.telefono ?? ''}
               onChange={(v) => setForm({ ...form, telefono: v })}
               placeholder="Ej. 55 1234 5678"
+              maxLength={20}
             />
             <Campo
               label="Nota (opcional)"
               valor={form.nota ?? ''}
               onChange={(v) => setForm({ ...form, nota: v })}
               placeholder="Ej. vecino de la esquina"
+              maxLength={80}
             />
           </div>
         )}
@@ -209,13 +211,13 @@ function DetalleCliente({
           </button>
           <button
             onClick={() => onEditar(cliente)}
-            className="rounded-lg border border-black/10 px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
+            className="btn-neutro"
           >
             Editar
           </button>
           <button
             onClick={onCerrar}
-            className="rounded-lg bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
+            className="btn-primario"
           >
             Listo
           </button>
@@ -307,13 +309,15 @@ function Campo({
   valor,
   onChange,
   placeholder,
-  autoFocus
+  autoFocus,
+  maxLength
 }: {
   label: string
   valor: string
   onChange: (v: string) => void
   placeholder?: string
   autoFocus?: boolean
+  maxLength?: number
 }): React.JSX.Element {
   return (
     <div>
@@ -323,6 +327,7 @@ function Campo({
         value={valor}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        maxLength={maxLength}
         className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
       />
     </div>

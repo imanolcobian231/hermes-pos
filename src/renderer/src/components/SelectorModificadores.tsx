@@ -49,16 +49,13 @@ export function SelectorModificadores({ producto, onConfirmar, onCerrar }: Props
       onCerrar={onCerrar}
       pie={
         <>
-          <button
-            onClick={onCerrar}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-tinta-suave hover:bg-black/[0.05]"
-          >
+          <button onClick={onCerrar} className="btn-texto">
             Cancelar
           </button>
           <button
             onClick={() => onConfirmar(idsSeleccionados)}
             disabled={faltanObligatorios}
-            className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white enabled:hover:bg-acento-hover disabled:cursor-not-allowed disabled:bg-black/10 disabled:text-tinta-suave/50"
+            className="btn-primario"
           >
             Agregar · {pesos(producto.precio + extra)}
           </button>

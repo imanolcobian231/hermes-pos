@@ -1,4 +1,5 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { Icono } from '@renderer/components/Icono'
 
 interface Props {
@@ -30,14 +31,20 @@ export function Modal({
 
   if (!abierto) return null
 
-  return (
+  // Portal a document.body: si el modal se renderiza dentro de un ancestro con
+  // `transform` (p. ej. la animación de la vista), el `fixed inset-0` se limita a
+  // ese contenedor y solo oscurece una parte. En el body cubre toda la pantalla.
+  return createPortal(
     <div
       className="animar-fundido fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={onCerrar}
+      // Cerrar solo si el clic EMPIEZA en el fondo (no al arrastrar/seleccionar
+      // dentro del panel y soltar aquí, que dispararía un click en el overlay).
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onCerrar()
+      }}
     >
       <div
-        className={`animar-modal w-full ${ancho} rounded-lg border border-black/[0.06] bg-white shadow-xl`}
-        onClick={(e) => e.stopPropagation()}
+        className={`animar-modal w-full ${ancho} overflow-hidden rounded-2xl bg-white shadow-2xl`}
       >
         <header className="flex items-center justify-between border-b border-black/[0.06] px-5 py-4">
           <h2 className="text-base font-semibold text-tinta">{titulo}</h2>
@@ -56,6 +63,7 @@ export function Modal({
           </footer>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -53,7 +53,7 @@ export function generar(desde: string, hasta: string): ReporteVentas {
     .prepare(
       `SELECT d.nombre_producto AS nombre,
               SUM(d.cantidad) AS cantidad,
-              SUM(d.cantidad * d.precio_unitario) AS importe
+              SUM(d.cantidad * d.precio_unitario - d.descuento) AS importe
        FROM detalle_ordenes d JOIN ordenes o ON o.id = d.orden_id
        WHERE ${filtro}
        GROUP BY d.nombre_producto ORDER BY cantidad DESC, importe DESC LIMIT ?`
@@ -61,11 +61,11 @@ export function generar(desde: string, hasta: string): ReporteVentas {
     .all(...rango, TOP) as ProductoVendido[]
 
   // Utilidad: ingreso de productos − descuentos − costo (costo actual del producto).
-  // El ingreso sale de las líneas a precio completo, así que hay que restar el
-  // descuento (que se aplica a nivel de orden) para no inflar la utilidad.
+  // El ingreso ya resta el descuento por línea (producto); abajo se resta también
+  // el descuento a nivel de orden (desc.d) para no inflar la utilidad.
   const util = db
     .prepare(
-      `SELECT COALESCE(SUM(d.cantidad * d.precio_unitario), 0) AS ingreso,
+      `SELECT COALESCE(SUM(d.cantidad * d.precio_unitario - d.descuento), 0) AS ingreso,
               COALESCE(SUM(d.cantidad * COALESCE(pr.costo, 0)), 0) AS costo
        FROM detalle_ordenes d
        JOIN ordenes o ON o.id = d.orden_id

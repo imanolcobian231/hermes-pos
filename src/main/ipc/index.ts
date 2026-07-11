@@ -77,6 +77,10 @@ export function registrarIpc(): void {
   ipcMain.handle(CANALES.catalogo.guardarProducto, (_e, prod: ProductoInput) =>
     catalogo.guardarProducto(prod)
   )
+  ipcMain.handle(CANALES.catalogo.comboItems, (_e, comboId: number) =>
+    catalogo.comboItems(comboId)
+  )
+  ipcMain.handle(CANALES.catalogo.receta, (_e, productoId: number) => catalogo.receta(productoId))
   ipcMain.handle(CANALES.catalogo.eliminarProducto, (_e, id: number) =>
     catalogo.eliminarProducto(id)
   )
@@ -119,6 +123,12 @@ export function registrarIpc(): void {
   )
   ipcMain.handle(CANALES.ordenes.cambiarNota, (_e, ordenId: number, detalleId: number, nota: string) =>
     ordenes.cambiarNota(ordenId, detalleId, nota)
+  )
+  ipcMain.handle(CANALES.ordenes.notaOrden, (_e, ordenId: number, nota: string) =>
+    ordenes.fijarNotaOrden(ordenId, nota)
+  )
+  ipcMain.handle(CANALES.ordenes.descontarLinea, (_e, detalleId: number, descuento: number) =>
+    ordenes.fijarDescuentoLinea(detalleId, descuento)
   )
   ipcMain.handle(CANALES.ordenes.quitarLinea, (_e, ordenId: number, detalleId: number) =>
     ordenes.quitarLinea(ordenId, detalleId)

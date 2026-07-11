@@ -29,8 +29,8 @@ export function GestorModificadores(): React.JSX.Element {
   return (
     <div className="flex-1 overflow-auto">
       <p className="mb-4 text-sm text-tinta-suave">
-        Crea grupos reutilizables (ej. “Término”, “Salsas”, “Extras”) y asígnalos a los productos
-        desde la pestaña Productos.
+        Crea grupos reutilizables (ej. “Término”, “Salsas”, “Extras”) y aplícalos a los productos
+        aquí mismo (en cada grupo, “Aplicar a productos”) o desde el editor de cada producto.
       </p>
 
       {/* Alta de grupo */}
@@ -43,10 +43,7 @@ export function GestorModificadores(): React.JSX.Element {
             placeholder="Nuevo grupo (ej. Salsas)"
             className="flex-1 rounded-md border border-black/10 px-3 py-2 text-sm outline-none focus:border-acento"
           />
-          <button
-            onClick={crear}
-            className="rounded-md bg-acento px-4 py-2 text-sm font-semibold text-white hover:bg-acento-hover"
-          >
+          <button onClick={crear} className="btn-primario">
             Crear grupo
           </button>
         </div>
@@ -75,10 +72,25 @@ export function GestorModificadores(): React.JSX.Element {
 }
 
 function GrupoCard({ grupo, usos }: { grupo: GrupoModificador; usos: number }): React.JSX.Element {
-  const { guardarGrupo, eliminarGrupo, guardarModificador, eliminarModificador } = useDatos()
+  const {
+    productos,
+    guardarGrupo,
+    eliminarGrupo,
+    guardarModificador,
+    eliminarModificador,
+    asignarGrupo,
+    desasignarGrupo
+  } = useDatos()
   const [nombre, setNombre] = useState('')
   const [precio, setPrecio] = useState('')
   const [aEliminar, setAEliminar] = useState(false)
+  const [asignar, setAsignar] = useState(false)
+  const [busca, setBusca] = useState('')
+
+  const termino = busca.trim().toLowerCase()
+  const productosFiltrados = termino
+    ? productos.filter((p) => p.nombre.toLowerCase().includes(termino))
+    : productos
 
   const agregar = async (): Promise<void> => {
     const n = nombre.trim()
@@ -177,6 +189,50 @@ function GrupoCard({ grupo, usos }: { grupo: GrupoModificador; usos: number }): 
         >
           +
         </button>
+      </div>
+
+      {/* Aplicar el grupo a productos (asignación desde el lado del grupo). */}
+      <div className="mt-3 border-t border-black/[0.04] pt-3">
+        <button
+          onClick={() => setAsignar((v) => !v)}
+          className="flex w-full items-center justify-between text-xs font-semibold text-tinta-suave transition hover:text-tinta"
+        >
+          <span>Aplicar a productos ({usos})</span>
+          <Icono nombre="volver" size={12} className={asignar ? '-rotate-90' : 'rotate-180'} />
+        </button>
+        {asignar && (
+          <div className="mt-2">
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar producto…"
+              className="mb-1 w-full rounded-md border border-black/10 px-2 py-1 text-sm outline-none focus:border-acento"
+            />
+            <div className="flex max-h-48 flex-col gap-0.5 overflow-auto">
+              {productosFiltrados.map((p) => {
+                const marcado = (p.grupos ?? []).some((g) => g.id === grupo.id)
+                return (
+                  <label
+                    key={p.id}
+                    className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-black/[0.03]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={marcado}
+                      onChange={() =>
+                        marcado ? desasignarGrupo(p.id, grupo.id) : asignarGrupo(p.id, grupo.id)
+                      }
+                    />
+                    <span className="text-tinta">{p.nombre}</span>
+                  </label>
+                )
+              })}
+              {productosFiltrados.length === 0 && (
+                <span className="px-2 py-1 text-xs text-tinta-suave">Sin productos.</span>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
