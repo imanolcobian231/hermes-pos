@@ -335,20 +335,16 @@ function PanelProductos(): React.JSX.Element {
                         <span className="text-tinta-suave/50">—</span>
                       )}
                     </span>
-                    <span className="text-center">
-                      <span
-                        className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          p.activo ? 'bg-emerald-50 text-emerald-700' : 'bg-black/[0.05] text-tinta-suave'
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${
-                            p.activo ? 'bg-emerald-500' : 'bg-tinta-suave/50'
-                          }`}
-                        />
-                        {p.activo ? 'Activo' : 'Inactivo'}
-                      </span>
-                    </span>
+                    <Select<'activo' | 'inactivo'>
+                      className="justify-self-center"
+                      size="sm"
+                      valor={p.activo ? 'activo' : 'inactivo'}
+                      onChange={(v) => void guardarProducto({ ...p, activo: v === 'activo' })}
+                      opciones={[
+                        { valor: 'activo', label: 'Activo' },
+                        { valor: 'inactivo', label: 'Inactivo' }
+                      ]}
+                    />
                     <span className="flex justify-end gap-1">
                       <button
                         onClick={() => void editar(p)}
