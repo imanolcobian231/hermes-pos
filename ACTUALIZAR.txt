@@ -1,0 +1,56 @@
+========================================
+  ACTUALIZAR ANKYRA A UNA NUEVA VERSION
+========================================
+
+Tus datos (productos, ventas, inventario y configuracion) NO se
+pierden al actualizar: se guardan aparte de la aplicacion.
+
+
+PASOS
+-----
+
+1) Cierra Ankyra por completo (que no quede ninguna ventana abierta).
+
+2) Descarga el archivo nuevo "Ankyra-portable.zip" que te enviamos.
+
+3) Descomprimelo: clic derecho sobre el ZIP -> "Extraer todo".
+   (No ejecutes el programa desde dentro del ZIP; primero extrae.)
+
+4) Borra (o cambia de nombre) la carpeta ANTERIOR de Ankyra.
+   Por ejemplo, si la tienes en el Escritorio o en C:\Ankyra,
+   eliminala.
+
+5) Coloca la carpeta NUEVA (la que acabas de extraer) en el mismo
+   lugar donde estaba la anterior.
+
+6) Abre "Ankyra.exe" de la carpeta nueva.
+   Listo: abrira con toda tu informacion de siempre.
+
+
+IMPORTANTE
+----------
+
+- NO borres la carpeta de datos "ankyra-pos". Ahi estan tus ventas,
+  productos y configuracion. Al actualizar SOLO se reemplaza la
+  carpeta de la aplicacion; los datos quedan intactos.
+
+  (Esa carpeta esta en:  %APPDATA%\ankyra-pos
+   Puedes pegar esa ruta en la barra del Explorador de Windows.)
+
+- La primera vez que abras la version nueva puede tardar unos
+  segundos mas: actualiza la base de datos automaticamente.
+
+- Si Windows muestra un aviso azul (SmartScreen) al abrir:
+  clic en "Mas informacion" -> "Ejecutar de todas formas".
+  Es normal en programas sin firma digital.
+
+
+RECOMENDACION
+-------------
+
+Antes de actualizar, haz un respaldo desde:
+   Ajustes -> Respaldos -> "Respaldar ahora"
+Guarda ese respaldo en una USB o en la nube por seguridad.
+
+
+Cualquier duda, contactanos.
