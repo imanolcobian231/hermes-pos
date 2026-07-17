@@ -284,6 +284,18 @@ function TecladoPin({
   onBorrar: () => void
   disabled?: boolean
 }): React.JSX.Element {
+  // Permite teclear el PIN con el teclado físico (fila numérica o numpad,
+  // e.key es el mismo dígito en ambos casos).
+  useEffect(() => {
+    if (disabled) return
+    const alPresionar = (e: KeyboardEvent): void => {
+      if (e.key >= '0' && e.key <= '9') onTecla(e.key)
+      else if (e.key === 'Backspace') onBorrar()
+    }
+    window.addEventListener('keydown', alPresionar)
+    return () => window.removeEventListener('keydown', alPresionar)
+  }, [disabled, onTecla, onBorrar])
+
   return (
     <div className="grid grid-cols-3 gap-3">
       {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((d) => (

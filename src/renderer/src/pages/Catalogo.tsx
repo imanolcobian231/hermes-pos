@@ -321,14 +321,24 @@ function PanelProductos(): React.JSX.Element {
                       {p.controlarStock ? (
                         <span
                           className={`font-semibold ${
-                            p.stock <= p.stockMinimo ? 'text-amber-600' : 'text-tinta'
+                            p.stock <= 0
+                              ? 'text-red-600'
+                              : p.stock <= p.stockMinimo
+                                ? 'text-amber-600'
+                                : 'text-tinta'
                           }`}
                         >
                           {p.stock}
-                          {p.stock <= p.stockMinimo && (
-                            <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
-                              bajo
+                          {p.stock <= 0 ? (
+                            <span className="ml-1 rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                              agotado
                             </span>
+                          ) : (
+                            p.stock <= p.stockMinimo && (
+                              <span className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-700">
+                                bajo
+                              </span>
+                            )
                           )}
                         </span>
                       ) : (
@@ -386,6 +396,9 @@ function PanelProductos(): React.JSX.Element {
               onClick={() => {
                 if (!editando?.nombre?.trim() || editando.categoriaId == null) return
                 const esNuevo = editando.id == null
+                const controlarStock = editando.controlarStock ?? false
+                const stock = Math.max(0, Number(editando.stock) || 0)
+                const stockMinimo = Math.max(0, Number(editando.stockMinimo) || 0)
                 guardarProducto({
                   id: editando.id,
                   nombre: editando.nombre.trim(),
@@ -393,9 +406,9 @@ function PanelProductos(): React.JSX.Element {
                   categoriaId: editando.categoriaId,
                   activo: editando.activo ?? true,
                   descripcion: editando.descripcion,
-                  controlarStock: editando.controlarStock ?? false,
-                  stock: Number(editando.stock) || 0,
-                  stockMinimo: Number(editando.stockMinimo) || 0,
+                  controlarStock,
+                  stock,
+                  stockMinimo,
                   costo: Number(editando.costo) || 0,
                   color: editando.color,
                   codigoBarras: editando.codigoBarras?.trim() || undefined,
@@ -405,6 +418,9 @@ function PanelProductos(): React.JSX.Element {
                 })
                 setEditando(null)
                 toast(esNuevo ? 'Producto creado' : 'Producto actualizado')
+                if (controlarStock && stock <= 0) toast(`${editando.nombre}: sin stock`, 'error')
+                else if (controlarStock && stock <= stockMinimo)
+                  toast(`${editando.nombre}: stock bajo`, 'advertencia')
               }}
               className="btn-primario"
             >
@@ -511,16 +527,22 @@ function PanelProductos(): React.JSX.Element {
                     <Campo label="Stock actual">
                       <input
                         type="number"
+                        min={0}
                         value={editando.stock || ''}
-                        onChange={(e) => setEditando({ ...editando, stock: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setEditando({ ...editando, stock: Math.max(0, Number(e.target.value) || 0) })
+                        }
                         className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                       />
                     </Campo>
                     <Campo label="Stock mínimo">
                       <input
                         type="number"
+                        min={0}
                         value={editando.stockMinimo || ''}
-                        onChange={(e) => setEditando({ ...editando, stockMinimo: Number(e.target.value) })}
+                        onChange={(e) =>
+                          setEditando({ ...editando, stockMinimo: Math.max(0, Number(e.target.value) || 0) })
+                        }
                         className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
                       />
                     </Campo>

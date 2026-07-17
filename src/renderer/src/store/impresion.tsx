@@ -267,6 +267,11 @@ export function ProveedorImpresion({ children }: { children: ReactNode }): React
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Aplica el tema (claro/oscuro) al documento completo apenas cambia en la config.
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', cfg?.tema === 'oscuro')
+  }, [cfg?.tema])
+
   async function precargar(config: ConfigImpresoras): Promise<void> {
     let conocidos: BluetoothDevice[] = []
     if (navigator.bluetooth?.getDevices) {

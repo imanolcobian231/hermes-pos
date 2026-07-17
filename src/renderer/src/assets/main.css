@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Variante para poder usar `dark:` en clases de Tailwind (activada por la
+   clase .dark en <html>, no por prefers-color-scheme: el tema lo elige el
+   usuario en Ajustes, no el sistema operativo). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* Tipografía base con Inter (empaquetada, funciona sin internet). Inter es muy
    cercana a la San Francisco de Apple, así que el look queda natural. */
 @theme {
@@ -15,11 +20,78 @@
   --color-acento-hover: #146378;
   --color-secundario: #0f4c5c;
   --color-hairline: rgba(0, 0, 0, 0.08);
+  /** Tinte sutil para hover/fondos suaves (antes repetido como bg-black/[0.04..0.06]). */
+  --color-tenue: rgba(0, 0, 0, 0.05);
 }
 
 :root {
   color-scheme: light;
 }
+
+/* Modo oscuro: se activa con la clase .dark en <html> (ver tema en Ajustes).
+   Redefine los mismos tokens de color; como el resto del CSS y de los
+   componentes usan estas variables (bg-fondo, text-tinta, bg-superficie...),
+   la interfaz se adapta sola sin tocar cada pantalla. */
+.dark {
+  color-scheme: dark;
+  --color-fondo: #1c1c1e;
+  --color-superficie: #2c2c2e;
+  --color-tinta: #f5f5f7;
+  --color-tinta-suave: #98989d;
+  --color-hairline: rgba(255, 255, 255, 0.08);
+  --color-tenue: rgba(255, 255, 255, 0.06);
+}
+
+/* El resto del código (páginas y componentes) se escribió antes de que
+   existiera modo oscuro y usa utilidades sueltas de Tailwind en negro/blanco
+   (border-black/10, bg-white, bg-black/[0.05]...) en vez de los tokens de
+   arriba. En lugar de tocar cada pantalla una por una, se invierte aquí esa
+   escala de negro/blanco al mismo % de opacidad: mantiene el mismo peso
+   visual y hace que cualquier pantalla existente (o nueva, mientras siga el
+   mismo patrón) funcione en oscuro sin cambios adicionales.
+   Nota: no incluye bg-black/40 (fondo del Modal) ni las utilidades text-white
+   sobre botones de color (bg-acento, bg-red-600...), que deben verse igual en
+   ambos temas. */
+.dark .bg-white { background-color: var(--color-superficie); }
+.dark .bg-white\/95 { background-color: var(--color-superficie); }
+.dark .ring-white { --tw-ring-color: var(--color-superficie); }
+
+.dark .bg-black\/10 { background-color: rgba(255, 255, 255, 0.10); }
+.dark .bg-black\/15 { background-color: rgba(255, 255, 255, 0.15); }
+.dark .bg-black\/25 { background-color: rgba(255, 255, 255, 0.25); }
+.dark .bg-black\/\[0\.015\] { background-color: rgba(255, 255, 255, 0.015); }
+.dark .bg-black\/\[0\.02\] { background-color: rgba(255, 255, 255, 0.02); }
+.dark .bg-black\/\[0\.03\] { background-color: rgba(255, 255, 255, 0.03); }
+.dark .bg-black\/\[0\.04\] { background-color: rgba(255, 255, 255, 0.04); }
+.dark .bg-black\/\[0\.05\] { background-color: rgba(255, 255, 255, 0.05); }
+.dark .bg-black\/\[0\.06\] { background-color: rgba(255, 255, 255, 0.06); }
+.dark .bg-black\/\[0\.08\] { background-color: rgba(255, 255, 255, 0.08); }
+
+.dark .border-black\/10 { border-color: rgba(255, 255, 255, 0.10); }
+.dark .border-black\/15 { border-color: rgba(255, 255, 255, 0.15); }
+.dark .border-black\/20 { border-color: rgba(255, 255, 255, 0.20); }
+.dark .border-black\/25 { border-color: rgba(255, 255, 255, 0.25); }
+.dark .border-black\/\[0\.04\] { border-color: rgba(255, 255, 255, 0.04); }
+.dark .border-black\/\[0\.05\] { border-color: rgba(255, 255, 255, 0.05); }
+.dark .border-black\/\[0\.06\] { border-color: rgba(255, 255, 255, 0.06); }
+.dark .border-black\/\[0\.07\] { border-color: rgba(255, 255, 255, 0.07); }
+.dark .border-black\/\[0\.08\] { border-color: rgba(255, 255, 255, 0.08); }
+
+.dark .ring-black\/10 { --tw-ring-color: rgba(255, 255, 255, 0.10); }
+
+/* Mismas reglas para los estados hover/active/disabled/odd usados con estas utilidades. */
+.dark .hover\:bg-black\/\[0\.02\]:hover { background-color: rgba(255, 255, 255, 0.02); }
+.dark .hover\:bg-black\/\[0\.03\]:hover { background-color: rgba(255, 255, 255, 0.03); }
+.dark .hover\:bg-black\/\[0\.04\]:hover { background-color: rgba(255, 255, 255, 0.04); }
+.dark .hover\:bg-black\/\[0\.05\]:hover { background-color: rgba(255, 255, 255, 0.05); }
+.dark .hover\:bg-black\/\[0\.08\]:hover { background-color: rgba(255, 255, 255, 0.08); }
+.dark .hover\:border-black\/10:hover { border-color: rgba(255, 255, 255, 0.10); }
+.dark .hover\:border-black\/15:hover { border-color: rgba(255, 255, 255, 0.15); }
+.dark .hover\:border-black\/20:hover { border-color: rgba(255, 255, 255, 0.20); }
+.dark .active\:bg-black\/\[0\.06\]:active { background-color: rgba(255, 255, 255, 0.06); }
+.dark .disabled\:bg-black\/10:disabled { background-color: rgba(255, 255, 255, 0.10); }
+.dark .disabled\:border-black\/\[0\.06\]:disabled { border-color: rgba(255, 255, 255, 0.06); }
+.dark .odd\:bg-black\/\[0\.015\]:nth-child(odd) { background-color: rgba(255, 255, 255, 0.015); }
 
 /* Animaciones de entrada suaves (ease-in-out) para que las cosas aparezcan con
    gracia y no de golpe. Se respetan las preferencias de movimiento reducido. */
@@ -148,19 +220,19 @@ h3 {
     @apply inline-flex items-center justify-center gap-2 rounded-lg bg-acento px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-acento-hover active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-neutro {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-tinta transition hover:bg-black/[0.04] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-hairline bg-superficie px-4 py-2.5 text-sm font-semibold text-tinta transition hover:bg-tenue active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-peligro {
     @apply inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40;
   }
   .btn-texto {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-tinta-suave transition hover:bg-black/[0.05] hover:text-tinta active:scale-[0.98];
+    @apply inline-flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-tinta-suave transition hover:bg-tenue hover:text-tinta active:scale-[0.98];
   }
   .tarjeta {
-    @apply rounded-2xl border border-black/[0.06] bg-superficie;
+    @apply rounded-2xl border border-hairline bg-superficie;
   }
   .campo {
-    @apply w-full rounded-xl border border-black/10 bg-superficie px-3 py-2.5 text-base text-tinta outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15;
+    @apply w-full rounded-xl border border-hairline bg-superficie px-3 py-2.5 text-base text-tinta outline-none transition focus:border-acento focus:ring-2 focus:ring-acento/15;
   }
 }
 
@@ -177,6 +249,14 @@ h3 {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(0, 0, 0, 0.28);
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  background-clip: content-box;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
   background-clip: content-box;
 }
 ::-webkit-scrollbar-track {

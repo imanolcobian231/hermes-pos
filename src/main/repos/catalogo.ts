@@ -267,7 +267,7 @@ export function guardarProducto(prod: ProductoInput): Producto {
   if (!existeCat) throw new Error('La categoría del producto no existe')
   const activo = prod.activo ? 1 : 0
   const controla = prod.controlarStock ? 1 : 0
-  const stock = prod.stock || 0
+  const stock = Math.max(0, prod.stock || 0)
   const minimo = Math.max(0, prod.stockMinimo || 0)
   const costo = Math.max(0, prod.costo || 0)
   const color = prod.color?.trim() || null

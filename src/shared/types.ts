@@ -420,6 +420,8 @@ export interface ConfigImpresoras {
   /** Muestra el teclado en pantalla al enfocar campos de texto. Actívalo en
    *  equipos táctiles sin teclado físico; apágalo si escribes con teclado. */
   tecladoVirtual?: boolean
+  /** Apariencia de la interfaz: clara u oscura. */
+  tema?: 'claro' | 'oscuro'
   /** Aplica impuesto(s) al ticket. */
   impuestoActivo: boolean
   /** Tasa del impuesto en porcentaje (ej. 16). Compatibilidad: si no hay lista. */

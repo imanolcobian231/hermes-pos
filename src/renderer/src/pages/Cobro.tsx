@@ -546,30 +546,42 @@ export function Cobro({ ordenIdInicial }: Props): React.JSX.Element {
               <div className="flex min-h-0 w-80 flex-col rounded-2xl border border-black/[0.06] bg-white p-5 shadow-sm">
                 {!caja.abierta ? (
                   /* Flujo estricto: hay que abrir la caja (con su fondo) para cobrar. */
+                  /* Solo admin/cajero pueden abrirla; un mesero solo ve el error. */
                   <div className="flex flex-1 animar-fundido flex-col items-center justify-center gap-3 text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-black/[0.05] text-tinta-suave">
                       <Icono nombre="corte" size={26} />
                     </span>
-                    <div>
-                      <p className="font-semibold text-tinta">La caja está cerrada</p>
-                      <p className="mt-0.5 text-sm text-tinta-suave">
-                        Ábrela con su fondo de cambio para poder cobrar.
+                    {usuarioActual?.rol === 'mesero' ? (
+                      <p className="font-semibold text-red-600">
+                        No se pueden realizar cobros, la caja esta cerrada
                       </p>
-                    </div>
-                    <div className="flex w-full items-center gap-1 rounded-xl border border-black/10 px-3 focus-within:border-acento">
-                      <span className="text-sm text-tinta-suave">$</span>
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={fondoCaja}
-                        onChange={(e) => setFondoCaja(e.target.value)}
-                        placeholder="Fondo inicial"
-                        className="w-full bg-transparent py-2.5 text-right outline-none"
-                      />
-                    </div>
-                    <button onClick={() => void abrirCaja(Number(fondoCaja) || 0)} className="btn-primario w-full">
-                      Abrir caja
-                    </button>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="font-semibold text-tinta">La caja está cerrada</p>
+                          <p className="mt-0.5 text-sm text-tinta-suave">
+                            Ábrela con su fondo de cambio para poder cobrar.
+                          </p>
+                        </div>
+                        <div className="flex w-full items-center gap-1 rounded-xl border border-black/10 px-3 focus-within:border-acento">
+                          <span className="text-sm text-tinta-suave">$</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            value={fondoCaja}
+                            onChange={(e) => setFondoCaja(e.target.value)}
+                            placeholder="Fondo inicial"
+                            className="w-full bg-transparent py-2.5 text-right outline-none"
+                          />
+                        </div>
+                        <button
+                          onClick={() => void abrirCaja(Number(fondoCaja) || 0)}
+                          className="btn-primario w-full"
+                        >
+                          Abrir caja
+                        </button>
+                      </>
+                    )}
                   </div>
                 ) : (
                   <>

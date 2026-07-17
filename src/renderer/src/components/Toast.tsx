@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 
-type TipoToast = 'exito' | 'error' | 'info'
+type TipoToast = 'exito' | 'error' | 'info' | 'advertencia'
 
 interface ItemToast {
   id: number
@@ -14,7 +14,8 @@ interface ItemToast {
 const estilos: Record<TipoToast, { fondo: string; icono: NombreIcono }> = {
   exito: { fondo: 'bg-acento', icono: 'check' },
   error: { fondo: 'bg-red-700', icono: 'alerta' },
-  info: { fondo: 'bg-acento', icono: 'info' }
+  info: { fondo: 'bg-acento', icono: 'info' },
+  advertencia: { fondo: 'bg-amber-600', icono: 'alerta' }
 }
 
 type FnToast = (mensaje: string, tipo?: TipoToast) => void

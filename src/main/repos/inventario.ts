@@ -75,7 +75,7 @@ export function registrarMovimiento(
 
   let nuevoStock: number
   if (tipo === 'entrada') nuevoStock = insumo.stock + cant
-  else if (tipo === 'salida' || tipo === 'merma') nuevoStock = insumo.stock - cant
+  else if (tipo === 'salida' || tipo === 'merma') nuevoStock = Math.max(0, insumo.stock - cant)
   else nuevoStock = cant // ajuste: fija el stock contado
   nuevoStock = Math.round(nuevoStock * 1000) / 1000 // evita ruido de coma flotante
 
@@ -117,7 +117,7 @@ export function registrarMovimientoProducto(
 
   let nuevoStock: number
   if (tipo === 'entrada') nuevoStock = (prod.stock || 0) + cant
-  else if (tipo === 'salida' || tipo === 'merma') nuevoStock = (prod.stock || 0) - cant
+  else if (tipo === 'salida' || tipo === 'merma') nuevoStock = Math.max(0, (prod.stock || 0) - cant)
   else nuevoStock = cant // ajuste
   nuevoStock = Math.round(nuevoStock * 1000) / 1000
 

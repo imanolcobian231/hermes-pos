@@ -38,6 +38,7 @@ export const IMPRESORAS_PREDETERMINADO: ConfigImpresoras = {
   modoTiendita: false,
   confirmarEntreTickets: false,
   tecladoVirtual: true,
+  tema: 'claro',
   impuestoActivo: false,
   impuestoTasa: 16,
   impuestoIncluido: true,

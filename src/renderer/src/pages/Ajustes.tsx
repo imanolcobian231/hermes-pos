@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ConfigRespaldo, Impresora, RespaldoInfo } from '@shared/types'
 import { useImpresion } from '@renderer/store/impresion'
 import { useToast } from '@renderer/components/Toast'
-import { fechaHora } from '@renderer/lib/format'
+import { fechaHora, formatearTelefono } from '@renderer/lib/format'
 import { pngALogo, logoAVistaPrevia, iconoSocialDataUrl } from '@renderer/lib/logo'
 import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
@@ -46,7 +46,7 @@ export function Ajustes(): React.JSX.Element {
       setNegocio({
         nombreNegocio: cfg.nombreNegocio,
         direccion: cfg.direccion,
-        telefono: cfg.telefono,
+        telefono: formatearTelefono(cfg.telefono),
         rfc: cfg.rfc ?? '',
         mensajeTicket: cfg.mensajeTicket ?? 'Gracias por su visita',
         facebook: cfg.redesSociales?.facebook ?? '',
@@ -117,8 +117,8 @@ export function Ajustes(): React.JSX.Element {
               label="Teléfono"
               valor={negocio.telefono}
               placeholder="Ej. 55 1234 5678"
-              maxLength={20}
-              onChange={(v) => setNegocio((n) => ({ ...n, telefono: v }))}
+              maxLength={12}
+              onChange={(v) => setNegocio((n) => ({ ...n, telefono: formatearTelefono(v) }))}
               onGuardar={guardarNegocio}
             />
             <CampoNegocio
@@ -172,6 +172,18 @@ export function Ajustes(): React.JSX.Element {
           <p className="text-xs text-tinta-suave">
             La pantalla principal muestra los productos para vender directo (carrito) en vez de
             mesas. Ideal para tiendas o abarrotes.
+          </p>
+        </Seccion>
+
+        {/* Apariencia */}
+        <Seccion titulo="Apariencia">
+          <Switch
+            activo={cfg.tema === 'oscuro'}
+            label="Modo oscuro"
+            onChange={(v) => void actualizarCfg({ tema: v ? 'oscuro' : 'claro' })}
+          />
+          <p className="text-xs text-tinta-suave">
+            Cambia los colores de toda la interfaz. No afecta el ticket impreso.
           </p>
         </Seccion>
 

@@ -114,7 +114,8 @@ export function Inventario(): React.JSX.Element {
                   </thead>
                   <tbody>
                     {insumos.map((i) => {
-                      const bajo = i.stock <= i.stockMinimo
+                      const agotado = i.stock <= 0
+                      const bajo = !agotado && i.stock <= i.stockMinimo
                       return (
                         <tr
                           key={i.id}
@@ -123,9 +124,16 @@ export function Inventario(): React.JSX.Element {
                         >
                           <td className="px-4 py-3 font-medium text-tinta">{i.nombre}</td>
                           <td className="px-4 py-3 text-right">
-                            <span className={`font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+                            <span
+                              className={`font-semibold ${agotado ? 'text-red-600' : bajo ? 'text-amber-600' : 'text-tinta'}`}
+                            >
                               {i.stock} {i.unidad}
                             </span>
+                            {agotado && (
+                              <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                                agotado
+                              </span>
+                            )}
                             {bajo && (
                               <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
                                 bajo
@@ -169,7 +177,8 @@ export function Inventario(): React.JSX.Element {
                   </thead>
                   <tbody>
                     {productosStock.map((p) => {
-                      const bajo = p.stock <= p.stockMinimo
+                      const agotado = p.stock <= 0
+                      const bajo = !agotado && p.stock <= p.stockMinimo
                       return (
                         <tr
                           key={p.id}
@@ -178,9 +187,16 @@ export function Inventario(): React.JSX.Element {
                         >
                           <td className="px-4 py-3 font-medium text-tinta">{p.nombre}</td>
                           <td className="px-4 py-3 text-right">
-                            <span className={`font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+                            <span
+                              className={`font-semibold ${agotado ? 'text-red-600' : bajo ? 'text-amber-600' : 'text-tinta'}`}
+                            >
                               {p.stock}
                             </span>
+                            {agotado && (
+                              <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                                agotado
+                              </span>
+                            )}
                             {bajo && (
                               <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase text-amber-700">
                                 bajo
@@ -322,7 +338,8 @@ function DetalleProducto({
 
   const cant = parseFloat(cantidad) || 0
   const ayuda = MOVS.find((m) => m.id === tipo)!.ayuda
-  const bajo = producto.stock <= producto.stockMinimo
+  const agotado = producto.stock <= 0
+  const bajo = !agotado && producto.stock <= producto.stockMinimo
 
   const registrar = async (): Promise<void> => {
     if (cant <= 0 && tipo !== 'ajuste') {
@@ -331,9 +348,13 @@ function DetalleProducto({
     }
     try {
       await onMover(producto.id, tipo, cant, nota, usuarioActual?.nombre)
+      const nuevoStock =
+        tipo === 'entrada' ? producto.stock + cant : tipo === 'ajuste' ? cant : Math.max(0, producto.stock - cant)
       setCantidad('')
       setNota('')
       toast('Movimiento registrado', 'info')
+      if (nuevoStock <= 0) toast(`${producto.nombre}: sin stock`, 'error')
+      else if (nuevoStock <= producto.stockMinimo) toast(`${producto.nombre}: stock bajo`, 'advertencia')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo registrar', 'error')
     }
@@ -352,7 +373,9 @@ function DetalleProducto({
     >
       <div className="mb-4 flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
         <span className="text-sm font-medium text-tinta-suave">Stock actual</span>
-        <span className={`text-xl font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+        <span
+          className={`text-xl font-semibold ${agotado ? 'text-red-600' : bajo ? 'text-amber-600' : 'text-tinta'}`}
+        >
           {producto.stock}
         </span>
       </div>
@@ -466,7 +489,8 @@ function DetalleInsumo({
 
   const cant = parseFloat(cantidad) || 0
   const ayuda = MOVS.find((m) => m.id === tipo)!.ayuda
-  const bajo = insumo.stock <= insumo.stockMinimo
+  const agotado = insumo.stock <= 0
+  const bajo = !agotado && insumo.stock <= insumo.stockMinimo
 
   const registrar = async (): Promise<void> => {
     if (cant <= 0 && tipo !== 'ajuste') {
@@ -475,9 +499,13 @@ function DetalleInsumo({
     }
     try {
       await onMover(insumo.id, tipo, cant, nota, usuarioActual?.nombre)
+      const nuevoStock =
+        tipo === 'entrada' ? insumo.stock + cant : tipo === 'ajuste' ? cant : Math.max(0, insumo.stock - cant)
       setCantidad('')
       setNota('')
       toast('Movimiento registrado', 'info')
+      if (nuevoStock <= 0) toast(`${insumo.nombre}: sin stock`, 'error')
+      else if (nuevoStock <= insumo.stockMinimo) toast(`${insumo.nombre}: stock bajo`, 'advertencia')
     } catch (e) {
       toast(e instanceof Error ? e.message : 'No se pudo registrar', 'error')
     }
@@ -507,7 +535,9 @@ function DetalleInsumo({
     >
       <div className="mb-4 flex items-center justify-between rounded-2xl bg-black/[0.03] px-4 py-3">
         <span className="text-sm font-medium text-tinta-suave">Stock actual</span>
-        <span className={`text-xl font-semibold ${bajo ? 'text-amber-600' : 'text-tinta'}`}>
+        <span
+          className={`text-xl font-semibold ${agotado ? 'text-red-600' : bajo ? 'text-amber-600' : 'text-tinta'}`}
+        >
           {insumo.stock} {insumo.unidad}
         </span>
       </div>

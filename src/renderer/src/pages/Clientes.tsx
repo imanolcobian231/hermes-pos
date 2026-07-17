@@ -1,11 +1,21 @@
 import { useEffect, useState } from 'react'
 import type { Cliente, ClienteInput, MetodoPago, MovimientoCredito } from '@shared/types'
 import { useDatos } from '@renderer/store/datos'
-import { pesos, fechaHora } from '@renderer/lib/format'
+import { pesos, fechaHora, formatearTelefono } from '@renderer/lib/format'
 import { Modal } from '@renderer/components/Modal'
 import { useToast } from '@renderer/components/Toast'
 import { Icono, type NombreIcono } from '@renderer/components/Icono'
 import { EncabezadoPagina, EstadoVacio } from '@renderer/components/Pagina'
+
+// Texto y color del estado de saldo: debe, al corriente, o saldo a favor
+// (cuando un abono superó la deuda). 0.01 de tolerancia por redondeo.
+function estadoSaldo(saldo: number): { texto: string; clase: string } {
+  if (saldo > 0.01) return { texto: `Debe ${pesos(saldo)}`, clase: 'bg-red-100 text-red-700' }
+  if (saldo < -0.01) {
+    return { texto: `Saldo a favor: ${pesos(-saldo)}`, clase: 'bg-acento/10 text-acento' }
+  }
+  return { texto: 'Al corriente', clase: 'bg-acento/10 text-acento' }
+}
 
 const METODOS: { id: MetodoPago; label: string; icono: NombreIcono }[] = [
   { id: 'efectivo', label: 'Efectivo', icono: 'efectivo' },
@@ -66,14 +76,12 @@ export function Clientes(): React.JSX.Element {
               onClick={() => setDetalleId(c.id)}
               className="flex flex-col rounded-2xl border border-black/[0.06] bg-white p-4 text-left shadow-sm transition hover:border-black/20 hover:shadow"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-tinta">{c.nombre}</span>
+              <div className="flex items-center justify-between gap-3">
+                <span className="min-w-0 truncate font-semibold text-tinta">{c.nombre}</span>
                 <span
-                  className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                    c.saldo > 0 ? 'bg-red-100 text-red-700' : 'bg-acento/10 text-acento'
-                  }`}
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-bold ${estadoSaldo(c.saldo).clase}`}
                 >
-                  {c.saldo > 0 ? `Debe ${pesos(c.saldo)}` : 'Al corriente'}
+                  {estadoSaldo(c.saldo).texto}
                 </span>
               </div>
               {c.telefono && <span className="mt-1 text-xs text-tinta-suave">{c.telefono}</span>}
@@ -117,9 +125,9 @@ export function Clientes(): React.JSX.Element {
             <Campo
               label="Teléfono (opcional)"
               valor={form.telefono ?? ''}
-              onChange={(v) => setForm({ ...form, telefono: v })}
+              onChange={(v) => setForm({ ...form, telefono: formatearTelefono(v) })}
               placeholder="Ej. 55 1234 5678"
-              maxLength={20}
+              maxLength={12}
             />
             <Campo
               label="Nota (opcional)"
@@ -138,7 +146,12 @@ export function Clientes(): React.JSX.Element {
         onCerrar={() => setDetalleId(null)}
         onEditar={(c) => {
           setDetalleId(null)
-          setForm({ id: c.id, nombre: c.nombre, telefono: c.telefono, nota: c.nota })
+          setForm({
+            id: c.id,
+            nombre: c.nombre,
+            telefono: formatearTelefono(c.telefono ?? ''),
+            nota: c.nota
+          })
         }}
         onEliminar={async (c) => {
           try {
@@ -226,8 +239,12 @@ function DetalleCliente({
     >
       <div className="mb-4 flex items-center justify-between rounded-lg bg-black/[0.03] px-4 py-3">
         <span className="text-sm font-medium text-tinta-suave">Saldo</span>
-        <span className={`text-xl font-bold ${cliente.saldo > 0 ? 'text-red-600' : 'text-acento'}`}>
-          {cliente.saldo > 0 ? pesos(cliente.saldo) : 'Al corriente'}
+        <span className={`text-xl font-bold ${cliente.saldo > 0.01 ? 'text-red-600' : 'text-acento'}`}>
+          {cliente.saldo > 0.01
+            ? pesos(cliente.saldo)
+            : cliente.saldo < -0.01
+              ? `Saldo a favor: ${pesos(-cliente.saldo)}`
+              : 'Al corriente'}
         </span>
       </div>
 
