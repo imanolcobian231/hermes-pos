@@ -51,9 +51,8 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     () => categorias.slice().sort((a, b) => a.orden - b.orden),
     [categorias]
   )
-  const [categoriaActiva, setCategoriaActiva] = useState<number | null>(
-    categoriasOrdenadas[0]?.id ?? null
-  )
+  // null = pestaña virtual "Todos" (muestra todos los productos activos).
+  const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState('')
 
   const [ticket, setTicket] = useState<{
@@ -359,9 +358,22 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           )}
         </div>
 
-        {/* Pestañas de categoría */}
+        {/* Pestañas de categoría — "Todos" virtual + categorías (se omite la
+            categoría "Todos" real del seed para no duplicarla). */}
         <div className={`mb-4 flex flex-wrap gap-2 ${termino ? 'opacity-40' : ''}`}>
-          {categoriasOrdenadas.map((c) => (
+          <button
+            onClick={() => setCategoriaActiva(null)}
+            className={`rounded-md border px-4 py-2.5 text-base font-semibold transition ${
+              categoriaActiva === null
+                ? 'border-acento bg-acento text-white'
+                : 'border-black/[0.06] bg-white text-tinta-suave hover:border-black/15 hover:bg-black/[0.03]'
+            }`}
+          >
+            Todos
+          </button>
+          {categoriasOrdenadas
+            .filter((c) => c.nombre.trim().toLowerCase() !== 'todos')
+            .map((c) => (
             <button
               key={c.id}
               onClick={() => setCategoriaActiva(c.id)}
