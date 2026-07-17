@@ -129,6 +129,30 @@ export function fijarDescuentoLinea(detalleId: number, descuento: number): Orden
 }
 
 /**
+ * Lanza error si agregar `delta` unidades más de un producto a la orden supera
+ * el stock disponible (stock del producto − lo que ya lleva la orden).
+ */
+function exigirStockDisponible(
+  db: ReturnType<typeof obtenerDb>,
+  ordenId: number,
+  productoId: number,
+  stock: number,
+  delta: number
+): void {
+  if (delta <= 0) return
+  const enCarrito = (
+    db
+      .prepare(
+        'SELECT COALESCE(SUM(cantidad), 0) as total FROM detalle_ordenes WHERE orden_id = ? AND producto_id = ?'
+      )
+      .get(ordenId, productoId) as { total: number }
+  ).total
+  if (delta > stock - enCarrito) {
+    throw new Error('No hay más existencia de este producto')
+  }
+}
+
+/**
  * Ajusta el stock de los productos con control de inventario de una orden.
  * factor = -1 al vender (descuenta); +1 al devolver (repone). Solo afecta a los
  * productos con controlar_stock = 1.
@@ -136,10 +160,10 @@ export function fijarDescuentoLinea(detalleId: number, descuento: number): Orden
 function ajustarStockProductos(db: ReturnType<typeof obtenerDb>, ordenId: number, factor: number): void {
   db.prepare(
     `UPDATE productos
-       SET stock = stock + ? * (
+       SET stock = MAX(0, stock + ? * (
          SELECT COALESCE(SUM(cantidad), 0) FROM detalle_ordenes
          WHERE orden_id = ? AND producto_id = productos.id
-       )
+       ))
      WHERE controlar_stock = 1
        AND id IN (SELECT producto_id FROM detalle_ordenes WHERE orden_id = ?)`
   ).run(factor, ordenId, ordenId)
@@ -235,6 +259,9 @@ export function agregarProducto(
     | Record<string, unknown>
     | undefined
   if (!prod) throw new Error(`Producto ${productoId} no encontrado`)
+  if (prod.controlar_stock === 1) {
+    exigirStockDisponible(db, ordenId, productoId, prod.stock as number, 1)
+  }
 
   // Modificadores elegidos (validados contra los grupos del producto).
   const mods =
@@ -294,6 +321,14 @@ export function cambiarCantidad(
     | Record<string, unknown>
     | undefined
   if (linea) {
+    if (delta > 0) {
+      const prod = db
+        .prepare('SELECT controlar_stock, stock FROM productos WHERE id = ?')
+        .get(linea.producto_id) as { controlar_stock: number; stock: number } | undefined
+      if (prod?.controlar_stock === 1) {
+        exigirStockDisponible(db, ordenId, linea.producto_id as number, prod.stock, delta)
+      }
+    }
     const enviado = Boolean(linea.enviado_cocina)
     const nueva = Math.max(0, (linea.cantidad as number) + delta)
     // Las líneas no enviadas pueden eliminarse al llegar a 0; las enviadas no.

@@ -8,6 +8,7 @@ import { CantidadEditable } from '@renderer/components/CantidadEditable'
 import { TicketsRecientes } from '@renderer/components/TicketsRecientes'
 import { DescuentoLineaDialog } from '@renderer/components/DescuentoLineaDialog'
 import { Icono } from '@renderer/components/Icono'
+import { useToast } from '@renderer/components/Toast'
 
 interface Props {
   /** Pasa al cobro la orden del carrito. */
@@ -34,6 +35,7 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
     quitarLinea,
     marcarPorCobrar
   } = useDatos()
+  const toast = useToast()
   // Línea seleccionada para aplicarle un descuento (abre el diálogo).
   const [descLinea, setDescLinea] = useState<DetalleOrden | null>(null)
 
@@ -71,6 +73,10 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
   }
 
   const tocarProducto = (p: Producto): void => {
+    if (p.controlarStock && p.stock <= 0) {
+      toast('No hay más existencia de este producto', 'error')
+      return
+    }
     if (p.grupos && p.grupos.length > 0) setModProducto(p)
     else void agregar(p)
   }
@@ -166,25 +172,38 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
           keyOf={(p) => p.id}
           minColAncho={200}
           altoFila={128}
-          renderItem={(p) => (
-            <button
-              onClick={() => tocarProducto(p)}
-              className="relative flex h-full w-full flex-col justify-between gap-1 overflow-hidden rounded-xl border border-black/[0.06] bg-white p-4 text-left transition hover:border-black/20"
-            >
-              {p.color && (
-                <span className="absolute inset-x-0 top-0 h-2" style={{ backgroundColor: p.color }} />
-              )}
-              <span className="line-clamp-2 text-lg font-semibold leading-tight text-tinta">
-                {p.nombre}
-              </span>
-              <span className="flex flex-wrap items-baseline gap-x-2">
-                <span className="text-lg font-bold tabular-nums text-tinta">{pesos(p.precio)}</span>
-                {p.grupos && p.grupos.length > 0 && (
-                  <span className="text-[10px] font-semibold uppercase text-tinta-suave">opciones</span>
+          renderItem={(p) => {
+            const agotado = p.controlarStock && p.stock <= 0
+            return (
+              <button
+                onClick={() => tocarProducto(p)}
+                disabled={agotado}
+                className={`relative flex h-full w-full flex-col justify-between gap-1 overflow-hidden rounded-xl border border-black/[0.06] bg-white p-4 text-left transition ${
+                  agotado ? 'cursor-not-allowed opacity-50' : 'hover:border-black/20'
+                }`}
+              >
+                {p.color && (
+                  <span className="absolute inset-x-0 top-0 h-2" style={{ backgroundColor: p.color }} />
                 )}
-              </span>
-            </button>
-          )}
+                <span className="line-clamp-2 text-lg font-semibold leading-tight text-tinta">
+                  {p.nombre}
+                </span>
+                <span className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="text-lg font-bold tabular-nums text-tinta">{pesos(p.precio)}</span>
+                  {agotado ? (
+                    <span className="rounded-full bg-red-100 px-1.5 py-0.5 text-[10px] font-bold uppercase text-red-700">
+                      agotado
+                    </span>
+                  ) : (
+                    p.grupos &&
+                    p.grupos.length > 0 && (
+                      <span className="text-[10px] font-semibold uppercase text-tinta-suave">opciones</span>
+                    )
+                  )}
+                </span>
+              </button>
+            )
+          }}
           vacio={<p className="text-sm text-tinta-suave">No hay productos en esta categoría.</p>}
         />
       </section>
