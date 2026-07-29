@@ -10,12 +10,8 @@ function columnas(db: Database.Database, tabla: string): string[] {
 
 // La tabla `ordenes` original tenía mesa_id NOT NULL y carecía de las columnas
 // para_llevar / nombre / por_cobrar. Se reconstruye conservando los datos.
-// La tabla vieja puede o no tener ya `mesa_id` (según qué tan atrás venga la
-// base): se verifica antes de usarla en el SELECT en vez de asumirla, para no
-// reventar con "no such column: mesa_id" si en algún punto no existe todavía.
 function reconstruirOrdenes(db: Database.Database): void {
   db.pragma('foreign_keys = OFF')
-  const tieneMesaId = columnas(db, 'ordenes').includes('mesa_id')
   const tx = db.transaction(() => {
     db.exec(`
       CREATE TABLE ordenes_new (
@@ -36,14 +32,11 @@ function reconstruirOrdenes(db: Database.Database): void {
         corte_id       INTEGER REFERENCES cortes(id)
       );
     `)
-    // Si la tabla vieja no tiene mesa_id todavía, las órdenes migradas quedan
-    // sin mesa asignada (NULL) en vez de tronar la migración.
-    const colMesaId = tieneMesaId ? 'mesa_id' : 'NULL'
     db.exec(`
       INSERT INTO ordenes_new
         (id, mesa_id, estado, total, metodo_pago, monto_recibido, cambio,
          ticket_impreso, abierto_en, cerrado_en, corte_id)
-      SELECT id, ${colMesaId}, estado, total, metodo_pago, monto_recibido, cambio,
+      SELECT id, mesa_id, estado, total, metodo_pago, monto_recibido, cambio,
              ticket_impreso, abierto_en, cerrado_en, corte_id
       FROM ordenes;
     `)
