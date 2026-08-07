@@ -327,7 +327,7 @@ function Contenido(): React.JSX.Element {
               <Icono nombre="salir" size={16} />
             </button>
           </div>
-          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.6.0 · Olyssea</div>
+          <div className="mt-2 px-2 text-[11px] text-tinta-suave/70">v0.7.0 · Olyssea</div>
         </div>
       </aside>
 

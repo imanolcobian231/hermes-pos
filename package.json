@@ -1,6 +1,6 @@
 {
   "name": "ankyra-pos",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "POS de escritorio para taquerías y negocios con mesas — Olyssea",
   "main": "./out/main/index.js",
   "author": "Olyssea",
