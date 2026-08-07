@@ -1,5 +1,5 @@
 import type { DetalleOrden } from '@shared/types'
-import { hora } from '@renderer/lib/format'
+import { hora, pesos } from '@renderer/lib/format'
 import { useImpresion } from '@renderer/store/impresion'
 
 interface Props {
@@ -63,7 +63,10 @@ export function TicketCocina({
             <div key={l.id} className="mb-1">
               <div className="flex justify-between">
                 <span>
-                  {l.cantidad} x {l.nombreProducto}
+                  {l.productoId === 0
+                    ? `${pesos(l.cantidad * l.precioUnitario)} `
+                    : `${l.cantidad} x `}
+                  {l.nombreProducto}
                 </span>
               </div>
               {l.modificadores.map((m) => (

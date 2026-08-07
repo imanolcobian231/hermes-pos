@@ -34,6 +34,7 @@ export const CANALES = {
     abrirLlevar: 'ordenes:abrirLlevar',
     descartar: 'ordenes:descartar',
     agregarProducto: 'ordenes:agregarProducto',
+    lineaLibre: 'ordenes:lineaLibre',
     cambiarCantidad: 'ordenes:cambiarCantidad',
     cambiarNota: 'ordenes:cambiarNota',
     notaOrden: 'ordenes:notaOrden',

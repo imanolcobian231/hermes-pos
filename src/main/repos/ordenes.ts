@@ -310,6 +310,33 @@ export function agregarProducto(
   return obtenerConDetalle(ordenId)
 }
 
+/**
+ * Agrega una línea de "venta rápida / abierta": un producto NO registrado en el
+ * catálogo, con nombre libre y precio a elección (ej. "$50 de frijoles"). No
+ * afecta inventario ni recetas; usa producto_id = 0 (centinela, sin FK).
+ */
+export function agregarLineaLibre(
+  ordenId: number,
+  nombre: string,
+  precio: number,
+  comensal = 1
+): OrdenConDetalle {
+  const db = obtenerDb()
+  exigirOrdenAbierta(ordenId)
+  const nom = nombre.trim() || 'Venta rápida'
+  const p = Math.max(0, precio || 0)
+  const tx = db.transaction(() => {
+    db.prepare(
+      `INSERT INTO detalle_ordenes
+         (orden_id, producto_id, nombre_producto, cantidad, precio_unitario, comensal, enviado_cocina)
+       VALUES (?, 0, ?, 1, ?, ?, 0)`
+    ).run(ordenId, nom, p, Math.max(1, comensal))
+    recalcularTotal(ordenId)
+  })
+  tx()
+  return obtenerConDetalle(ordenId)
+}
+
 export function cambiarCantidad(
   ordenId: number,
   detalleId: number,

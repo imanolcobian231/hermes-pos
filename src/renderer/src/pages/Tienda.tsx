@@ -7,6 +7,7 @@ import { CuadriculaVirtual } from '@renderer/components/CuadriculaVirtual'
 import { CantidadEditable } from '@renderer/components/CantidadEditable'
 import { TicketsRecientes } from '@renderer/components/TicketsRecientes'
 import { DescuentoLineaDialog } from '@renderer/components/DescuentoLineaDialog'
+import { Modal } from '@renderer/components/Modal'
 import { Icono } from '@renderer/components/Icono'
 import { useToast } from '@renderer/components/Toast'
 
@@ -30,6 +31,7 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
     ordenPorId,
     abrirOrdenLlevar,
     agregarProducto,
+    agregarLineaLibre,
     cambiarCantidad,
     descontarLinea,
     quitarLinea,
@@ -38,6 +40,10 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
   const toast = useToast()
   // Línea seleccionada para aplicarle un descuento (abre el diálogo).
   const [descLinea, setDescLinea] = useState<DetalleOrden | null>(null)
+  // Venta rápida / monto libre (producto no registrado).
+  const [ventaLibre, setVentaLibre] = useState(false)
+  const [vlNombre, setVlNombre] = useState('')
+  const [vlPrecio, setVlPrecio] = useState('')
 
   const categoriasOrdenadas = useMemo(
     () => categorias.slice().sort((a, b) => a.orden - b.orden),
@@ -81,6 +87,29 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
     else void agregar(p)
   }
 
+  // Agrega una línea de venta rápida (producto no registrado); crea la orden si hace falta.
+  const agregarLibre = async (nombre: string, precio: number): Promise<void> => {
+    let id = ordenId
+    if (id == null) {
+      const o = await abrirOrdenLlevar()
+      id = o.id
+      setOrdenId(id)
+    }
+    await agregarLineaLibre(id, nombre, precio)
+  }
+
+  const confirmarVentaLibre = (): void => {
+    const p = Number(vlPrecio) || 0
+    if (p <= 0) {
+      toast('Captura un monto mayor a 0', 'error')
+      return
+    }
+    void agregarLibre(vlNombre, p)
+    setVentaLibre(false)
+    setVlNombre('')
+    setVlPrecio('')
+  }
+
   // Producto llegado por escaneo global (App lo detecta desde cualquier pantalla
   // y navega aquí). El nonce evita re-procesar el mismo escaneo (incl. StrictMode).
   const ultimoScan = useRef<number | null>(null)
@@ -116,25 +145,34 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
     <div className="flex h-full gap-6">
       {/* Catálogo */}
       <section className="flex flex-1 flex-col">
-        <div className="relative mb-3">
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta-suave">
-            <Icono nombre="buscar" size={16} />
-          </span>
-          <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar producto…"
-            className="w-full rounded-md border border-black/10 py-2 pl-9 pr-9 text-sm outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
-          />
-          {busqueda && (
-            <button
-              onClick={() => setBusqueda('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-tinta-suave hover:text-tinta"
-              aria-label="Limpiar búsqueda"
-            >
-              <Icono nombre="cerrar" size={15} />
-            </button>
-          )}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="relative flex-1">
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta-suave">
+              <Icono nombre="buscar" size={16} />
+            </span>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar producto…"
+              className="w-full rounded-md border border-black/10 py-2 pl-9 pr-9 text-sm outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+            />
+            {busqueda && (
+              <button
+                onClick={() => setBusqueda('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-tinta-suave hover:text-tinta"
+                aria-label="Limpiar búsqueda"
+              >
+                <Icono nombre="cerrar" size={15} />
+              </button>
+            )}
+          </div>
+          <button
+            onClick={() => setVentaLibre(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-acento/30 bg-acento/[0.06] px-3 py-2 text-sm font-semibold text-acento transition hover:border-acento/50 hover:bg-acento/10"
+            title="Vender un monto libre sin registrar el producto (ej. $50 de frijoles)"
+          >
+            <Icono nombre="mas" size={15} /> Venta rápida
+          </button>
         </div>
 
         <div className={`mb-4 flex flex-wrap gap-2 ${termino ? 'opacity-40' : ''}`}>
@@ -338,6 +376,56 @@ export function Tienda({ onCobrar, escaneado, onEscaneoConsumido }: Props): Reac
         vacio="Aún no hay ventas en el turno."
         onCerrar={() => setVerTickets(false)}
       />
+
+      <Modal
+        abierto={ventaLibre}
+        titulo="Venta rápida"
+        onCerrar={() => setVentaLibre(false)}
+        pie={
+          <>
+            <button onClick={() => setVentaLibre(false)} className="btn-texto">
+              Cancelar
+            </button>
+            <button onClick={confirmarVentaLibre} className="btn-primario">
+              Agregar
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-tinta-suave">
+            Vende un monto sin registrar el producto (ej. “$50 de frijoles”).
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-tinta-suave">Concepto</label>
+            <input
+              value={vlNombre}
+              maxLength={40}
+              autoFocus
+              placeholder="Ej. Frijoles (opcional)"
+              onChange={(e) => setVlNombre(e.target.value)}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-tinta-suave">Monto</label>
+            <div className="flex items-center rounded-lg border border-black/10 px-3 focus-within:border-acento">
+              <span className="text-tinta-suave">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={vlPrecio}
+                autoFocus={false}
+                placeholder="0.00"
+                onChange={(e) => setVlPrecio(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmarVentaLibre()}
+                className="w-full bg-transparent px-1 py-2 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <DescuentoLineaDialog
         linea={descLinea}

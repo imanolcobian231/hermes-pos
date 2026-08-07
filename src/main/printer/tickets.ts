@@ -214,7 +214,11 @@ export function bytesCocina(
   l.push(linea())
   // Cada línea se envuelve al ancho de la impresora (no se desborda).
   const pushItem = (d: DetalleOrden): void => {
-    l.push(...lineasEnvueltas(`${d.cantidad} x `, d.nombreProducto, columnas))
+    // Línea libre (producto_id 0, ej. "$50 de frijoles"): la cocina necesita el
+    // MONTO para saber cuánto servir, no "1 x".
+    const prefijo =
+      d.productoId === 0 ? `${pesos(d.cantidad * d.precioUnitario)} ` : `${d.cantidad} x `
+    l.push(...lineasEnvueltas(prefijo, d.nombreProducto, columnas))
     for (const m of d.modificadores) l.push(...lineasEnvueltas('   + ', m.nombre, columnas))
     if (d.notas) l.push(...lineasEnvueltas('   > ', d.notas, columnas))
   }
@@ -448,11 +452,11 @@ export function bytesPrueba(
   const ahora = new Date().toISOString()
   const detalle: DetalleOrden[] = [
     {
-      id: 1, ordenId: 0, productoId: 0, nombreProducto: 'Taco al pastor', cantidad: 3,
+      id: 1, ordenId: 0, productoId: 1, nombreProducto: 'Taco al pastor', cantidad: 3,
       precioUnitario: 25, descuento: 0, comensal: 1, enviadoCocina: true, modificadores: []
     },
     {
-      id: 2, ordenId: 0, productoId: 0, nombreProducto: 'Quesadilla', cantidad: 1,
+      id: 2, ordenId: 0, productoId: 1, nombreProducto: 'Quesadilla', cantidad: 1,
       // precioUnitario incluye el extra con precio (45 base + 10 extra queso).
       precioUnitario: 55, descuento: 0, comensal: 1, enviadoCocina: true,
       modificadores: [
@@ -461,7 +465,7 @@ export function bytesPrueba(
       ]
     },
     {
-      id: 3, ordenId: 0, productoId: 0, nombreProducto: 'Refresco', cantidad: 2,
+      id: 3, ordenId: 0, productoId: 1, nombreProducto: 'Refresco', cantidad: 2,
       precioUnitario: 25, descuento: 0, comensal: 1, enviadoCocina: true, modificadores: []
     }
   ]

@@ -31,6 +31,7 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     mesas,
     ordenPorId,
     agregarProducto,
+    agregarLineaLibre,
     cambiarCantidad,
     cambiarNota,
     descontarLinea,
@@ -74,6 +75,10 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
   const [notaTexto, setNotaTexto] = useState('')
   // Línea seleccionada para descuento (abre el diálogo).
   const [descLinea, setDescLinea] = useState<DetalleOrden | null>(null)
+  // Venta rápida / monto libre (producto no registrado).
+  const [ventaLibre, setVentaLibre] = useState(false)
+  const [vlNombre, setVlNombre] = useState('')
+  const [vlPrecio, setVlPrecio] = useState('')
   const [confirmarCancel, setConfirmarCancel] = useState(false)
   const [motivoCancel, setMotivoCancel] = useState('')
   // Historial de tickets de esta mesa (reimprimir ventas pasadas).
@@ -176,6 +181,19 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
     } else {
       void agregarProducto(orden.id, p, [], comensalActivo)
     }
+  }
+
+  // Venta rápida: línea de monto libre al comensal activo (producto no registrado).
+  const confirmarVentaLibre = (): void => {
+    const p = Number(vlPrecio) || 0
+    if (p <= 0) {
+      toast('Captura un monto mayor a 0', 'error')
+      return
+    }
+    void agregarLineaLibre(orden.id, vlNombre, p, comensalActivo)
+    setVentaLibre(false)
+    setVlNombre('')
+    setVlPrecio('')
   }
 
   const termino = busqueda.trim().toLowerCase()
@@ -340,8 +358,9 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
           )}
         </header>
 
-        {/* Buscador */}
-        <div className="relative mb-3">
+        {/* Buscador + venta rápida */}
+        <div className="mb-3 flex items-center gap-2">
+          <div className="relative flex-1">
           <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta-suave">
             <Icono nombre="buscar" size={16} />
           </span>
@@ -360,6 +379,14 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
               <Icono nombre="cerrar" size={15} />
             </button>
           )}
+          </div>
+          <button
+            onClick={() => setVentaLibre(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-md border border-acento/30 bg-acento/[0.06] px-3 py-2 text-sm font-semibold text-acento transition hover:border-acento/50 hover:bg-acento/10"
+            title="Agregar un monto libre sin registrar el producto"
+          >
+            <Icono nombre="mas" size={15} /> Venta rápida
+          </button>
         </div>
 
         {/* Pestañas de categoría — "Todos" virtual + categorías (se omite la
@@ -823,6 +850,55 @@ export function Pedidos({ ordenId, titulo, subtitulo, onVolver, onCobrar }: Prop
         mesa={verHistorial ? (mesas.find((m) => m.id === orden.mesaId) ?? null) : null}
         onCerrar={() => setVerHistorial(false)}
       />
+
+      <Modal
+        abierto={ventaLibre}
+        titulo="Venta rápida"
+        onCerrar={() => setVentaLibre(false)}
+        pie={
+          <>
+            <button onClick={() => setVentaLibre(false)} className="btn-texto">
+              Cancelar
+            </button>
+            <button onClick={confirmarVentaLibre} className="btn-primario">
+              Agregar
+            </button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-tinta-suave">
+            Agrega un monto sin registrar el producto (ej. “$50 de algo”). Va al comensal {comensalActivo}.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-tinta-suave">Concepto</label>
+            <input
+              value={vlNombre}
+              maxLength={40}
+              autoFocus
+              placeholder="Ej. Botana (opcional)"
+              onChange={(e) => setVlNombre(e.target.value)}
+              className="w-full rounded-lg border border-black/10 px-3 py-2 outline-none focus:border-acento focus:ring-2 focus:ring-acento/15"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-tinta-suave">Monto</label>
+            <div className="flex items-center rounded-lg border border-black/10 px-3 focus-within:border-acento">
+              <span className="text-tinta-suave">$</span>
+              <input
+                type="number"
+                inputMode="decimal"
+                min={0}
+                value={vlPrecio}
+                placeholder="0.00"
+                onChange={(e) => setVlPrecio(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && confirmarVentaLibre()}
+                className="w-full bg-transparent px-1 py-2 outline-none"
+              />
+            </div>
+          </div>
+        </div>
+      </Modal>
 
       <DescuentoLineaDialog
         linea={descLinea}

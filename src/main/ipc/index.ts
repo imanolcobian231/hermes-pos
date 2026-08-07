@@ -118,6 +118,11 @@ export function registrarIpc(): void {
     (_e, ordenId: number, productoId: number, modificadorIds?: number[], comensal?: number) =>
       ordenes.agregarProducto(ordenId, productoId, modificadorIds, comensal)
   )
+  ipcMain.handle(
+    CANALES.ordenes.lineaLibre,
+    (_e, ordenId: number, nombre: string, precio: number, comensal?: number) =>
+      ordenes.agregarLineaLibre(ordenId, nombre, precio, comensal)
+  )
   ipcMain.handle(CANALES.ordenes.cambiarCantidad, (_e, ordenId: number, detalleId: number, delta: number) =>
     ordenes.cambiarCantidad(ordenId, detalleId, delta)
   )

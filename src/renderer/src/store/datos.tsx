@@ -134,6 +134,13 @@ interface DatosContextValue {
     modificadorIds?: number[],
     comensal?: number
   ) => Promise<void>
+  /** Agrega una línea de venta rápida (producto no registrado): nombre + precio libres. */
+  agregarLineaLibre: (
+    ordenId: number,
+    nombre: string,
+    precio: number,
+    comensal?: number
+  ) => Promise<void>
   cambiarCantidad: (ordenId: number, detalleId: number, delta: number) => Promise<void>
   cambiarNota: (ordenId: number, detalleId: number, nota: string) => Promise<void>
   cambiarNotaOrden: (ordenId: number, nota: string) => Promise<void>
@@ -397,6 +404,13 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       aplicarOrden(
         await api.ordenes.agregarProducto(ordenId, producto.id, modificadorIds, comensal)
       )
+    },
+    [aplicarOrden]
+  )
+
+  const agregarLineaLibre = useCallback(
+    async (ordenId: number, nombre: string, precio: number, comensal?: number) => {
+      aplicarOrden(await api.ordenes.lineaLibre(ordenId, nombre, precio, comensal))
     },
     [aplicarOrden]
   )
@@ -768,6 +782,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       abrirOrdenLlevar,
       descartarOrden,
       agregarProducto,
+      agregarLineaLibre,
       cambiarCantidad,
       cambiarNota,
       cambiarNotaOrden,
@@ -830,6 +845,7 @@ export function ProveedorDatos({ children }: { children: ReactNode }): React.JSX
       abrirOrdenLlevar,
       descartarOrden,
       agregarProducto,
+      agregarLineaLibre,
       cambiarCantidad,
       cambiarNota,
       cambiarNotaOrden,

@@ -104,6 +104,13 @@ const api = {
       comensal?: number
     ): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.agregarProducto, ordenId, productoId, modificadorIds, comensal),
+    lineaLibre: (
+      ordenId: number,
+      nombre: string,
+      precio: number,
+      comensal?: number
+    ): Promise<OrdenConDetalle> =>
+      invoke(CANALES.ordenes.lineaLibre, ordenId, nombre, precio, comensal),
     cambiarCantidad: (ordenId: number, detalleId: number, delta: number): Promise<OrdenConDetalle> =>
       invoke(CANALES.ordenes.cambiarCantidad, ordenId, detalleId, delta),
     cambiarNota: (ordenId: number, detalleId: number, nota: string): Promise<OrdenConDetalle> =>
