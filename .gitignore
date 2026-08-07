@@ -8,3 +8,6 @@ out
 *.db
 *.db-shm
 *.db-wal
+
+# Salida del analizador de código (no versionar)
+graphify-out/
