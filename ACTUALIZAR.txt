@@ -2,45 +2,80 @@
   ACTUALIZAR ANKYRA A UNA NUEVA VERSION
 ========================================
 
-Tus datos (productos, ventas, inventario y configuracion) NO se
-pierden al actualizar: se guardan aparte de la aplicacion.
+LO MAS IMPORTANTE (leelo con calma):
+
+Tus datos -ventas, productos, inventario y configuracion- NO estan
+dentro de la carpeta del programa. Se guardan APARTE, en otro lugar
+de la computadora, de forma automatica.
+
+Por eso, cuando actualizas SOLO reemplazas el programa y tus datos
+se quedan intactos. NO tienes que buscar, abrir ni mover la base de
+datos: se conserva sola.
 
 
-PASOS
------
+QUE CARPETA SE BORRA
+--------------------
+
+Se borra UNICAMENTE la carpeta del programa anterior: es la carpeta
+que tiene adentro el archivo "Ankyra.exe" (la version que ya usabas).
+
+  Ejemplo: si la tenias en el Escritorio como "Ankyra", esa es.
+
+Esa carpeta es SOLO el programa. Borrarla es seguro: NO contiene
+ninguna venta ni producto.
+
+
+PASOS (forma segura)
+--------------------
 
 1) Cierra Ankyra por completo (que no quede ninguna ventana abierta).
 
-2) Descarga el archivo nuevo "Ankyra-portable.zip" que te enviamos.
+2) A la carpeta VIEJA (la que tiene "Ankyra.exe") cambiale el nombre
+   a, por ejemplo, "Ankyra-viejo".
+   -> Renombrar en vez de borrar de una vez es mas seguro.
 
-3) Descomprimelo: clic derecho sobre el ZIP -> "Extraer todo".
-   (No ejecutes el programa desde dentro del ZIP; primero extrae.)
+3) Descarga el nuevo "Ankyra-portable.zip" que te enviamos.
 
-4) Borra (o cambia de nombre) la carpeta ANTERIOR de Ankyra.
-   Por ejemplo, si la tienes en el Escritorio o en C:\Ankyra,
-   eliminala.
+4) Clic derecho sobre el ZIP -> "Extraer todo".
+   (Primero extrae; no abras el programa desde dentro del ZIP.)
 
-5) Coloca la carpeta NUEVA (la que acabas de extraer) en el mismo
-   lugar donde estaba la anterior.
+5) Coloca la carpeta NUEVA (recien extraida) en el mismo lugar donde
+   estaba la vieja, con el nombre "Ankyra".
 
 6) Abre "Ankyra.exe" de la carpeta nueva.
-   Listo: abrira con toda tu informacion de siempre.
+   Debe abrir con TODA tu informacion de siempre.
+
+7) Crea un acceso directo en el Escritorio para abrirlo facil:
+   - Clic derecho sobre "Ankyra.exe".
+   - (En Windows 11: primero "Mostrar mas opciones".)
+   - "Enviar a" -> "Escritorio (crear acceso directo)".
+
+   OJO: si tenias un acceso directo de la version anterior, es
+   probable que deje de funcionar. Borralo y usa este nuevo.
+
+8) Cuando confirmes que todo esta bien y tus datos aparecen:
+   SI, ya puedes BORRAR la carpeta "Ankyra-viejo" con confianza.
+   Es totalmente seguro: esa carpeta es solo el programa viejo y no
+   contiene ninguna venta ni producto.
 
 
-IMPORTANTE
-----------
+LO QUE NUNCA SE TOCA
+--------------------
 
-- NO borres la carpeta de datos "ankyra-pos". Ahi estan tus ventas,
-  productos y configuracion. Al actualizar SOLO se reemplaza la
-  carpeta de la aplicacion; los datos quedan intactos.
+- NO abras, NO muevas y NO borres la base de datos. No necesitas
+  hacer nada con ella; se actualiza sola al abrir la version nueva.
 
-  (Esa carpeta esta en:  %APPDATA%\ankyra-pos
-   Puedes pegar esa ruta en la barra del Explorador de Windows.)
+- Si por error no ves tus datos: NO borres nada. Vuelve a abrir la
+  version anterior ("Ankyra-viejo") y contactanos.
+
+
+NOTAS
+-----
 
 - La primera vez que abras la version nueva puede tardar unos
-  segundos mas: actualiza la base de datos automaticamente.
+  segundos mas: esta actualizando su informacion.
 
-- Si Windows muestra un aviso azul (SmartScreen) al abrir:
+- Si Windows muestra un aviso azul (SmartScreen):
   clic en "Mas informacion" -> "Ejecutar de todas formas".
   Es normal en programas sin firma digital.
 
@@ -50,7 +85,7 @@ RECOMENDACION
 
 Antes de actualizar, haz un respaldo desde:
    Ajustes -> Respaldos -> "Respaldar ahora"
-Guarda ese respaldo en una USB o en la nube por seguridad.
+y guardalo en una USB o en la nube, por si acaso.
 
 
-Cualquier duda, contactanos.
+Cualquier duda, contactanos ANTES de borrar nada.

@@ -1,0 +1,20 @@
+INSTALAR ANKYRA (PRIMERA VEZ)
+=============================
+
+Ya tienes descargado "Ankyra-portable.zip".
+
+1) Clic derecho al ZIP -> "Extraer todo" -> "Extraer".
+   (Extrae primero; NO lo abras desde dentro del ZIP.)
+
+2) Entra a la carpeta "Ankyra" y abre "Ankyra.exe".
+
+3) Si sale un aviso azul de Windows (SmartScreen):
+   "Mas informacion" -> "Ejecutar de todas formas".
+
+4) Acceso directo al Escritorio:
+   Clic derecho en "Ankyra.exe"
+   (Windows 11: primero "Mostrar mas opciones")
+   -> "Enviar a" -> "Escritorio (crear acceso directo)".
+
+Listo. No saques "Ankyra.exe" de su carpeta.
+Cualquier duda, contactanos.
